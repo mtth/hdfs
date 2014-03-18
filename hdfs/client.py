@@ -1,90 +1,124 @@
 #!/usr/bin/env python
 # encoding: utf-8
 
-"""HDFS client."""
+"""HDFS clients.
 
-from .util import HdfsError, request
+Currently the base client and a Kerberos authenticated client are available.
+
+"""
+
+from .util import HdfsError
+from requests_kerberos import HTTPKerberosAuth, OPTIONAL
+import requests as rq
 
 
-class BaseClient(object):
+class _Request(object):
 
-  """HDFS web client.
+  """Class to define requests.
 
-  :param host: hostname or IP address of HDFS namenode
-  :param port: WebHDFS port on namenode
-  :param auth: authentication mechanism
-  :param user: user name, used to enable relative paths
+  :param verb: HTTP verb
 
   """
 
-  def __init__(self, host, port, auth=None, user=None):
-    self.host = host
-    self.port = port
+  api_root = '/webhdfs/v1'
+  doc_root = 'http://hadoop.apache.org/docs/r1.0.4/webhdfs.html'
+
+  def __init__(self, verb):
+    try:
+      self.handler = getattr(rq, verb.lower())
+    except AttributeError as err:
+      raise HdfsError('Invalid HTTP verb %r.', verb)
+
+  def to_method(self, operation):
+    """Returns method associated with request to attach to client.
+
+    :param operation: operation name.
+
+    """
+    def api_handler(client, path, **params):
+      """Wrapper function."""
+      if not path.startswith('/'):
+        raise HdfsError('Invalid relative path %r.', path)
+      url = '%s%s%s' % (client.url, self.api_root, path)
+      params['op'] = operation
+      return self.handler(
+        url=url,
+        auth=client.auth,
+        params=params,
+        allow_redirects=True,
+      )
+    api_handler.__name__ = '%s_handler' % (operation.lower(), )
+    api_handler.__doc__ = 'Cf. %s#%s' % (self.doc_root, operation)
+    return api_handler
+
+
+class _ClientType(type):
+
+  """Metaclass that enables short and dry request definitions.
+
+  Note that the names of the methods are changed from underscore case to upper
+  case to determine the end operation.
+
+  """
+
+  def __new__(cls, name, bases, attrs):
+    for key, value in attrs.items():
+      if isinstance(value, _Request):
+        attrs[key] = value.to_method(key.replace('_', '').upper())
+    return super(_ClientType, cls).__new__(cls, name, bases, attrs)
+
+
+class Client(object):
+
+  """Base HDFS web client.
+
+  :param url: Hostname or IP address of HDFS namenode, prefixed with protocol,
+    followed by WebHDFS port on namenode
+  :param auth: Authentication mechanism (forwarded to the request handler).
+
+  """
+
+  __metaclass__ = _ClientType
+
+  def __init__(self, url, auth=None):
+    self.url = url
     self.auth = auth
-    self.user = user
 
-  def _url(self, path):
-    """Endpoint URL for a path.
+  # general case
 
-    :param path: HDFS path. If the client was instantiated with a `user`
-      parameter, relative paths will be expanded to start from this user's
-      directory.
+  delete = _Request('DELETE')
+  get_content_summary = _Request('GET')
+  get_file_checksum = _Request('GET')
+  get_file_status = _Request('GET')
+  get_home_directory = _Request('GET')
+  list_status = _Request('GET')
+  mkdirs = _Request('PUT')
+  open = _Request('GET')
+  rename = _Request('PUT')
+  set_owner = _Request('PUT')
+  set_permission = _Request('PUT')
+  set_replication = _Request('PUT')
+  set_times = _Request('PUT')
 
-    """
-    base_url = 'http://%s:%s/webhdfs/v1' % (self.host, self.port)
-    if not path.startswith('/'):
-      if not self.user:
-        raise HdfsError(
-          'Relative paths only allowed when a `user` parameter is specified.'
-        )
-      path = '/user/%s/%s' % (self.user, path)
-    return '%s%s' % (base_url, path)
+  # special cases (requiring 2 step process)
 
-  @request('GET')
-  def list_status(self, path):
-    """List statuses of all files in directory.
-
-    :param path: HDFS path. If the client was instantiated with a `user`
-      parameter, relative paths will be expanded to start from this user's
-      directory.
-
-    """
-    return self._url(path), {}
-
-  @request('GET')
-  def get_file_status(self, path):
-    """List statuses of a single file.
-
-    :param path: HDFS path. If the client was instantiated with a `user`
-      parameter, relative paths will be expanded to start from this user's
-      directory.
-
-    """
-    return self._url(path), {}
-
-  @request('GET')
-  def open(self, path, offset=None, length=None, buffersize=None):
-    """Open file.
-
-    :param path: HDFS path. If the client was instantiated with a `user`
-      parameter, relative paths will be expanded to start from this user's
-      directory.
-    :param offset: The starting byte position.
-    :param length: The number of bytes to be processed.
-    :param buffersize: The size of the buffer used in transferring data.
-
-    """
-    params = {'offset': offset, 'length': length, 'buffersize': buffersize}
-    return self._url(path), params
-
-class Client(BaseClient):
-
-  """Derived methods."""
-
-  def ls(self, path):
-    """List files and directories.
-
-    :param path: remote path.
-
-    """
+  def create(self, path, **params):
+    """Cf. http://hadoop.apache.org/docs/r1.0.4/webhdfs.html#CREATE"""
     pass
+
+  def append(self, path, **params):
+    """Cf. http://hadoop.apache.org/docs/r1.0.4/webhdfs.html#APPEND"""
+    pass
+
+
+class KerberosClient(Client):
+
+  """HDFS web client using Kerberos authentication.
+
+  :param url: Hostname or IP address of HDFS namenode, prefixed with protocol,
+    followed by WebHDFS port on namenode
+
+  """
+
+  def __init__(self, url):
+    super(KerberosClient, self).__init__(url, auth=HTTPKerberosAuth(OPTIONAL))

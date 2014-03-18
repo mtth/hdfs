@@ -3,8 +3,9 @@
 
 """Utilities."""
 
-from functools import wraps
-import requests as rq
+from ConfigParser import (NoOptionError, NoSectionError, ParsingError,
+  RawConfigParser)
+from os.path import exists, expanduser
 
 
 class HdfsError(Exception):
@@ -20,30 +21,48 @@ class HdfsError(Exception):
     super(HdfsError, self).__init__(message % args or ())
 
 
-def request(meth, json=True):
-  """Decorator to transform methods into requests.
+class Config(object):
 
-  :param meth: HTTP verb.
+  """Configuration class.
 
-  The name of the method is used to generate the operation.
+  :param path: path to configuration file. If no file exists at that location,
+    the configuration parser will be empty.
 
   """
-  handler = getattr(rq, meth.lower())
-  def decorator(func):
-    """Actual decorator."""
-    @wraps(func)
-    def wrapper(client, *args, **kwargs):
-      """Wrapper function."""
-      url, params = func(client, *args, **kwargs)
-      params.setdefault('op', func.__name__.replace('_', '').upper())
-      res = handler(
-        url=url,
-        params=params,
-        auth=client.auth,
-      )
-      if json:
-        return res.json()
+
+  def __init__(self, path=expanduser('~/.hdfsrc')):
+    self.parser = RawConfigParser()
+    self.path = path
+    if exists(path):
+      try:
+        self.parser.read(self.path)
+      except ParsingError:
+        raise AzkabanError('Invalid configuration file %r.', path)
+
+  def save(self):
+    """Save configuration parser back to file."""
+    with open(self.path, 'w') as writer:
+      self.parser.write(writer)
+
+  def get_option(self, command, name, default=None):
+    """Get default option value for a command.
+
+    :param command: Command the option should be looked up for.
+    :param name: Name of the option.
+    :param default: Default value to be returned if not found in the
+      configuration file. If not provided, will raise
+      :class:`~hdfs.util.HdfsError`.
+
+    """
+    try:
+      return self.parser.get(command, 'default.%s' % (name, ))
+    except (NoOptionError, NoSectionError):
+      if default:
+        return default
       else:
-        return res.content
-    return wrapper
-  return decorator
+        raise HdfsError(
+          'No default %(name)s found in %(path)r for %(command)s.\n'
+          'You can specify one by adding a `default.%(name)s` option in the '
+          '`%(command)s` section.'
+          % {'command': command, 'name': name, 'path': self.path}
+        )
