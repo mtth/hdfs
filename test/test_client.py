@@ -16,6 +16,7 @@ class _TestSession(object):
 
   """Base class to run tests using remote HDFS.
 
+  Currently, only running tests via Kerberos authentication is supported.
 
   """
 
@@ -26,6 +27,7 @@ class _TestSession(object):
     config = Config()
     try:
       alias = config.parser.get('hdfs', 'test.alias')
+      cls.root = config.parser.get('hdfs', 'test.root')
     except (NoOptionError, NoSectionError):
       pass
     else:
@@ -39,14 +41,26 @@ class _TestSession(object):
     sleep(1)
 
 
-class TestClient(_TestSession):
+class TestRawClient(_TestSession):
 
   """Test Client interactions."""
 
   @classmethod
   def setup_class(cls):
-    super(TestClient, cls).setup_class()
-    cls.client = KerberosClient(cls.url)
+    super(TestRawClient, cls).setup_class()
+    self.client = KerberosClient(url=cls.url, root=cls.root)
 
-  def test_list_status(self):
-    eq_(self.client.list_status('/').status_code, 200)
+  def test_list_status_absolute_root(self):
+    ok_(self.client.list_status('/'))
+
+  def test_list_status_test_root(self):
+    ok_(self.client.list_status(''))
+
+  def test_list_status_test_root(self):
+    eq_(self.client.list_status(''), self.client.list_status(self.root))
+
+  def test_mkdirs(self):
+    file_status = self.client.list_status('')['FileStatuses']['FileStatus']
+    n_files = len(file_status)
+    self.client.mkdirs('test_mkdirs')
+    eq_
