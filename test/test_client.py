@@ -3,7 +3,6 @@
 
 """Test Hdfs client interactions with HDFS."""
 
-
 from hdfs.util import Config, temppath
 from hdfs.client import *
 from hdfs.__main__ import load_client
@@ -19,9 +18,9 @@ def status(response):
   return response.json()['boolean']
 
 
-class TestLocalClient(object):
+class TestLoad(object):
 
-  """Test local client things. E.g. loaders."""
+  """Test client loaders."""
 
   def test_load_insecure_client(self):
     options = {'url': 'foo', 'root': '/'}
@@ -48,43 +47,52 @@ class _TestSession(object):
 
   """Base class to run tests using remote HDFS.
 
-  Currently, only running tests via Kerberos authentication is supported.
+  These tests are run only if a `test.alias` is defined in the `~/.hdfsrc`
+  configuration file.
+
+  .. warning::
+
+    The test directory is entirely cleaned during tests. Don't put anything
+    important in it!
 
   """
 
-  delay = 1 # delay in seconds between requests
+  delay = 1 # delay in seconds between tests
 
   @classmethod
   def setup_class(cls):
     config = Config()
     try:
       client = load_client(config.parser.get('hdfs', 'test.alias'))
-      client._mkdirs('')
+      client._delete('', recursive=True)
     except (NoOptionError, NoSectionError, HdfsError):
       cls.client = None
     else:
       cls.client = client
 
-  @classmethod
-  def teardown_class(cls):
-    if cls.client:
-      cls.client._delete('', recursive=True)
-
   def setup(self):
     if not self.client:
       raise SkipTest
+    else:
+      self.client._mkdirs('')
 
   def teardown(self):
+    if cls.client:
+      cls.client._delete('', recursive=True)
     sleep(self.delay)
 
 
-class TestClientRawApi(_TestSession):
+class TestApi(_TestSession):
 
-  """Test Client general interactions."""
+  """Test client raw API interactions."""
+
+  # helper(s)
 
   def _file_exists(self, path):
     statuses = self.client._list_status('').json()['FileStatuses']
     return path in set(e['pathSuffix'] for e in statuses['FileStatus'])
+
+  # actual tests
 
   def test_list_status_absolute_root(self):
     ok_(self.client._list_status('/'))
@@ -137,38 +145,73 @@ class TestClientRawApi(_TestSession):
       self.client._delete(paths[0])
       self.client._delete(paths[1])
 
+  def test_open_file(self):
+    self.client._create('foo', data='hello')
+    eq_(self.client._open('foo').content, 'hello')
+
+  def test_get_file_checksum(self):
+    self.client._create('foo', data='hello')
+    data = self.client._get_file_checksum('foo').json()['FileChecksum']
+    eq_(sorted(data), ['algorithm', 'bytes', 'length'])
+    ok_(int(data['length']))
+
   @raises(HdfsError)
   def test_get_file_checksum_on_folder(self):
     self.client._get_file_checksum('')
 
 
-class TestClientRawApiWithFile(_TestSession):
+class TestCreate(_TestSession):
 
-  """Test Client file interactions, avoiding deleting a file every time."""
+  """Test client create file."""
 
-  path = 'test_file'
+  def _check_contents(self, path, contents):
+    eq_(self.client._open(path).contents, contents)
 
-  @classmethod
-  def setup_class(cls):
-    super(TestClientRawApiWithFile, cls).setup_class()
-    if cls.client:
-      cls.client._create(cls.path, data='hello')
+  def test_create_from_string(self):
+    self.client.create('up', 'hello, world!')
+    self._check_contents('up', 'hello, world!')
 
-  def test_open_file(self):
-    content = self.client._open(self.path).content
-    eq_(content, 'hello')
+  def test_create_from_generator(self):
+    data = (e for e in ['hello, ', 'world!'])
+    self.client.create('up', data)
+    self._check_contents('up', 'hello, world!')
 
-  def test_get_file_checksum(self):
-    data = self.client._get_file_checksum(self.path).json()['FileChecksum']
-    eq_(sorted(data), ['algorithm', 'bytes', 'length'])
-    ok_(int(data['length']))
+  def test_create_from_file_object(self):
+    with temppath() as tpath:
+      with open(tpath, 'w') as writer:
+        writer.write('hello, world!')
+      with open(tpath) as reader:
+        self.client.create('up', reader)
+    self._check_contents('up', 'hello, world!')
 
-  def test_get_file_checksum(self):
-    data = self.client._get_file_checksum(self.path).json()['FileChecksum']
-    eq_(sorted(data), ['algorithm', 'bytes', 'length'])
-    ok_(int(data['length']))
+  def test_create_set_permissions(self):
+    pass # TODO
 
-  def test_get_file_checksum(self):
-    data = self.client._get_file_checksum(self.path).json()['FileChecksum']
-    eq_(sorted(data), ['algorithm', 'bytes', 'length'])
-    ok_(int(data['length']))
+  @raises(HdfsError)
+  def test_create_to_existing_fie_without_overwrite(self):
+    self.client.create('up', 'hello, world!')
+    self.client.create('up', 'hello again, world!')
+
+  def test_create_and_overwrite_file(self):
+    self.client.create('up', 'hello, world!')
+    self.client.create('up', 'hello again, world!', overwrite=True)
+    self._check_contents('up', 'hello again, world!')
+
+  def test_create_and_overwrite_directory(self):
+    self.client._mkdirs('up')
+    self.client.create('up', 'hello, world!')
+    self._check_contents('up', 'hello, world!')
+
+  @raises(HdfsError)
+  def test_create_invalid_path(self):
+    # one of the directories in the new path is an already existing file
+    self.client.create('up', 'hello, world!')
+    self.client.create('up/up', 'hello again, world!')
+
+
+class TestUpload(_TestSession):
+
+  """Test client upload files."""
+
+  def _check_contents(self, path, contents):
+    eq_(self.client._open(path).contents, contents)

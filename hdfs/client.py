@@ -5,6 +5,8 @@
 
 from .util import HdfsError
 from getpass import getuser
+from os import walk
+from os.path import exists, isdir, join, relpath
 from requests_kerberos import HTTPKerberosAuth, OPTIONAL
 import re
 import requests as rq
@@ -16,10 +18,14 @@ DOC_URL = 'http://hadoop.apache.org/docs/r1.0.4/webhdfs.html'
 
 class _Request(object):
 
-  """Class to define requests.
+  """Class to define API requests.
 
-  :param verb: HTTP verb
+  :param verb: HTTP verb (`'GET'`, `'PUT'`, etc.).
   :param kwargs: Keyword arguments passed to the request handler.
+
+  Note that by default the `allow_redirects` keyword argument is set to `True`
+  and passed to the request handler. This is for convenience as all but 2 of
+  the API endpoints require it.
 
   """
 
@@ -35,6 +41,9 @@ class _Request(object):
     """Returns method associated with request to attach to client.
 
     :param operation: operation name.
+
+    This is called inside the metaclass to switch :class:`_Request` objects
+    with the method they represent.
 
     """
     def api_handler(client, path, data=None, **params):
@@ -68,8 +77,10 @@ class _ClientType(type):
 
   """Metaclass that enables short and dry request definitions.
 
-  Note that the names of the methods are changed from underscore case to upper
-  case to determine the end operation, removing any numbers in the process.
+  This metaclass transforms any :class:`_Request` instances into their
+  corresponding API handlers. Note that the operation used is determined
+  directly from the name of the attribute (trimming numbers and underscores and
+  uppercasing it).
 
   """
 
@@ -84,7 +95,7 @@ class _ClientType(type):
 
 class Client(object):
 
-  """HDFS web client.
+  """Base HDFS web client.
 
   :param url: Hostname or IP address of HDFS namenode, prefixed with protocol,
     followed by WebHDFS port on namenode
@@ -95,9 +106,9 @@ class Client(object):
   :param proxy: User to proxy as.
   :param root: Root path. Used to allow relative path parameters.
 
-  In general, this client should not be instantiated directly but by using one
-  of its subclasses. E.g. :class:`~hdfs.client.InsecureClient`,
-  :class:`~hdfs.client.TokenClient` or :class:`~hdfs.client.KerberosClient`.
+  In general, this client should only be used when its subclasses (e.g.
+  :class:`InsecureClient`, :class:`~TokenClient`, :class:`~KerberosClient`) do
+  not provide enough flexibility.
 
   """
 
@@ -129,10 +140,11 @@ class Client(object):
     :param response: Response.
 
     """
-    # Cf. http://hadoop.apache.org/docs/r1.0.4/webhdfs.html#Error+Responses
     try:
+      # Cf. http://hadoop.apache.org/docs/r1.0.4/webhdfs.html#Error+Responses
       message = response.json()['RemoteException']['message']
     except ValueError:
+      # No clear one thing to display?
       message = response.content
     raise HdfsError(message)
 
@@ -158,25 +170,68 @@ class Client(object):
 
   # Exposed endpoints
 
-  def upload(self, hdfs_path, data, overwrite=False, permission=None):
+  def create(
+    self, hdfs_path, data, overwrite=False, permission=None, blocksize=None,
+    replication=None,
+  ):
     """Create a file on HDFS.
 
     :param hdfs_path: Path where to create file. The necessary directories will
       be created appropriately.
-    :param data: Contents of file to write. Can either be a string or a file
-      object (will allow for streaming uploads).
-    :param overwrite: Overwrite any existing file.
-    :param permissions: Octal permissions to set on newly created file.
+    :param data: Contents of file to write. Can be a string, a generator or a
+      file object. The last two options will allow streaming upload (i.e.
+      without having to load the entire contents into memory).
+    :param overwrite: Overwrite any existing file or directory.
+    :param permissions: Octal permissions to set on the newly created file.
+      Leading zeros may be omitted.
+    :param blocksize: Block size of the file.
+    :param replication: Number of replications of the file.
 
     """
     res_1 = self._create_1(
       hdfs_path,
       overwrite=overwrite,
-      permission=permission
+      permission=permission,
+      blocksize=blocksize,
+      replication=replication,
     )
     res_2 = rq.put(res_1.headers['location'], data=data)
     if not res_2:
       self.on_error(res_2)
+
+  def upload(self, hdfs_path, local_path, recursive=False, **kwargs):
+    """Upload a file or directory to HDFS.
+
+    :param hdfs_path: Target HDFS path.
+    :param hdfs_path: Local path to file (or directory if the `recursive`
+      option is set to `True`).
+    :param recursive: Recursively upload all files in `local_path`. Note that
+      when this option is set, only files are uploaded, i.e. empty directories
+      will not be created.
+    :param kwargs: Keyword arguments forwarded to :meth:`Client.create`, these
+      will be common to all files and directories created.
+
+    """
+    if not exists(local_path):
+      raise HdfsError('No file found at %r.', local_path)
+    elif not isdir(local_path):
+      with open(local_path) as reader:
+        self.create(hdfs_path, reader, **kwargs)
+    elif not recursive:
+      raise HdfsError(
+        'Cannot upload directory %r without the recursive option.', local_path,
+      )
+    else:
+      base_local_path = abspath(local_path)
+      for dir_path, dnames, fnames in walk(base_local_path):
+        for fname in fnames:
+          local_fpath = join(abspath(dir_path), fname)
+          hdfs_fpath = '%s/%s' % (
+            hdfs_path.rstrip('/'),
+            relpath(local_fpath, base_local_path),
+          )
+          with open(local_fpath) as reader:
+            self.create(hdfs_fpath, reader, **kwargs)
 
   def download(self, hdfs_path, local_path, max_connections=5):
     """Download a file from HDFS.
