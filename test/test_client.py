@@ -90,18 +90,24 @@ class _TestSession(object):
   def _check_content(self, path, content):
     eq_(self.client._open(path).content, content)
 
+  def _file_exists(self, path):
+    if '/' in path:
+      head, tail = path.rsplit('/', 1)
+    else:
+      head = ''
+      tail = path
+    try:
+      statuses = self.client._list_status(head).json()['FileStatuses']
+    except HdfsError:
+      # head doesn't exist
+      return False
+    else:
+      return path in set(e['pathSuffix'] for e in statuses['FileStatus'])
+
 
 class TestApi(_TestSession):
 
   """Test client raw API interactions."""
-
-  # helper(s)
-
-  def _file_exists(self, path):
-    statuses = self.client._list_status('').json()['FileStatuses']
-    return path in set(e['pathSuffix'] for e in statuses['FileStatus'])
-
-  # actual tests
 
   def test_list_status_absolute_root(self):
     ok_(self.client._list_status('/'))
@@ -308,6 +314,13 @@ class TestRead(_TestSession):
         eq_(reader.read(), 'hello, world!')
 
   @raises(HdfsError)
+  def test_read_directory(self):
+    self.client._mkdirs('foo')
+    with temppath() as tpath:
+      with open(tpath, 'w') as writer:
+        self.client.read('foo', writer)
+
+  @raises(HdfsError)
   def test_read_missing_file(self):
     with temppath() as tpath:
       with open(tpath, 'w') as writer:
@@ -357,10 +370,25 @@ class TestRename(_TestSession):
 class TestInfo(_TestSession):
 
   def test_file(self):
-    pass
+    self.client.write('foo', 'hello, world!')
+    infos = self.client.info('foo')
+    eq_(len(infos), 1)
+    eq_(infos[0].path, 'foo')
+    eq_(
+      sorted(infos[0].status),
+      [
+        'accessTime', 'blockSize', 'group', 'length', 'modificationTime',
+        'owner', 'pathSuffix', 'permission', 'replication', 'type',
+      ],
+    )
 
   def test_directory(self):
-    pass
+    self.client.write('dir/foo', 'hello, world!')
+    self.client.write('dir/bar', 'hello, world!')
+    infos = self.client.info('dir', depth=1)
+    eq_(len(infos), 3)
+    eq_(sorted(a.path for a in infos), ['dir', 'dir/bar', 'dir/foo'])
 
-  def test_directory_with_part_files(self):
-    pass
+  @raises(HdfsError)
+  def test_missing_file(self):
+    self.client.info('foo')

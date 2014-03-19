@@ -3,7 +3,7 @@
 
 """HDFS clients."""
 
-from .util import HdfsError, HdfsStatus
+from .util import HdfsError, HdfsInfo
 from getpass import getuser
 from os import walk
 from os.path import abspath, exists, isdir, join, relpath
@@ -15,7 +15,7 @@ import requests as rq
 
 API_PREFIX = '/webhdfs/v1'
 DOC_URL = 'http://hadoop.apache.org/docs/r1.0.4/webhdfs.html'
-PART_PATTERN = re.compile('part-[mr]-\d+')
+PART_PATTERN = re.compile('part-[mr]-\d+\.[^.]+')
 
 
 class _Request(object):
@@ -67,7 +67,7 @@ class _Request(object):
         **self.kwargs
       )
       if not response: # non 2XX status code
-        return client.on_error(response)
+        return client._on_error(response)
       else:
         return response
     api_handler.__name__ = '%s_handler' % (operation.lower(), )
@@ -136,7 +136,7 @@ class Client(object):
     except ValueError as err:
       raise HdfsError('Invalid alias.')
 
-  def on_error(self, response):
+  def _on_error(self, response):
     """Callback when an API response has a non 2XX status code.
 
     :param response: Response.
@@ -199,7 +199,7 @@ class Client(object):
     )
     res_2 = rq.put(res_1.headers['location'], data=data)
     if not res_2:
-      self.on_error(res_2)
+      self._on_error(res_2)
 
   def upload(self, hdfs_path, local_path, recursive=False, **kwargs):
     """Upload a file or directory to HDFS.
@@ -210,7 +210,7 @@ class Client(object):
     :param recursive: Recursively upload all files in `local_path`. Note that
       when this option is set, only files are uploaded, i.e. empty directories
       will not be created.
-    :param kwargs: Keyword arguments forwarded to :meth:`Client.write`, these
+    :param kwargs: Keyword arguments forwarded to :meth:`write`, these
       will be common to all files and directories created.
 
     """
@@ -235,27 +235,32 @@ class Client(object):
           with open(local_fpath) as reader:
             self.write(hdfs_fpath, reader, **kwargs)
 
-  def read(
-    self, hdfs_path, writer, offset=None, length=None, buffer_size=1024,
-  ):
+  def read(self, hdfs_path, writer, offset=0, length=None, buffer_size=1024):
     """Read file.
 
     :param hdfs_path: HDFS path.
-    :param writer: Open file object.
+    :param writer: File object.
     :param offset: Starting byte position.
-    :param length: Number of bytes to be processed.
+    :param length: Number of bytes to be processed. `None` will read the entire
+      file.
     :param buffer_size: Batch size in bytes.
 
     """
     res = self._open(hdfs_path, offset=offset, length=length)
-    for line in res.iter_content(buffer_size):
-      writer.write(line)
+    for chunk in res.iter_content(buffer_size):
+      writer.write(chunk)
 
-  def download(self, hdfs_path, local_path, recursive=False):
+  def download(
+    self, hdfs_path, local_path, overwrite=False, recursive=False, **kwargs
+  ):
     """Download a file from HDFS.
 
-    :param hdfs_path: Path on HDFS of file to download.
+    :param hdfs_path: Path on HDFS of the file to download.
     :param local_path: Local path.
+    :param recursive: Recursively download all files in `hdfs_path`. Note that
+      when this option is set, only files are downloaded, i.e. empty
+      directories will not be created.
+    :param kwargs: Keyword arguments forwarded to :meth:`read`.
 
     """
     pass
@@ -288,55 +293,31 @@ class Client(object):
     if not res.json()['boolean']:
       raise HdfsError('Path %r not found.', hdfs_src_path)
 
-  def list(self, hdfs_path):
-    """Returns list of contents of directory.
+  def info(self, hdfs_path, depth=0):
+    """Returns a list of :class:`~hdfs.util.FileInfo`.
 
-    :param hdfs_path: HDFS path to directory.
-
-    If `hdfs_path` points to a file, this method will raise `HdfsError`.
+    :param hdfs_path: HDFS path to file or directory.
 
     """
-    status = self._list_status(hdfs_path).json()['FileStatuses']
-    statuses = dict(
-      (a['pathSuffix'], HdfsStatus(a, '%s/%s' % (self.root, hdfs_path)))
-      for a in status['FileStatus']
-    )
-    if '' in statuses: # file, clearer to error out
-      raise HdfsError('Path %r is not a directory.', hdfs_path)
-    return statuses
-
-  def info(self, hdfs_path):
-    """Returns information about a file or directory.
-
-    :param hdfs_path: HDFS path.
-
-    """
-    return HdfsStatus(
+    info = HdfsInfo(
       self._get_file_status(hdfs_path).json()['FileStatus'],
-      '%s/%s' % (self.root, hdfs_path),
+      hdfs_path,
     )
-    status = self._get_file_status(hdfs_path).json()['FileStatus']
-    if status['type'] == 'DIRECTORY':
-      summary = self._get_content_summary(hdfs_path).json()['ContentSummary']
-      size = summary['length']
-      age = {
-        'modification': int(cur_timestamp - status['modificationTime'] / 1000),
-      }
-    else:
-      type_ = ['file', None]
-      size = status['length']
-      age = {
-        'modification': int(cur_timestamp - status['modificationTime'] / 1000),
-        'access': int(cur_timestamp - status['accessTime'] / 1000),
-      }
-    return {
-      'type': type_,
-      'size': size,
-      'permission': status['permission'],
-      'owner': status['owner'],
-      'group': status['group'],
-      'age': age,
-    }
+    def walk(info, depth):
+      path = info.path
+      if info.is_dir:
+        summary = self._get_content_summary(path).json()['ContentSummary']
+        info.add_summary(summary)
+        yield info
+        if depth > 0:
+          ls = self._list_status(path).json()['FileStatuses']
+          infos = [HdfsInfo(status, path) for status in ls['FileStatus']]
+          for a in sorted(infos, key=lambda b: b.path):
+            for c in walk(a, depth - 1):
+              yield c
+      else:
+        yield info
+    return list(walk(info, depth))
 
 
 class InsecureClient(Client):
@@ -383,7 +364,7 @@ class KerberosClient(Client):
       root = root or '/user/%s/' % (getuser(), ),
     )
 
-  def on_error(self, response):
+  def _on_error(self, response):
     """Callback when an API response has a non-200 status code.
 
     :param response: response.
@@ -393,7 +374,7 @@ class KerberosClient(Client):
       raise HdfsError(
         'Authentication failure. Check your kerberos credentials.'
       )
-    return super(KerberosClient, self).on_error(response)
+    return super(KerberosClient, self)._on_error(response)
 
 
 class TokenClient(Client):

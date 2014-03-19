@@ -6,6 +6,7 @@
 from ConfigParser import (NoOptionError, NoSectionError, ParsingError,
   RawConfigParser)
 from contextlib import contextmanager
+from itertools import chain
 from os import close, remove
 from os.path import exists, expanduser
 from tempfile import mkstemp
@@ -75,7 +76,7 @@ class Config(object):
       raise HdfsError('No URL found for alias %r.', alias)
 
 
-class HdfsStatus(object):
+class HdfsInfo(object):
 
   """Wrapper around FileStatus JSON objects.
 
@@ -86,12 +87,37 @@ class HdfsStatus(object):
 
   """
 
+  summary = None
+
   def __init__(self, status, folder):
-    self.path = '%s/%s' % (folder.rstrip('/'), status.pop('pathSuffix'))
+    path_suffix = status['pathSuffix']
+    folder = folder.rstrip('/')
+    if folder and path_suffix:
+      self.path = '%s/%s' % (folder, path_suffix)
+    else:
+      self.path = path_suffix or folder
     self.status = status
 
-  def __repr__(self):
-    return '%s: %s' % (self.path, self.status)
+  def __str__(self):
+    return '%s%s' % (self.path, '/' if self.is_dir else '')
+
+  @property
+  def is_dir(self):
+    """Is the underlying node a directory?"""
+    return self.status['type'] == 'DIRECTORY'
+
+  @property
+  def size(self):
+    """Size in bytes."""
+    return self.summary['length'] if self.summary else self.status['length']
+
+  def add_summary(self, summary):
+    """Add summary info for directories.
+
+    :param summary: Content summary dictionary.
+
+    """
+    self.summary = summary
 
 
 @contextmanager
