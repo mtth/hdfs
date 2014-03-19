@@ -30,20 +30,20 @@ class TestLoad(object):
     options = {'url': 'foo', 'root': '/'}
     client = InsecureClient.from_config(options)
     eq_(client.url, options['url'])
-    eq_(client.root, options['root'])
+    eq_(client.root, options['root'].rstrip('/'))
     eq_(client.params, {'user.name': getuser()})
 
   def test_load_kerberos_client(self):
     options = {'url': 'foo', 'proxy': 'bar', 'root': '/'}
     client = KerberosClient.from_config(options)
     eq_(client.url, options['url'])
-    eq_(client.root, options['root'])
+    eq_(client.root, options['root'].rstrip('/'))
 
   def test_load_token_client(self):
     options = {'url': 'foo', 'token': 'abc', 'root': '/'}
     client = TokenClient.from_config(options)
     eq_(client.url, options['url'])
-    eq_(client.root, options['root'])
+    eq_(client.root, options['root'].rstrip('/'))
     eq_(client.params, {'delegation': options['token']})
 
 
@@ -58,6 +58,8 @@ class _TestSession(object):
 
     The test directory is entirely cleaned during tests. Don't put anything
     important in it!
+
+  Also contains a few helper functions.
 
   """
 
@@ -84,6 +86,9 @@ class _TestSession(object):
     if self.client:
       self.client._delete('', recursive=True)
     sleep(self.delay)
+
+  def _check_content(self, path, content):
+    eq_(self.client._open(path).content, content)
 
 
 class TestApi(_TestSession):
@@ -186,9 +191,6 @@ class TestList(_TestSession):
 
 class TestWrite(_TestSession):
 
-  def _check_content(self, path, content):
-    eq_(self.client._open(path).content, content)
-
   def test_create_from_string(self):
     self.client.write('up', 'hello, world!')
     self._check_content('up', 'hello, world!')
@@ -233,9 +235,6 @@ class TestWrite(_TestSession):
 
 
 class TestUpload(_TestSession):
-
-  def _check_content(self, path, content):
-    eq_(self.client._open(path).content, content)
 
   def test_upload_file(self):
     with temppath() as tpath:
@@ -329,6 +328,30 @@ class TestRead(_TestSession):
         self.client.read('foo', writer, offset=7, length=5)
       with open(tpath) as reader:
         eq_(reader.read(), 'world')
+
+
+class TestRename(_TestSession):
+
+  def test_rename_file(self):
+    self.client.write('foo', 'hello, world!')
+    self.client.rename('foo', 'bar')
+    self._check_content('bar', 'hello, world!')
+
+  @raises(HdfsError)
+  def test_rename_missing_file(self):
+    self.client.rename('foo', 'bar')
+
+  @raises(HdfsError)
+  def test_rename_file_to_existing_file(self):
+    self.client.write('foo', 'hello, world!')
+    self.client.write('bar', 'hello again, world!')
+    self.client.rename('foo', 'bar')
+
+  def test_rename_file_into_existing_directory(self):
+    self.client.write('foo', 'hello, world!')
+    self.client._mkdirs('bar')
+    self.client.rename('foo', 'bar')
+    self._check_content('bar/foo', 'hello, world!')
 
 
 class TestInfo(_TestSession):

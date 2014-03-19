@@ -241,10 +241,10 @@ class Client(object):
     """Read file.
 
     :param hdfs_path: HDFS path.
-    :param writer: Descriptor.
+    :param writer: Open file object.
     :param offset: Starting byte position.
     :param length: Number of bytes to be processed.
-    :param buffer_size: Batch size.
+    :param buffer_size: Batch size in bytes.
 
     """
     res = self._open(hdfs_path, offset=offset, length=length)
@@ -261,26 +261,32 @@ class Client(object):
     pass
 
   def delete(self, hdfs_path, recursive=False):
-    """Remove a file or empty directory from HDFS.
+    """Remove a file or directory from HDFS.
 
     :param hdfs_path: HDFS path.
+    :param recursive: Recursively delete files and directories. By default,
+      this method will raise :class:`~hdfs.util.HdfsError` if trying to delete
+      a non-empty directory.
 
     """
     res = self._delete(hdfs_path, recursive=recursive)
     if not res.json()['boolean']:
       raise HdfsError('Path %r not found.', hdfs_path)
 
-  def rename(self, hdfs_src_path, hdfs_dst_path, overwrite=False):
-    """Rename a file or folder.
+  def rename(self, hdfs_src_path, hdfs_dst_path):
+    """Move a file or folder.
 
     :param hdfs_src_path: Source path.
-    :param hdfs_dst_path: Destination path.
-    :param overwrite: Overwrite an existing file or folder.
-
-    Allows relative paths for both source and destination.
+    :param hdfs_dst_path: Destination path. If the path already exists and is
+      a directory, the source will be moved into it. If the path exists and is
+      a file, this method will raise :class:`~hdfs.util.HdfsError`.
 
     """
-    pass
+    if not hdfs_dst_path.startswith('/'):
+      hdfs_dst_path = '%s/%s' % (self.root, hdfs_dst_path)
+    res = self._rename(hdfs_src_path, destination=hdfs_dst_path)
+    if not res.json()['boolean']:
+      raise HdfsError('Path %r not found.', hdfs_src_path)
 
   def list(self, hdfs_path):
     """Returns list of contents of directory.
