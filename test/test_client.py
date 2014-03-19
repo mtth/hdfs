@@ -68,7 +68,7 @@ class _TestSession(object):
   @classmethod
   def teardown_class(cls):
     if cls.client:
-      cls.client._delete('')
+      cls.client._delete('', recursive=True)
 
   def setup(self):
     if not self.client:
@@ -78,7 +78,7 @@ class _TestSession(object):
     sleep(self.delay)
 
 
-class TestClient(_TestSession):
+class TestClientRawApi(_TestSession):
 
   """Test Client general interactions."""
 
@@ -103,22 +103,21 @@ class TestClient(_TestSession):
     path = self.client._get_home_directory('').json()['Path']
     ok_('/user/' in path)
 
-  def test_create_delete_file(self):
+  def test_create_file(self):
     path = 'foo'
-    ok_(self.client._create(path, data='hello'))
+    ok_(status(self.client._create(path, data='hello')))
     data = self.client._list_status('').json()['FileStatuses']['FileStatus']
     ok_(self._file_exists(path))
+
+  def test_delete_file(self):
+    path = 'bar'
+    self.client._create(path, data='hello')
     ok_(status(self.client._delete(path)))
     ok_(not self._file_exists(path))
 
-  def test_create_streaming(self):
-    with temppath() as tpath:
-      with open(tpath, 'w') as writer:
-        writer.write('hello\nworld!')
-      with open(tpath) as reader:
-        self.client._create('foo', data=(line for line in reader))
-    eq_(self.client._open('foo').content, 'hello\nworld!')
-    self.client._delete('foo')
+  def test_delete_missing_file(self):
+    path = 'bar2'
+    ok_(not status(self.client._delete(path)))
 
   def test_rename_file(self):
     paths = ['foo', '%s/bar' % (self.client.root.rstrip('/'), )]
@@ -143,7 +142,7 @@ class TestClient(_TestSession):
     self.client._get_file_checksum('')
 
 
-class TestClientFileActions(_TestSession):
+class TestClientRawApiWithFile(_TestSession):
 
   """Test Client file interactions, avoiding deleting a file every time."""
 
@@ -151,13 +150,9 @@ class TestClientFileActions(_TestSession):
 
   @classmethod
   def setup_class(cls):
-    super(TestClientFileActions, cls).setup_class()
-    cls.client._create(cls.path, data='hello')
-
-  @classmethod
-  def teardown_class(cls):
-    cls.client._delete(cls.path)
-    super(TestClientFileActions, cls).teardown_class()
+    super(TestClientRawApiWithFile, cls).setup_class()
+    if cls.client:
+      cls.client._create(cls.path, data='hello')
 
   def test_open_file(self):
     content = self.client._open(self.path).content

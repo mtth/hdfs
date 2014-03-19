@@ -55,15 +55,8 @@ class _Request(object):
         params=params,
         **self.kwargs
       )
-      if response.status_code == '401':
-        raise HdfsError('Unable to authenticate. Check your credentials.')
-      elif not response: # response has non-200 status code
-        # Cf. http://hadoop.apache.org/docs/r1.0.4/webhdfs.html#Error+Responses
-        try:
-          message = response.json()['RemoteException']['message']
-        except ValueError:
-          message = response.content
-        raise HdfsError(message)
+      if not response: # non 2XX status code
+        return client.on_error(response)
       else:
         return response
     api_handler.__name__ = '%s_handler' % (operation.lower(), )
@@ -130,9 +123,24 @@ class Client(object):
     except ValueError as err:
       raise HdfsError('Invalid alias.')
 
+  def on_error(self, response):
+    """Callback when an API response has a non 2XX status code.
+
+    :param response: Response.
+
+    """
+    # Cf. http://hadoop.apache.org/docs/r1.0.4/webhdfs.html#Error+Responses
+    try:
+      message = response.json()['RemoteException']['message']
+    except ValueError:
+      message = response.content
+    raise HdfsError(message)
+
   # Raw API endpoints
 
+  _append = _Request('PUT') # doesn't allow for streaming
   _append_1 = _Request('POST', allow_redirects=False)
+  _create = _Request('PUT') # doesn't allow for streaming
   _create_1 = _Request('PUT', allow_redirects=False)
   _delete = _Request('DELETE')
   _get_content_summary = _Request('GET')
@@ -150,28 +158,56 @@ class Client(object):
 
   # Exposed endpoints
 
-  def create(self, path, data, overwrite=False, permission=None):
-    """Create a file.
+  def upload(self, hdfs_path, data, overwrite=False, permission=None):
+    """Create a file on HDFS.
 
-    :param path: Path where to create file. The necessary directories will be
-      created appropriately.
+    :param hdfs_path: Path where to create file. The necessary directories will
+      be created appropriately.
     :param data: Contents of file to write. Can either be a string or a file
       object (will allow for streaming uploads).
     :param overwrite: Overwrite any existing file.
     :param permissions: Octal permissions to set on newly created file.
 
     """
-    res_1 = self._create_1(path, overwrite=overwrite, permission=permission)
+    res_1 = self._create_1(
+      hdfs_path,
+      overwrite=overwrite,
+      permission=permission
+    )
     res_2 = rq.put(res_1.headers['location'], data=data)
     if not res_2:
-      raise HdfsError(res_2.json()['RemoteException']['message'])
+      self.on_error(res_2)
 
+  def download(self, hdfs_path, local_path, max_connections=5):
+    """Download a file from HDFS.
 
-  def rename(self, src_path, dst_path, overwrite=False):
+    :param hdfs_path: Path on HDFS of file to download.
+    :param local_path: Local path.
+
+    """
+    pass
+
+  def stream(self, hdfs_path):
+    """Stream file from HDFS to standard out.
+
+    :param hdfs_path: TODO
+
+    """
+    pass
+
+  def delete(self, hdfs_path):
+    """TODO: delete docstring.
+
+    :param hdfs_path: TODO
+
+    """
+    pass
+
+  def rename(self, hdfs_src_path, hdfs_dst_path, overwrite=False):
     """Rename a file or folder.
 
-    :param src_path: Source path.
-    :param dst_path: Destination path.
+    :param hdfs_src_path: Source path.
+    :param hdfs_dst_path: Destination path.
     :param overwrite: Overwrite an existing file or folder.
 
     Allows relative paths for both source and destination.
@@ -179,7 +215,7 @@ class Client(object):
     """
     pass
 
-  def list_dir(self, path):
+  def list(self, hdfs_path):
     """List files in a directory.
 
     :param path: HDFS path.
@@ -239,6 +275,18 @@ class KerberosClient(Client):
       proxy=proxy,
       root = root or '/user/%s/' % (getuser(), ),
     )
+
+  def on_error(self, response):
+    """Callback when an API response has a non-200 status code.
+
+    :param response: response.
+
+    """
+    if response.status_code == 401:
+      raise HdfsError(
+        'Authentication failure. Check your kerberos credentials.'
+      )
+    return super(KerberosClient, self).on_error(response)
 
 
 class TokenClient(Client):
