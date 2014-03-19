@@ -126,8 +126,33 @@ class Client(object):
 
   # Exposed endpoints
 
-  def ls(self, path):
+  def list_dir(self, path):
+    """List files in a directory.
+
+    :param path: HDFS path.
+
+    """
     return self._list_status(path).json()['FileStatuses']['FileStatus']
+
+  def size(self, path):
+    """Size of directory.
+
+    :param path: HDFS path.
+
+    """
+    pass
+
+  @classmethod
+  def from_config(cls, options):
+    """Load client from configuration options.
+
+    :param options: Dictionary of options.
+
+    """
+    try:
+      return cls(**options)
+    except ValueError as err:
+      raise HdfsError('Invalid alias.')
 
 
 class InsecureClient(Client):
@@ -154,6 +179,27 @@ class InsecureClient(Client):
     )
 
 
+class KerberosClient(Client):
+
+  """HDFS web client using Kerberos authentication.
+
+  :param url: Hostname or IP address of HDFS namenode, prefixed with protocol,
+    followed by WebHDFS port on namenode
+  :param proxy: User to proxy as.
+  :param root: Root path. Used to allow relative path parameters. Defaults to
+    the current user's (as determined by `whoami`) home directory on HDFS.
+
+  """
+
+  def __init__(self, url, proxy=None, root=None):
+    super(KerberosClient, self).__init__(
+      url,
+      auth=HTTPKerberosAuth(OPTIONAL),
+      proxy=proxy,
+      root = root or '/user/%s/' % (getuser(), ),
+    )
+
+
 class TokenClient(Client):
 
   """HDFS web client using Hadoop token delegation security.
@@ -173,25 +219,4 @@ class TokenClient(Client):
       params={'delegation': token},
       proxy=proxy,
       root=root,
-    )
-
-
-class KerberosClient(Client):
-
-  """HDFS web client using Kerberos authentication.
-
-  :param url: Hostname or IP address of HDFS namenode, prefixed with protocol,
-    followed by WebHDFS port on namenode
-  :param proxy: User to proxy as.
-  :param root: Root path. Used to allow relative path parameters. Defaults to
-    the current user's (as determined by `whoami`) home directory on HDFS.
-
-  """
-
-  def __init__(self, url, proxy=None, root=None):
-    super(KerberosClient, self).__init__(
-      url,
-      auth=HTTPKerberosAuth(OPTIONAL),
-      proxy=proxy,
-      root = root or '/user/%s/' % (getuser(), ),
     )

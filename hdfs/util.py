@@ -5,7 +5,10 @@
 
 from ConfigParser import (NoOptionError, NoSectionError, ParsingError,
   RawConfigParser)
+from contextlib import contextmanager
+from os import close, remove
 from os.path import exists, expanduser
+from tempfile import mkstemp
 
 
 class HdfsError(Exception):
@@ -44,25 +47,51 @@ class Config(object):
     with open(self.path, 'w') as writer:
       self.parser.write(writer)
 
-  def get_option(self, command, name, default=None):
-    """Get default option value for a command.
+  def get_alias(self, alias=None):
+    """Retrieve alias information from configuration file.
 
-    :param command: Command the option should be looked up for.
-    :param name: Name of the option.
-    :param default: Default value to be returned if not found in the
-      configuration file. If not provided, will raise
-      :class:`~hdfs.util.HdfsError`.
+    :param alias: Alias name. If not specified, will use the `default.alias` in
+      the `hdfs` section if provided, else will raise :class:`HdfsError`.
+
+    Raises :class:`HdfsError` if no matching / an invalid alias was found.
 
     """
     try:
-      return self.parser.get(command, 'default.%s' % (name, ))
+      alias = alias or self.parser.get('hdfs', 'default.alias')
     except (NoOptionError, NoSectionError):
-      if default:
-        return default
-      else:
-        raise HdfsError(
-          'No default %(name)s found in %(path)r for %(command)s.\n'
-          'You can specify one by adding a `default.%(name)s` option in the '
-          '`%(command)s` section.'
-          % {'command': command, 'name': name, 'path': self.path}
-        )
+      raise HdfsError('No alias specified and no default alias found.')
+    section = '%s_alias' % (alias, )
+    try:
+      options = dict(self.parser.items(section))
+    except NoSectionError:
+      raise HdfsError('Alias not found: %r.', alias)
+    try:
+      return {
+        'url': options['url'],
+        'auth': options.get('auth', 'insecure'),
+        'root': options.get('root', None),
+      }
+    except KeyError:
+      raise HdfsError('No URL found for alias %r.', alias)
+
+
+@contextmanager
+def temppath():
+  """Create a temporary filepath.
+
+  Usage::
+
+    with temppath() as path:
+      # do stuff
+
+  Any file corresponding to the path will be automatically deleted afterwards.
+
+  """
+  (desc, path) = mkstemp()
+  close(desc)
+  remove(path)
+  try:
+    yield path
+  finally:
+    if exists(path):
+      remove(path)

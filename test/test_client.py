@@ -6,6 +6,7 @@
 
 from hdfs.util import Config
 from hdfs.client import *
+from hdfs.__main__ import load_client
 from ConfigParser import NoOptionError, NoSectionError
 from nose.tools import eq_, ok_, raises, nottest
 from nose.plugins.skip import SkipTest
@@ -20,47 +21,38 @@ class _TestSession(object):
 
   """
 
-  url = None
+  delay = 1 # delay in seconds between requests
 
   @classmethod
   def setup_class(cls):
     config = Config()
     try:
       alias = config.parser.get('hdfs', 'test.alias')
-      cls.root = config.parser.get('hdfs', 'test.root')
     except (NoOptionError, NoSectionError):
       pass
     else:
-      cls.url = config.parser.get('alias', alias)
+      cls.client = load_client(alias)
 
   def setup(self):
-    if not self.url:
+    if not self.client:
       raise SkipTest
 
   def teardown(self):
-    sleep(1)
+    sleep(self.delay)
 
 
-class TestRawClient(_TestSession):
+class TestClient(_TestSession):
 
   """Test Client interactions."""
 
-  @classmethod
-  def setup_class(cls):
-    super(TestRawClient, cls).setup_class()
-    self.client = KerberosClient(url=cls.url, root=cls.root)
-
   def test_list_status_absolute_root(self):
-    ok_(self.client.list_status('/'))
+    ok_(self.client._list_status('/'))
 
   def test_list_status_test_root(self):
-    ok_(self.client.list_status(''))
+    ok_(self.client._list_status(''))
 
   def test_list_status_test_root(self):
-    eq_(self.client.list_status(''), self.client.list_status(self.root))
-
-  def test_mkdirs(self):
-    file_status = self.client.list_status('')['FileStatuses']['FileStatus']
-    n_files = len(file_status)
-    self.client.mkdirs('test_mkdirs')
-    eq_
+    eq_(
+      self.client._list_status('').content,
+      self.client._list_status(self.client.root).content,
+    )
