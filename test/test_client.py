@@ -163,20 +163,51 @@ class TestApi(_TestSession):
     self.client._get_file_checksum('')
 
 
-class TestCreate(_TestSession):
+class TestList(_TestSession):
 
-  """Test client create file."""
+  def test_empty_directory(self):
+    eq_(self.client.list(''), {})
+
+  def test_directory(self):
+    self.client.write('foo', 'hello, world!')
+    self.client.write('bar', 'hello again, world!')
+    infos = self.client.list('')
+    eq_(sorted(infos), ['bar', 'foo'])
+
+  @raises(HdfsError)
+  def test_missing_directory(self):
+    self.client.list('foo')
+
+  @raises(HdfsError)
+  def test_file(self):
+    self.client.write('up', 'hello, world!')
+    self.client.list('up')
+
+
+class TestInfo(_TestSession):
+
+  def test_file(self):
+    pass
+
+  def test_directory(self):
+    pass
+
+  def test_directory_with_part_files(self):
+    pass
+
+
+class TestWrite(_TestSession):
 
   def _check_content(self, path, content):
     eq_(self.client._open(path).content, content)
 
   def test_create_from_string(self):
-    self.client.create('up', 'hello, world!')
+    self.client.write('up', 'hello, world!')
     self._check_content('up', 'hello, world!')
 
   def test_create_from_generator(self):
     data = (e for e in ['hello, ', 'world!'])
-    self.client.create('up', data)
+    self.client.write('up', data)
     self._check_content('up', 'hello, world!')
 
   def test_create_from_file_object(self):
@@ -184,7 +215,7 @@ class TestCreate(_TestSession):
       with open(tpath, 'w') as writer:
         writer.write('hello, world!')
       with open(tpath) as reader:
-        self.client.create('up', reader)
+        self.client.write('up', reader)
     self._check_content('up', 'hello, world!')
 
   def test_create_set_permissions(self):
@@ -192,30 +223,28 @@ class TestCreate(_TestSession):
 
   @raises(HdfsError)
   def test_create_to_existing_fie_without_overwrite(self):
-    self.client.create('up', 'hello, world!')
-    self.client.create('up', 'hello again, world!')
+    self.client.write('up', 'hello, world!')
+    self.client.write('up', 'hello again, world!')
 
   def test_create_and_overwrite_file(self):
-    self.client.create('up', 'hello, world!')
-    self.client.create('up', 'hello again, world!', overwrite=True)
+    self.client.write('up', 'hello, world!')
+    self.client.write('up', 'hello again, world!', overwrite=True)
     self._check_content('up', 'hello again, world!')
 
   @raises(HdfsError)
   def test_create_and_overwrite_directory(self):
     # can't overwrite a directory with a file
     self.client._mkdirs('up')
-    self.client.create('up', 'hello, world!')
+    self.client.write('up', 'hello, world!')
 
   @raises(HdfsError)
   def test_create_invalid_path(self):
     # conversely, can't overwrite a file with a directory
-    self.client.create('up', 'hello, world!')
-    self.client.create('up/up', 'hello again, world!')
+    self.client.write('up', 'hello, world!')
+    self.client.write('up/up', 'hello again, world!')
 
 
 class TestUpload(_TestSession):
-
-  """Test client upload files."""
 
   def _check_content(self, path, content):
     eq_(self.client._open(path).content, content)

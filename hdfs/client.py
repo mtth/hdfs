@@ -3,17 +3,19 @@
 
 """HDFS clients."""
 
-from .util import HdfsError
+from .util import HdfsError, hsize
 from getpass import getuser
 from os import walk
 from os.path import abspath, exists, isdir, join, relpath
 from requests_kerberos import HTTPKerberosAuth, OPTIONAL
+from time import time
 import re
 import requests as rq
 
 
 API_PREFIX = '/webhdfs/v1'
 DOC_URL = 'http://hadoop.apache.org/docs/r1.0.4/webhdfs.html'
+PART_PATTERN = re.compile('part-[mr]-\d+')
 
 
 class _Request(object):
@@ -170,7 +172,54 @@ class Client(object):
 
   # Exposed endpoints
 
-  def create(
+  def list(self, hdfs_path):
+    """Returns list of contents of directory.
+
+    :param hdfs_path: HDFS path to directory.
+
+    If `hdfs_path` points to a file, this method will raise `HdfsError`.
+
+    """
+    status = self._list_status(hdfs_path).json()['FileStatuses']
+    statuses = dict(
+      (a.pop('pathSuffix'), a)
+      for a in status['FileStatus']
+    )
+    if '' in statuses: # file, clearer to error out
+      raise HdfsError('Path %r is not a directory.', hdfs_path)
+    return statuses
+
+  def info(self, hdfs_path):
+    """Returns information about a file or directory.
+
+    :param hdfs_path: HDFS path.
+
+    """
+    cur_timestamp = time()
+    status = self._get_file_status(hdfs_path).json()['FileStatus']
+    if status['type'] == 'DIRECTORY':
+      summary = self._get_content_summary(hdfs_path).json()['ContentSummary']
+      size = summary['length']
+      age = {
+        'modification': int(cur_timestamp - status['modificationTime'] / 1000),
+      }
+    else:
+      type_ = ['file', None]
+      size = status['length']
+      age = {
+        'modification': int(cur_timestamp - status['modificationTime'] / 1000),
+        'access': int(cur_timestamp - status['accessTime'] / 1000),
+      }
+    return {
+      'type': type_,
+      'size': size,
+      'permission': status['permission'],
+      'owner': status['owner'],
+      'group': status['group'],
+      'age': age,
+    }
+
+  def write(
     self, hdfs_path, data, overwrite=False, permission=None, blocksize=None,
     replication=None,
   ):
@@ -208,7 +257,7 @@ class Client(object):
     :param recursive: Recursively upload all files in `local_path`. Note that
       when this option is set, only files are uploaded, i.e. empty directories
       will not be created.
-    :param kwargs: Keyword arguments forwarded to :meth:`Client.create`, these
+    :param kwargs: Keyword arguments forwarded to :meth:`Client.write`, these
       will be common to all files and directories created.
 
     """
@@ -216,7 +265,7 @@ class Client(object):
       raise HdfsError('No file found at %r.', local_path)
     elif not isdir(local_path):
       with open(local_path) as reader:
-        self.create(hdfs_path, reader, **kwargs)
+        self.write(hdfs_path, reader, **kwargs)
     elif not recursive:
       raise HdfsError(
         'Cannot upload directory %r without the recursive option.', local_path,
@@ -231,21 +280,28 @@ class Client(object):
             relpath(local_fpath, base_local_path),
           )
           with open(local_fpath) as reader:
-            self.create(hdfs_fpath, reader, **kwargs)
+            self.write(hdfs_fpath, reader, **kwargs)
+
+  def read(self, hdfs_path, writer, offset=None, length=None):
+    """Read file.
+
+    :param hdfs_path: HDFS path.
+    :param writer: Descriptor.
+    :param offset: Starting byte position.
+    :param length: Number of bytes to be processed.
+
+    The file is read line by line.
+
+    """
+    res = self._open(hdfs_path, offset=offset, length=length)
+    for line in res.iter_lines():
+      writer.write(line)
 
   def download(self, hdfs_path, local_path, recursive=False):
     """Download a file from HDFS.
 
     :param hdfs_path: Path on HDFS of file to download.
     :param local_path: Local path.
-
-    """
-    pass
-
-  def stream(self, hdfs_path):
-    """Stream file from HDFS to standard out.
-
-    :param hdfs_path: TODO
 
     """
     pass
@@ -266,22 +322,6 @@ class Client(object):
     :param overwrite: Overwrite an existing file or folder.
 
     Allows relative paths for both source and destination.
-
-    """
-    pass
-
-  def list(self, hdfs_path):
-    """List files in a directory.
-
-    :param path: HDFS path.
-
-    """
-    return self._list_status(path).json()['FileStatuses']['FileStatus']
-
-  def size(self, path):
-    """Size of directory.
-
-    :param path: HDFS path.
 
     """
     pass

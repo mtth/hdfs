@@ -95,3 +95,14 @@ def temppath():
   finally:
     if exists(path):
       remove(path)
+
+def hsize(size):
+  """Transform size from bytes to human readable format (kB, MB, ...).
+
+  :param size: Size in bytes.
+
+  """
+  for suffix in ['bytes', 'kB', 'MB', 'GB', 'TB']:
+    if size < 1024.0:
+      return '%3.1f%s' % (size, suffix)
+    size /= 1024.0
