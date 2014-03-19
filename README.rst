@@ -12,3 +12,4 @@ Future
   data into. By default, a single file is created. Note that this will only 
   work with new line separated files.
 
+* Add `max_connections` option to `Client.download`.

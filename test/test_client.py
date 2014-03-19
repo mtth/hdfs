@@ -10,6 +10,10 @@ from ConfigParser import NoOptionError, NoSectionError
 from getpass import getuser
 from nose.tools import eq_, ok_, raises, nottest
 from nose.plugins.skip import SkipTest
+from os import mkdir, rmdir
+from os.path import join
+from shutil import rmtree
+from tempfile import mkdtemp
 from time import sleep
 
 
@@ -77,8 +81,8 @@ class _TestSession(object):
       self.client._mkdirs('')
 
   def teardown(self):
-    if cls.client:
-      cls.client._delete('', recursive=True)
+    if self.client:
+      self.client._delete('', recursive=True)
     sleep(self.delay)
 
 
@@ -113,8 +117,7 @@ class TestApi(_TestSession):
 
   def test_create_file(self):
     path = 'foo'
-    ok_(status(self.client._create(path, data='hello')))
-    data = self.client._list_status('').json()['FileStatuses']['FileStatus']
+    self.client._create(path, data='hello')
     ok_(self._file_exists(path))
 
   def test_delete_file(self):
@@ -164,17 +167,17 @@ class TestCreate(_TestSession):
 
   """Test client create file."""
 
-  def _check_contents(self, path, contents):
-    eq_(self.client._open(path).contents, contents)
+  def _check_content(self, path, content):
+    eq_(self.client._open(path).content, content)
 
   def test_create_from_string(self):
     self.client.create('up', 'hello, world!')
-    self._check_contents('up', 'hello, world!')
+    self._check_content('up', 'hello, world!')
 
   def test_create_from_generator(self):
     data = (e for e in ['hello, ', 'world!'])
     self.client.create('up', data)
-    self._check_contents('up', 'hello, world!')
+    self._check_content('up', 'hello, world!')
 
   def test_create_from_file_object(self):
     with temppath() as tpath:
@@ -182,7 +185,7 @@ class TestCreate(_TestSession):
         writer.write('hello, world!')
       with open(tpath) as reader:
         self.client.create('up', reader)
-    self._check_contents('up', 'hello, world!')
+    self._check_content('up', 'hello, world!')
 
   def test_create_set_permissions(self):
     pass # TODO
@@ -195,16 +198,17 @@ class TestCreate(_TestSession):
   def test_create_and_overwrite_file(self):
     self.client.create('up', 'hello, world!')
     self.client.create('up', 'hello again, world!', overwrite=True)
-    self._check_contents('up', 'hello again, world!')
+    self._check_content('up', 'hello again, world!')
 
+  @raises(HdfsError)
   def test_create_and_overwrite_directory(self):
+    # can't overwrite a directory with a file
     self.client._mkdirs('up')
     self.client.create('up', 'hello, world!')
-    self._check_contents('up', 'hello, world!')
 
   @raises(HdfsError)
   def test_create_invalid_path(self):
-    # one of the directories in the new path is an already existing file
+    # conversely, can't overwrite a file with a directory
     self.client.create('up', 'hello, world!')
     self.client.create('up/up', 'hello again, world!')
 
@@ -213,5 +217,41 @@ class TestUpload(_TestSession):
 
   """Test client upload files."""
 
-  def _check_contents(self, path, contents):
-    eq_(self.client._open(path).contents, contents)
+  def _check_content(self, path, content):
+    eq_(self.client._open(path).content, content)
+
+  def test_upload_file(self):
+    with temppath() as tpath:
+      with open(tpath, 'w') as writer:
+        writer.write('hello, world!')
+      self.client.upload('up', tpath)
+    self._check_content('up', 'hello, world!')
+
+  def test_upload_directory_depth_1(self):
+    tdpath = mkdtemp()
+    with open(join(tdpath, 'foo'), 'w') as writer:
+      writer.write('hello, world!')
+    with open(join(tdpath, 'bar'), 'w') as writer:
+      writer.write('hello again, world!')
+    self.client.upload('up', tdpath, recursive=True)
+    self._check_content('up/foo', 'hello, world!')
+    self._check_content('up/bar', 'hello again, world!')
+
+  def test_upload_directory_depth_2(self):
+    tdpath = mkdtemp()
+    mkdir(join(tdpath, 'dir'))
+    with open(join(tdpath, 'foo'), 'w') as writer:
+      writer.write('hello, world!')
+    with open(join(tdpath, 'dir', 'bar'), 'w') as writer:
+      writer.write('hello again, world!')
+    self.client.upload('up', tdpath, recursive=True)
+    self._check_content('up/foo', 'hello, world!')
+    self._check_content('up/dir/bar', 'hello again, world!')
+
+  @raises(HdfsError)
+  def test_upload_directory_without_recursive(self):
+    tdpath = mkdtemp()
+    try:
+      self.client.upload('up', tdpath)
+    finally:
+      rmdir(tdpath)

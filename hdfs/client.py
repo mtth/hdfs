@@ -6,7 +6,7 @@
 from .util import HdfsError
 from getpass import getuser
 from os import walk
-from os.path import exists, isdir, join, relpath
+from os.path import abspath, exists, isdir, join, relpath
 from requests_kerberos import HTTPKerberosAuth, OPTIONAL
 import re
 import requests as rq
@@ -233,7 +233,7 @@ class Client(object):
           with open(local_fpath) as reader:
             self.create(hdfs_fpath, reader, **kwargs)
 
-  def download(self, hdfs_path, local_path, max_connections=5):
+  def download(self, hdfs_path, local_path, recursive=False):
     """Download a file from HDFS.
 
     :param hdfs_path: Path on HDFS of file to download.
