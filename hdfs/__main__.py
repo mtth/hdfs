@@ -29,7 +29,7 @@ Options:
 from docopt import docopt
 from getpass import getuser
 from hdfs import __version__
-from hdfs.client import KerberosClient, TokenClient
+from hdfs.client import KerberosClient, InsecureClient, TokenClient
 from hdfs.util import Config
 from requests_kerberos import HTTPKerberosAuth, OPTIONAL
 

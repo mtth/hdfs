@@ -6,6 +6,7 @@
 from .util import HdfsError
 from getpass import getuser
 from requests_kerberos import HTTPKerberosAuth, OPTIONAL
+import re
 import requests as rq
 
 
@@ -18,10 +19,13 @@ class _Request(object):
   """Class to define requests.
 
   :param verb: HTTP verb
+  :param kwargs: Keyword arguments passed to the request handler.
 
   """
 
-  def __init__(self, verb):
+  def __init__(self, verb, **kwargs):
+    kwargs.setdefault('allow_redirects', True)
+    self.kwargs = kwargs
     try:
       self.handler = getattr(rq, verb.lower())
     except AttributeError:
@@ -49,13 +53,19 @@ class _Request(object):
         auth=client.auth,
         data=data,
         params=params,
-        allow_redirects=True,
+        **self.kwargs
       )
-      # Cf. http://hadoop.apache.org/docs/r1.0.4/webhdfs.html#Error+Responses
-      if not response: # response has non-200 status code
-        json = response.json()['RemoteException']
-        raise HdfsError(json['message'])
-      return response
+      if response.status_code == '401':
+        raise HdfsError('Unable to authenticate. Check your credentials.')
+      elif not response: # response has non-200 status code
+        # Cf. http://hadoop.apache.org/docs/r1.0.4/webhdfs.html#Error+Responses
+        try:
+          message = response.json()['RemoteException']['message']
+        except ValueError:
+          message = response.content
+        raise HdfsError(message)
+      else:
+        return response
     api_handler.__name__ = '%s_handler' % (operation.lower(), )
     api_handler.__doc__ = 'Cf. %s#%s' % (DOC_URL, operation)
     return api_handler
@@ -66,14 +76,16 @@ class _ClientType(type):
   """Metaclass that enables short and dry request definitions.
 
   Note that the names of the methods are changed from underscore case to upper
-  case to determine the end operation.
+  case to determine the end operation, removing any numbers in the process.
 
   """
+
+  pattern = re.compile('_|\d')
 
   def __new__(mcs, name, bases, attrs):
     for key, value in attrs.items():
       if isinstance(value, _Request):
-        attrs[key] = value.to_method(key.replace('_', '').upper())
+        attrs[key] = value.to_method(mcs.pattern.sub('', key).upper())
     return super(_ClientType, mcs).__new__(mcs, name, bases, attrs)
 
 
@@ -106,10 +118,22 @@ class Client(object):
       self.params['doas'] = proxy
     self.root = root
 
+  @classmethod
+  def from_config(cls, options):
+    """Load client from configuration options.
+
+    :param options: Dictionary of options.
+
+    """
+    try:
+      return cls(**options)
+    except ValueError as err:
+      raise HdfsError('Invalid alias.')
+
   # Raw API endpoints
 
-  _append = _Request('POST')
-  _create = _Request('PUT')
+  _append_1 = _Request('POST', allow_redirects=False)
+  _create_1 = _Request('PUT', allow_redirects=False)
   _delete = _Request('DELETE')
   _get_content_summary = _Request('GET')
   _get_file_checksum = _Request('GET')
@@ -117,7 +141,7 @@ class Client(object):
   _get_home_directory = _Request('GET')
   _list_status = _Request('GET')
   _mkdirs = _Request('PUT')
-  _open = _Request('GET')
+  _open = _Request('GET', stream=True)
   _rename = _Request('PUT')
   _set_owner = _Request('PUT')
   _set_permission = _Request('PUT')
@@ -125,6 +149,35 @@ class Client(object):
   _set_times = _Request('PUT')
 
   # Exposed endpoints
+
+  def create(self, path, data, overwrite=False, permission=None):
+    """Create a file.
+
+    :param path: Path where to create file. The necessary directories will be
+      created appropriately.
+    :param data: Contents of file to write. Can either be a string or a file
+      object (will allow for streaming uploads).
+    :param overwrite: Overwrite any existing file.
+    :param permissions: Octal permissions to set on newly created file.
+
+    """
+    res_1 = self._create_1(path, overwrite=overwrite, permission=permission)
+    res_2 = rq.put(res_1.headers['location'], data=data)
+    if not res_2:
+      raise HdfsError(res_2.json()['RemoteException']['message'])
+
+
+  def rename(self, src_path, dst_path, overwrite=False):
+    """Rename a file or folder.
+
+    :param src_path: Source path.
+    :param dst_path: Destination path.
+    :param overwrite: Overwrite an existing file or folder.
+
+    Allows relative paths for both source and destination.
+
+    """
+    pass
 
   def list_dir(self, path):
     """List files in a directory.
@@ -141,18 +194,6 @@ class Client(object):
 
     """
     pass
-
-  @classmethod
-  def from_config(cls, options):
-    """Load client from configuration options.
-
-    :param options: Dictionary of options.
-
-    """
-    try:
-      return cls(**options)
-    except ValueError as err:
-      raise HdfsError('Invalid alias.')
 
 
 class InsecureClient(Client):
