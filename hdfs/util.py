@@ -75,6 +75,25 @@ class Config(object):
       raise HdfsError('No URL found for alias %r.', alias)
 
 
+class HdfsStatus(object):
+
+  """Wrapper around FileStatus JSON objects.
+
+  Cf. http://hadoop.apache.org/docs/r1.0.4/webhdfs.html#FileStatus
+
+  :param status: FileStatus dictionary.
+  :param folder: Head of path.
+
+  """
+
+  def __init__(self, status, folder):
+    self.path = '%s/%s' % (folder.rstrip('/'), status.pop('pathSuffix'))
+    self.status = status
+
+  def __repr__(self):
+    return '%s: %s' % (self.path, self.status)
+
+
 @contextmanager
 def temppath():
   """Create a temporary filepath.

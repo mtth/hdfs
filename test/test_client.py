@@ -184,18 +184,6 @@ class TestList(_TestSession):
     self.client.list('up')
 
 
-class TestInfo(_TestSession):
-
-  def test_file(self):
-    pass
-
-  def test_directory(self):
-    pass
-
-  def test_directory_with_part_files(self):
-    pass
-
-
 class TestWrite(_TestSession):
 
   def _check_content(self, path, content):
@@ -284,3 +272,72 @@ class TestUpload(_TestSession):
       self.client.upload('up', tdpath)
     finally:
       rmdir(tdpath)
+
+
+class TestDelete(_TestSession):
+
+  def test_delete_file(self):
+    self.client.write('foo', 'hello, world!')
+    self.client.delete('foo')
+
+  def test_delete_empty_directory(self):
+    self.client._mkdirs('foo')
+    self.client.delete('foo')
+
+  @raises(HdfsError)
+  def test_delete_missing_file(self):
+    self.client.delete('foo')
+
+  def test_delete_non_empty_directory(self):
+    self.client.write('de/foo', 'hello, world!')
+    self.client.delete('de', recursive=True)
+
+  @raises(HdfsError)
+  def test_delete_non_empty_directory_without_recursive(self):
+    self.client.write('de/foo', 'hello, world!')
+    self.client.delete('de')
+
+
+class TestRead(_TestSession):
+
+  def test_read_file(self):
+    self.client.write('foo', 'hello, world!')
+    with temppath() as tpath:
+      with open(tpath, 'w') as writer:
+        self.client.read('foo', writer)
+      with open(tpath) as reader:
+        eq_(reader.read(), 'hello, world!')
+
+  @raises(HdfsError)
+  def test_read_missing_file(self):
+    with temppath() as tpath:
+      with open(tpath, 'w') as writer:
+        self.client.read('foo', writer)
+
+  def test_read_file_from_offset(self):
+    self.client.write('foo', 'hello, world!')
+    with temppath() as tpath:
+      with open(tpath, 'w') as writer:
+        self.client.read('foo', writer, offset=7)
+      with open(tpath) as reader:
+        eq_(reader.read(), 'world!')
+
+  def test_read_file_from_offset_with_limit(self):
+    self.client.write('foo', 'hello, world!')
+    with temppath() as tpath:
+      with open(tpath, 'w') as writer:
+        self.client.read('foo', writer, offset=7, length=5)
+      with open(tpath) as reader:
+        eq_(reader.read(), 'world')
+
+
+class TestInfo(_TestSession):
+
+  def test_file(self):
+    pass
+
+  def test_directory(self):
+    pass
+
+  def test_directory_with_part_files(self):
+    pass
