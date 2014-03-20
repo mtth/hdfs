@@ -27,5 +27,5 @@ setup(
       'requests>=2.0.1',
       'requests-kerberos',
     ],
-    #entry_points={'console_scripts': []},
+    entry_points={'console_scripts': ['hdfs = hdfs.__main__:main']},
 )

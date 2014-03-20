@@ -11,7 +11,6 @@ from requests_kerberos import HTTPKerberosAuth, OPTIONAL
 from time import sleep, time
 import re
 import requests as rq
-import grequests as grq
 
 
 API_PREFIX = '/webhdfs/v1'
@@ -36,7 +35,7 @@ class _Request(object):
     kwargs.setdefault('allow_redirects', True)
     self.kwargs = kwargs
     try:
-      self.handler = getattr(grq if async else rq, verb.lower())
+      self.handler = getattr(rq, verb.lower())
     except AttributeError:
       raise HdfsError('Invalid HTTP verb %r.', verb)
 
@@ -49,14 +48,9 @@ class _Request(object):
     with the method they represent.
 
     """
-    def api_handler(client, path, data=None, hooks=None, **params):
+    def api_handler(client, path, data=None, **params):
       """Wrapper function."""
-      if not path.startswith('/'):
-        if not client.root:
-          raise HdfsError('Invalid relative path %r.', path)
-        else:
-          path = '%s/%s' % (client.root, path)
-      url = '%s%s%s' % (client.url, API_PREFIX, path)
+      url = '%s%s%s' % (client.url, API_PREFIX, client._abs(path))
       params['op'] = operation
       for key, value in client.params.items():
         params.setdefault(key, value)
@@ -64,7 +58,6 @@ class _Request(object):
         url=url,
         auth=client.auth,
         data=data,
-        hooks=hooks,
         params=params,
         **self.kwargs
       )
@@ -118,13 +111,16 @@ class Client(object):
 
   __metaclass__ = _ClientType
 
+  root = None
+
   def __init__(self, url, auth=None, params=None, proxy=None, root=None):
     self.url = url
     self.auth = auth
     self.params = params or {}
     if proxy:
       self.params['doas'] = proxy
-    self.root = root.rstrip('/')
+    if root:
+      self.root = root.rstrip('/')
 
   @classmethod
   def from_config(cls, options):
@@ -137,6 +133,32 @@ class Client(object):
       return cls(**options)
     except ValueError as err:
       raise HdfsError('Invalid alias.')
+
+  def _abs(self, path):
+    """Return absolute path.
+
+    :param path: HDFS path.
+
+    """
+    path = re.compile('^(\./|\.$)').sub('', path)
+    if not path.startswith('/'):
+      if not self.root:
+        raise HdfsError('Invalid relative path %r.', path)
+      else:
+        path = '%s/%s' % (self.root, path)
+    return path
+
+  def _rel(self, path):
+    """Return relative path.
+
+    :param path: HDFS path.
+
+    If the client's `root` is found in the path, it will be replaced by a
+    `'.'`.
+
+    """
+    path = self._abs(path)
+    return re.compile('^%s' % (self.root, )).sub('.', path)
 
   def _on_error(self, response):
     """Callback when an API response has a non 2XX status code.
@@ -266,7 +288,16 @@ class Client(object):
 
     """
     if recursive:
-      raise NotImplementedError('TODO')
+      infos = self.infos(hdfs_path, depth=None, sizes=False)
+      rpaths = [] # TODO
+      for rpath in rpaths:
+        self.download(
+          rpath,
+          '', # TODO
+          overwrite=overwrite,
+          recursive=recursive,
+          **kwargs
+        )
     else:
       if not exists(local_path) or overwrite:
         with open(local_path, 'w') as writer:
@@ -300,32 +331,28 @@ class Client(object):
     if not res.json()['boolean']:
       raise HdfsError('Path %r not found.', hdfs_src_path)
 
-  def info(self, hdfs_path, depth=0):
+  def info(self, hdfs_path, depth=0, sizes=False):
     """Returns a list of :class:`~hdfs.util.FileInfo`.
 
     :param hdfs_path: HDFS path to file or directory.
     :param depth: Maximum depth to explore. Note that given the current
       available API, individual requests are sent for each directory. Setting
-      this too high might make calls take a very long time.
+      this too high might make calls take a very long time. `None` implies
+      limitless!
 
     """
     info = HdfsInfo(
       self._get_file_status(hdfs_path).json()['FileStatus'],
-      hdfs_path,
+      self._rel(hdfs_path),
     )
-    def make_callback(info):
-      def on_response(response, *args, **kwargs):
-        info.add_summary(response.json()['ContentSummary'])
-      return on_response
-    requests = []
     def walk(info, depth):
       path = info.path
       if info.is_dir:
-        requests.append(self._get_content_summary(path, hooks={
-          'response': make_callback(info)
-        }))
+        if sizes:
+          summary = self._get_content_summary(path).json()['ContentSummary']
+          info.add_summary(summary)
         yield info
-        if depth > 0:
+        if depth is not None and depth > 0:
           ls = self._list_status(path).json()['FileStatuses']
           infos = [HdfsInfo(status, path) for status in ls['FileStatus']]
           for a in sorted(infos, key=lambda b: b.path):
@@ -333,9 +360,7 @@ class Client(object):
               yield c
       else:
         yield info
-    rv = list(walk(info, depth))
-    grq.map(requests, size=10)
-    return rv
+    return list(walk(info, depth))
 
 
 class InsecureClient(Client):
@@ -358,7 +383,7 @@ class InsecureClient(Client):
       url,
       params={'user.name': user},
       proxy=proxy,
-      root = root or '/user/%s/' % (user, ),
+      root=root or '/user/%s/' % (user, ),
     )
 
 
@@ -379,7 +404,7 @@ class KerberosClient(Client):
       url,
       auth=HTTPKerberosAuth(OPTIONAL),
       proxy=proxy,
-      root = root or '/user/%s/' % (getuser(), ),
+      root=root or '/user/%s/' % (getuser(), ),
     )
 
   def _on_error(self, response):

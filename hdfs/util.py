@@ -27,6 +27,53 @@ class HdfsError(Exception):
     super(HdfsError, self).__init__(message % args or ())
 
 
+class HdfsInfo(object):
+
+  """Wrapper around FileStatus JSON objects.
+
+  Cf. http://hadoop.apache.org/docs/r1.0.4/webhdfs.html#FileStatus
+
+  :param status: FileStatus dictionary.
+  :param folder: Head of path.
+
+  """
+
+  summary = None
+
+  def __init__(self, status, folder):
+    path_suffix = status['pathSuffix']
+    folder = '%s/' % (folder.rstrip('/'), )
+    if path_suffix:
+      self.path = '%s%s' % (folder, path_suffix)
+    else:
+      self.path = folder.rstrip('/')
+    self.status = status
+
+  def __str__(self):
+    if self.is_dir and self.path != '/':
+      return '%s/' % (self.path, )
+    else:
+      return self.path
+
+  @property
+  def is_dir(self):
+    """Is the underlying node a directory?"""
+    return self.status['type'] == 'DIRECTORY'
+
+  @property
+  def size(self):
+    """Size in bytes."""
+    return self.summary['length'] if self.summary else self.status['length']
+
+  def add_summary(self, summary):
+    """Add summary info for directories.
+
+    :param summary: Content summary dictionary.
+
+    """
+    self.summary = summary
+
+
 class Config(object):
 
   """Configuration class.
@@ -76,50 +123,6 @@ class Config(object):
       }
     except KeyError:
       raise HdfsError('No URL found for alias %r.', alias)
-
-
-class HdfsInfo(object):
-
-  """Wrapper around FileStatus JSON objects.
-
-  Cf. http://hadoop.apache.org/docs/r1.0.4/webhdfs.html#FileStatus
-
-  :param status: FileStatus dictionary.
-  :param folder: Head of path.
-
-  """
-
-  summary = None
-
-  def __init__(self, status, folder):
-    path_suffix = status['pathSuffix']
-    folder = folder.rstrip('/')
-    if folder and path_suffix:
-      self.path = '%s/%s' % (folder, path_suffix)
-    else:
-      self.path = path_suffix or folder
-    self.status = status
-
-  def __str__(self):
-    return '%s%s' % (self.path, '/' if self.is_dir else '')
-
-  @property
-  def is_dir(self):
-    """Is the underlying node a directory?"""
-    return self.status['type'] == 'DIRECTORY'
-
-  @property
-  def size(self):
-    """Size in bytes."""
-    return self.summary['length'] if self.summary else self.status['length']
-
-  def add_summary(self, summary):
-    """Add summary info for directories.
-
-    :param summary: Content summary dictionary.
-
-    """
-    self.summary = summary
 
 
 @contextmanager

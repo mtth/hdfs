@@ -4,13 +4,13 @@
 """HdfsCLI: a command line interface for WebHDFS.
 
 Usage:
-  hdfs [-a ALIAS] info [-d DEPTH] RPATH
+  hdfs [-a ALIAS] info [-sd DEPTH] RPATH
   hdfs [-a ALIAS] upload [-op PERM] RPATH [[-r] LPATH]
   hdfs [-a ALIAS] download [-ol LEN] RPATH [[-r] LPATH]
   hdfs -h | --help | -v | --version
 
 Commands:
-  info                    List files and directories along with their size.
+  info                    List files and directories.
   upload                  Upload a file. Reads from stdin by default.
   download                Download a file. Outputs to stdout by default.
 
@@ -26,6 +26,7 @@ Options:
   -o --overwrite          Allow overwriting.
   -p PERM --perm=PERM     Permissions.
   -r --recursive          Operate on all files and directories recursively.
+  -s --sizes              Show directory sizes. Much slower.
   -v --version            Show version and exit.
 
 """
@@ -67,11 +68,15 @@ def main():
     rpath = ''
   if args['info']:
     try:
-      depth = int(args['--depth'] or '0')
+      depth = int(args['--depth'] or '1')
     except ValueError:
       raise HdfsError('Invalid depth argument.')
-    for info in client.info(rpath, depth=depth):
-      sys.stdout.write('%s\t%s\n' % (hsize(info.size), info))
+    sizes = args['--sizes']
+    for info in client.info(rpath, depth=depth, sizes=sizes):
+      if sizes:
+        sys.stdout.write('%s\t%s\n' % (hsize(info.size), info))
+      else:
+        sys.stdout.write('%s\n' % (info, ))
   elif args['upload']:
     if args['LPATH']:
       client.upload(
