@@ -8,9 +8,10 @@ from getpass import getuser
 from os import walk
 from os.path import abspath, exists, isdir, join, relpath
 from requests_kerberos import HTTPKerberosAuth, OPTIONAL
-from time import time
+from time import sleep, time
 import re
 import requests as rq
+import grequests as grq
 
 
 API_PREFIX = '/webhdfs/v1'
@@ -31,11 +32,11 @@ class _Request(object):
 
   """
 
-  def __init__(self, verb, **kwargs):
+  def __init__(self, verb, async=False, **kwargs):
     kwargs.setdefault('allow_redirects', True)
     self.kwargs = kwargs
     try:
-      self.handler = getattr(rq, verb.lower())
+      self.handler = getattr(grq if async else rq, verb.lower())
     except AttributeError:
       raise HdfsError('Invalid HTTP verb %r.', verb)
 
@@ -48,7 +49,7 @@ class _Request(object):
     with the method they represent.
 
     """
-    def api_handler(client, path, data=None, **params):
+    def api_handler(client, path, data=None, hooks=None, **params):
       """Wrapper function."""
       if not path.startswith('/'):
         if not client.root:
@@ -63,6 +64,7 @@ class _Request(object):
         url=url,
         auth=client.auth,
         data=data,
+        hooks=hooks,
         params=params,
         **self.kwargs
       )
@@ -157,7 +159,7 @@ class Client(object):
   _create = _Request('PUT') # doesn't allow for streaming
   _create_1 = _Request('PUT', allow_redirects=False)
   _delete = _Request('DELETE')
-  _get_content_summary = _Request('GET')
+  _get_content_summary = _Request('GET', async=True)
   _get_file_checksum = _Request('GET')
   _get_file_status = _Request('GET')
   _get_home_directory = _Request('GET')
@@ -263,7 +265,12 @@ class Client(object):
     :param kwargs: Keyword arguments forwarded to :meth:`read`.
 
     """
-    pass
+    if recursive:
+      raise NotImplementedError('TODO')
+    else:
+      if not exists(local_path) or overwrite:
+        with open(local_path, 'w') as writer:
+          self.read(hdfs_path, writer, **kwargs)
 
   def delete(self, hdfs_path, recursive=False):
     """Remove a file or directory from HDFS.
@@ -306,11 +313,17 @@ class Client(object):
       self._get_file_status(hdfs_path).json()['FileStatus'],
       hdfs_path,
     )
+    def make_callback(info):
+      def on_response(response, *args, **kwargs):
+        info.add_summary(response.json()['ContentSummary'])
+      return on_response
+    requests = []
     def walk(info, depth):
       path = info.path
       if info.is_dir:
-        summary = self._get_content_summary(path).json()['ContentSummary']
-        info.add_summary(summary)
+        requests.append(self._get_content_summary(path, hooks={
+          'response': make_callback(info)
+        }))
         yield info
         if depth > 0:
           ls = self._list_status(path).json()['FileStatuses']
@@ -320,7 +333,9 @@ class Client(object):
               yield c
       else:
         yield info
-    return list(walk(info, depth))
+    rv = list(walk(info, depth))
+    grq.map(requests, size=10)
+    return rv
 
 
 class InsecureClient(Client):
