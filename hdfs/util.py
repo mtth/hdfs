@@ -7,7 +7,6 @@ from ConfigParser import (NoOptionError, NoSectionError, ParsingError,
   RawConfigParser)
 from contextlib import contextmanager
 from functools import wraps
-from itertools import chain
 from os import close, remove
 from os.path import exists, expanduser
 from tempfile import mkstemp

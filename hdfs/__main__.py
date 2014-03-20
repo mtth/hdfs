@@ -4,8 +4,8 @@
 """HdfsCLI: a command line interface for WebHDFS.
 
 Usage:
-  hdfs [-a ALIAS] upload [-f | -l] RPATH [[-r] LPATH]
-  hdfs [-a ALIAS] download [-f | -l] RPATH [[-r] LPATH]
+  hdfs [-a ALIAS] upload [-f] RPATH [[-r] LPATH]
+  hdfs [-a ALIAS] download [-f] RPATH [[-r] LPATH]
   hdfs -h | --help | -v | --version
 
 Commands:
@@ -19,19 +19,18 @@ Arguments:
 Options:
   -a ALIAS --alias=ALIAS      Alias.
   -h --help                   Show this message and exit.
-  -f --fresh                  Overwrite existing files.
-  -l --lazy                   Skip up-to-date files and overwrite old ones.
+  -f --force                  Overwrite existing files.
   -r --recursive              Operate on all files and directories recursively.
   -v --version                Show version and exit.
 
 """
 
-from docopt import docopt
-from getpass import getuser
+from docopt import docopt, DocoptExit
 from hdfs import __version__
 from hdfs.client import KerberosClient, InsecureClient, TokenClient
-from hdfs.util import catch, Config, HdfsError, hsize
-from requests_kerberos import HTTPKerberosAuth, OPTIONAL
+from hdfs.util import catch, Config, HdfsError
+from os import walk
+from os.path import isdir, join
 import sys
 
 
@@ -52,29 +51,35 @@ def load_client(alias):
   else:
     raise HdfsError('Invalid auth %r for alias %r.', auth, alias)
 
-def recursive_download(client, rpath, lpath, fresh, lazy):
-  """Download folder hierarchy.
+def find_local_paths(lpath, base_rpath):
+  """Find files for recursive upload.
 
-  :param client: TODO
-  :param rpath: TODO
-  :param lpath: TODO
-  :param fresh: TODO
-  :param lazy: TODO
+  :param lpath: Local path.
 
   """
-  pass
+  paths = []
+  if not isdir(lpath):
+    paths.append((base_rpath, lpath))
+  for dir_path, fnames, dnames in walk(lpath):
+    dir_path = dir_path.lstrip('./')
+    for fname in fnames:
+      _lpath = join(dir_path, fname)
+      _rpath = join(base_rpath, _lpath)
+      paths.append((_rpath, _lpath))
+  return paths
 
-def recursive_upload(client, rpath, lpath, fresh, lazy):
-  """Upload folder hierarchy.
+def find_remote_paths(rpath, base_lpath):
+  """Find files for recursive download.
 
-  :param client: TODO
-  :param rpath: TODO
-  :param lpath: TODO
-  :param fresh: TODO
-  :param lazy: TODO
+  :param rpath: HDFS path.
+
+  Note that there is no endpoint for recursive remote filetree exploration so
+  this is (much) slower than the local version.
 
   """
-  pass
+  paths = []
+  # TODO
+  return paths
 
 @catch(HdfsError)
 def main():
@@ -82,36 +87,48 @@ def main():
   args = docopt(__doc__, version=__version__)
   client = load_client(args['--alias'])
   rpath = args['RPATH']
-  if rpath == '.':
-    rpath = ''
-  if args['info']:
-    sizes = args['--sizes']
-    for info in client.info(rpath, depth=depth, sizes=sizes):
-      if sizes:
-        sys.stdout.write('%s\t%s\n' % (hsize(info.size), info))
+  lpath = args['LPATH']
+  force = args['--force']
+  recursive = args['--recursive']
+  if recursive and not lpath:
+    raise DocoptExit() # inconsistency in docopt
+  if args['upload']:
+    if lpath:
+      if recursive:
+        paths = find_local_paths(lpath, rpath)
       else:
-        sys.stdout.write('%s\n' % (info, ))
-  else:
-    lpath = args['LPATH']
-    fresh = args['--fresh']
-    recursive = args['--recursive']
-    if args['upload']:
-      if lpath:
-        if recursive:
-          recursive_upload(client, rpath, lpath, fresh, lazy)
+        paths = [(rpath, lpath)]
+      for _rpath, _lpath in paths:
+        sys.stdout.write('Uploading %s ... ' % (_lpath, ))
+        try:
+          client.upload(_rpath, _lpath, overwrite=force)
+        except HdfsError as err:
+          sys.stdout.write('ERROR: %s\n' % (err, ))
         else:
-          client.upload(rpath, lpath, overwrite=fresh)
+          sys.stdout.write('OK\n')
+    else:
+      sys.stdout.write('Uploading ... ')
+      reader = (line for line in sys.stdin) # doesn't work with stdin, why?
+      client.write(rpath, reader, overwrite=force)
+      sys.stdout.write('OK\n')
+  elif args['download']:
+    if lpath:
+      if recursive:
+        paths = find_remote_paths(rpath, lpath)
       else:
-        reader = (line for line in sys.stdin) # doesn't work with stdin, why?
-        client.write(rpath, reader, overwrite=fresh)
-    elif args['download']:
-      if lpath:
-        if recursive:
-          recursive_download(client, rpath, lpath, fresh, lazy)
+        paths = [(rpath, lpath)]
+      for _rpath, _lpath in paths:
+        sys.stdout.write('Downloading %s ... ' % (_rpath, ))
+        try:
+          client.download(rpath, lpath, overwrite=force)
+        except HdfsError as err:
+          sys.stdout.write('ERROR: %s\n' % (err, ))
         else:
-          client.download(rpath, lpath, overwrite=fresh)
-      else:
-        client.read(rpath, sys.stdout)
+          sys.stdout.write('OK\n')
+    else:
+      sys.stdout.write('Downloading ... ')
+      client.read(rpath, sys.stdout)
+      sys.stdout.write('OK\n')
 
 
 if __name__ == '__main__':

@@ -5,17 +5,10 @@
 
 from .util import HdfsError
 from getpass import getuser
-from os import walk
-from os.path import abspath, exists, isdir, join, relpath
+from os.path import exists, isdir, join
 from requests_kerberos import HTTPKerberosAuth, OPTIONAL
-from time import sleep, time
 import re
 import requests as rq
-
-
-API_PREFIX = '/webhdfs/v1'
-DOC_URL = 'http://hadoop.apache.org/docs/r1.0.4/webhdfs.html'
-PART_PATTERN = re.compile('part-[mr]-\d+\.[^.]+')
 
 
 class _Request(object):
@@ -31,13 +24,20 @@ class _Request(object):
 
   """
 
-  def __init__(self, verb, async=False, **kwargs):
-    kwargs.setdefault('allow_redirects', True)
+  api_prefix = '/webhdfs/v1'
+  doc_url = 'http://hadoop.apache.org/docs/r1.0.4/webhdfs.html'
+
+  def __init__(self, verb, **kwargs):
+    kwargs.setdefault('allow_redirects', True) # convenience
     self.kwargs = kwargs
     try:
       self.handler = getattr(rq, verb.lower())
     except AttributeError:
       raise HdfsError('Invalid HTTP verb %r.', verb)
+
+  def __call__(self):
+    # make pylint happy
+    pass
 
   def to_method(self, operation):
     """Returns method associated with request to attach to client.
@@ -50,7 +50,7 @@ class _Request(object):
     """
     def api_handler(client, path, data=None, **params):
       """Wrapper function."""
-      url = '%s%s%s' % (client.url, API_PREFIX, client._abs(path))
+      url = '%s%s%s' % (client.url, self.api_prefix, client._abs(path))
       params['op'] = operation
       for key, value in client.params.items():
         params.setdefault(key, value)
@@ -66,7 +66,7 @@ class _Request(object):
       else:
         return response
     api_handler.__name__ = '%s_handler' % (operation.lower(), )
-    api_handler.__doc__ = 'Cf. %s#%s' % (DOC_URL, operation)
+    api_handler.__doc__ = 'Cf. %s#%s' % (self.doc_url, operation)
     return api_handler
 
 
@@ -81,7 +81,7 @@ class _ClientType(type):
 
   """
 
-  pattern = re.compile('_|\d')
+  pattern = re.compile(r'_|\d')
 
   def __new__(mcs, name, bases, attrs):
     for key, value in attrs.items():
@@ -119,7 +119,7 @@ class Client(object):
     self.params = params or {}
     if proxy:
       self.params['doas'] = proxy
-    if root:
+    if root and root != '/':
       self.root = root.rstrip('/')
 
   @classmethod
@@ -131,7 +131,7 @@ class Client(object):
     """
     try:
       return cls(**options)
-    except ValueError as err:
+    except ValueError:
       raise HdfsError('Invalid alias.')
 
   def _abs(self, path):
@@ -140,7 +140,7 @@ class Client(object):
     :param path: HDFS path.
 
     """
-    path = re.compile('^(\./|\.$)').sub('', path)
+    path = re.compile(r'^(\./|\.$)').sub('', path)
     if not path.startswith('/'):
       if not self.root:
         raise HdfsError('Invalid relative path %r.', path)
@@ -181,7 +181,7 @@ class Client(object):
   _create = _Request('PUT') # doesn't allow for streaming
   _create_1 = _Request('PUT', allow_redirects=False)
   _delete = _Request('DELETE')
-  _get_content_summary = _Request('GET', async=True)
+  _get_content_summary = _Request('GET')
   _get_file_checksum = _Request('GET')
   _get_file_status = _Request('GET')
   _get_home_directory = _Request('GET')
