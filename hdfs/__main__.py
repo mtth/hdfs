@@ -4,30 +4,25 @@
 """HdfsCLI: a command line interface for WebHDFS.
 
 Usage:
-  hdfs [-a ALIAS] info [-sd DEPTH] RPATH
-  hdfs [-a ALIAS] upload [-op PERM] RPATH [[-r] LPATH]
-  hdfs [-a ALIAS] download [-ol LEN] RPATH [[-r] LPATH]
+  hdfs [-a ALIAS] upload [-f | -l] RPATH [[-r] LPATH]
+  hdfs [-a ALIAS] download [-f | -l] RPATH [[-r] LPATH]
   hdfs -h | --help | -v | --version
 
 Commands:
-  info                    List files and directories.
-  upload                  Upload a file. Reads from stdin by default.
-  download                Download a file. Outputs to stdout by default.
+  upload                      Upload a file. Reads from stdin by default.
+  download                    Download a file. Outputs to stdout by default.
 
 Arguments:
-  RPATH                   Remote path (on HDFS).
-  LPATH                   Local path.
+  RPATH                       Remote path (on HDFS).
+  LPATH                       Local path.
 
 Options:
-  -a ALIAS --alias=ALIAS  Alias.
-  -d DEPTH --depth=DEPTH  Maximum depth.
-  -h --help               Show this message and exit.
-  -l LEN --len=LEN        Length.
-  -o --overwrite          Allow overwriting.
-  -p PERM --perm=PERM     Permissions.
-  -r --recursive          Operate on all files and directories recursively.
-  -s --sizes              Show directory sizes. Much slower.
-  -v --version            Show version and exit.
+  -a ALIAS --alias=ALIAS      Alias.
+  -h --help                   Show this message and exit.
+  -f --fresh                  Overwrite existing files.
+  -l --lazy                   Skip up-to-date files and overwrite old ones.
+  -r --recursive              Operate on all files and directories recursively.
+  -v --version                Show version and exit.
 
 """
 
@@ -57,6 +52,29 @@ def load_client(alias):
   else:
     raise HdfsError('Invalid auth %r for alias %r.', auth, alias)
 
+def recursive_download(client, rpath, lpath, fresh, lazy):
+  """Download folder hierarchy.
+
+  :param client: TODO
+  :param rpath: TODO
+  :param lpath: TODO
+  :param fresh: TODO
+  :param lazy: TODO
+
+  """
+  pass
+
+def recursive_upload(client, rpath, lpath, fresh, lazy):
+  """Upload folder hierarchy.
+
+  :param client: TODO
+  :param rpath: TODO
+  :param lpath: TODO
+  :param fresh: TODO
+  :param lazy: TODO
+
+  """
+  pass
 
 @catch(HdfsError)
 def main():
@@ -67,50 +85,33 @@ def main():
   if rpath == '.':
     rpath = ''
   if args['info']:
-    try:
-      depth = int(args['--depth'] or '1')
-    except ValueError:
-      raise HdfsError('Invalid depth argument.')
     sizes = args['--sizes']
     for info in client.info(rpath, depth=depth, sizes=sizes):
       if sizes:
         sys.stdout.write('%s\t%s\n' % (hsize(info.size), info))
       else:
         sys.stdout.write('%s\n' % (info, ))
-  elif args['upload']:
-    if args['LPATH']:
-      client.upload(
-        rpath,
-        args['LPATH'],
-        recursive=args['--recursive'],
-        overwrite=args['--overwrite'],
-        permission=args['--perm'],
-      )
-    else:
-      client.write(
-        rpath,
-        (line for line in sys.stdin), # doesn't work with stdin directly, why?
-        overwrite=args['--overwrite'],
-        permission=args['--perm'],
-      )
-  elif args['download']:
-    try:
-      length = int(args['--len'] or '0') or None
-    except ValueError:
-      raise HdfsError('Invalid length argument.')
-    if args['LPATH']:
-      client.download(
-        rpath,
-        args['LPATH'],
-        recursive=args['--recursive'],
-        overwrite=args['--overwrite'],
-      )
-    else:
-      client.read(
-        rpath,
-        sys.stdout,
-        length=length,
-      )
+  else:
+    lpath = args['LPATH']
+    fresh = args['--fresh']
+    recursive = args['--recursive']
+    if args['upload']:
+      if lpath:
+        if recursive:
+          recursive_upload(client, rpath, lpath, fresh, lazy)
+        else:
+          client.upload(rpath, lpath, overwrite=fresh)
+      else:
+        reader = (line for line in sys.stdin) # doesn't work with stdin, why?
+        client.write(rpath, reader, overwrite=fresh)
+    elif args['download']:
+      if lpath:
+        if recursive:
+          recursive_download(client, rpath, lpath, fresh, lazy)
+        else:
+          client.download(rpath, lpath, overwrite=fresh)
+      else:
+        client.read(rpath, sys.stdout)
 
 
 if __name__ == '__main__':
