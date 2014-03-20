@@ -3,9 +3,10 @@
 
 """HdfsCLI."""
 
-__version__ = '0.0.2'
+__version__ = '0.1.0'
 
 try:
-  from .client import InsecureClient, KerberosClient, TokenClient
+  from .client import (InsecureClient, KerberosClient, TokenClient,
+    get_client_from_alias)
 except ImportError:
   pass # in setup.py

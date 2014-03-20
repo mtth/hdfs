@@ -5,7 +5,6 @@
 
 from hdfs.util import Config, temppath
 from hdfs.client import *
-from hdfs.__main__ import load_client
 from ConfigParser import NoOptionError, NoSectionError
 from getpass import getuser
 from nose.tools import eq_, ok_, raises, nottest
@@ -20,31 +19,6 @@ from time import sleep
 def status(response):
   """Helper for requests that return boolean JSON responses."""
   return response.json()['boolean']
-
-
-class TestLoad(object):
-
-  """Test client loaders."""
-
-  def test_load_insecure_client(self):
-    options = {'url': 'foo', 'root': '/'}
-    client = InsecureClient.from_config(options)
-    eq_(client.url, options['url'])
-    eq_(client.root, options['root'].rstrip('/'))
-    eq_(client.params, {'user.name': getuser()})
-
-  def test_load_kerberos_client(self):
-    options = {'url': 'foo', 'proxy': 'bar', 'root': '/'}
-    client = KerberosClient.from_config(options)
-    eq_(client.url, options['url'])
-    eq_(client.root, options['root'].rstrip('/'))
-
-  def test_load_token_client(self):
-    options = {'url': 'foo', 'token': 'abc', 'root': '/'}
-    client = TokenClient.from_config(options)
-    eq_(client.url, options['url'])
-    eq_(client.root, options['root'].rstrip('/'))
-    eq_(client.params, {'delegation': options['token']})
 
 
 class _TestSession(object):
@@ -67,9 +41,8 @@ class _TestSession(object):
 
   @classmethod
   def setup_class(cls):
-    config = Config()
     try:
-      client = load_client(config.parser.get('hdfs', 'test.alias'))
+      client = get_client_from_alias(Config().parser.get('hdfs', 'test.alias'))
       client._delete('', recursive=True)
     except (NoOptionError, NoSectionError, HdfsError):
       cls.client = None
@@ -115,7 +88,7 @@ class TestApi(_TestSession):
   def test_list_status_test_root(self):
     eq_(
       self.client._list_status('').content,
-      self.client._list_status(self.client.root).content,
+      self.client._list_status(self.client._root).content,
     )
 
   def test_get_file_status(self):
@@ -142,7 +115,7 @@ class TestApi(_TestSession):
     ok_(not status(self.client._delete(path)))
 
   def test_rename_file(self):
-    paths = ['foo', '%s/bar' % (self.client.root.rstrip('/'), )]
+    paths = ['foo', '%s/bar' % (self.client._root.rstrip('/'), )]
     self.client._create(paths[0], data='hello')
     ok_(status(self.client._rename(paths[0], destination=paths[1])))
     ok_(not self._file_exists(paths[0]))
@@ -150,7 +123,7 @@ class TestApi(_TestSession):
     self.client._delete(paths[1])
 
   def test_rename_file_to_existing(self):
-    paths = ['foo', '%s/bar' % (self.client.root.rstrip('/'), )]
+    paths = ['foo', '%s/bar' % (self.client._root.rstrip('/'), )]
     self.client._create(paths[0], data='hello')
     self.client._create(paths[1], data='hi')
     try:

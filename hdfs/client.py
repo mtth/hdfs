@@ -3,7 +3,7 @@
 
 """HDFS clients."""
 
-from .util import HdfsError
+from .util import Config, HdfsError
 from getpass import getuser
 from os.path import exists, isdir, join
 from requests_kerberos import HTTPKerberosAuth, OPTIONAL
@@ -52,11 +52,11 @@ class _Request(object):
       """Wrapper function."""
       url = '%s%s%s' % (client.url, self.api_prefix, client._abs(path))
       params['op'] = operation
-      for key, value in client.params.items():
+      for key, value in client._params.items():
         params.setdefault(key, value)
       response = self.handler(
         url=url,
-        auth=client.auth,
+        auth=client._auth,
         data=data,
         params=params,
         **self.kwargs
@@ -111,28 +111,16 @@ class Client(object):
 
   __metaclass__ = _ClientType
 
-  root = None
+  _root = None
 
   def __init__(self, url, auth=None, params=None, proxy=None, root=None):
     self.url = url
-    self.auth = auth
-    self.params = params or {}
+    self._auth = auth
+    self._params = params or {}
     if proxy:
-      self.params['doas'] = proxy
+      self._params['doas'] = proxy
     if root and root != '/':
-      self.root = root.rstrip('/')
-
-  @classmethod
-  def from_config(cls, options):
-    """Load client from configuration options.
-
-    :param options: Dictionary of options.
-
-    """
-    try:
-      return cls(**options)
-    except ValueError:
-      raise HdfsError('Invalid alias.')
+      self._root = root.rstrip('/')
 
   def _abs(self, path):
     """Return absolute path.
@@ -142,10 +130,10 @@ class Client(object):
     """
     path = re.compile(r'^(\./|\.$)').sub('', path)
     if not path.startswith('/'):
-      if not self.root:
+      if not self._root:
         raise HdfsError('Invalid relative path %r.', path)
       else:
-        path = '%s/%s' % (self.root, path)
+        path = '%s/%s' % (self._root, path)
     return path
 
   def _rel(self, path):
@@ -158,7 +146,7 @@ class Client(object):
 
     """
     path = self._abs(path)
-    return re.compile('^%s' % (self.root, )).sub('.', path)
+    return re.compile('^%s' % (self._root, )).sub('.', path)
 
   def _on_error(self, response):
     """Callback when an API response has a non 2XX status code.
@@ -294,7 +282,7 @@ class Client(object):
 
     """
     if not hdfs_dst_path.startswith('/'):
-      hdfs_dst_path = '%s/%s' % (self.root, hdfs_dst_path)
+      hdfs_dst_path = '%s/%s' % (self._root, hdfs_dst_path)
     res = self._rename(hdfs_src_path, destination=hdfs_dst_path)
     if not res.json()['boolean']:
       raise HdfsError('Path %r not found.', hdfs_src_path)
@@ -377,3 +365,24 @@ class TokenClient(Client):
       proxy=proxy,
       root=root or '/user/%s/' % (getuser(), ),
     )
+
+
+def get_client_from_alias(alias):
+  """Load client corresponding to an alias.
+
+  :param alias: Alias name.
+
+  """
+  options = Config().get_alias(alias)
+  auth = options.pop('auth')
+  try:
+    if auth == 'insecure':
+      return InsecureClient(**options)
+    elif auth == 'kerberos':
+      return KerberosClient(**options)
+    elif auth == 'token':
+      return TokenClient(**options)
+    else:
+      raise HdfsError('Invalid auth parameter %r for alias %r.', auth, alias)
+  except ValueError:
+    raise HdfsError('Invalid alias %r.', alias)
