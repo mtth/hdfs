@@ -174,27 +174,6 @@ class TestApi(_TestSession):
     self.client._get_file_checksum('')
 
 
-class TestList(_TestSession):
-
-  def test_empty_directory(self):
-    eq_(self.client.list(''), {})
-
-  def test_directory(self):
-    self.client.write('foo', 'hello, world!')
-    self.client.write('bar', 'hello again, world!')
-    infos = self.client.list('')
-    eq_(sorted(infos), ['bar', 'foo'])
-
-  @raises(HdfsError)
-  def test_missing_directory(self):
-    self.client.list('foo')
-
-  @raises(HdfsError)
-  def test_file(self):
-    self.client.write('up', 'hello, world!')
-    self.client.list('up')
-
-
 class TestWrite(_TestSession):
 
   def test_create_from_string(self):

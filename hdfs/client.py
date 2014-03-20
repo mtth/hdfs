@@ -297,6 +297,9 @@ class Client(object):
     """Returns a list of :class:`~hdfs.util.FileInfo`.
 
     :param hdfs_path: HDFS path to file or directory.
+    :param depth: Maximum depth to explore. Note that given the current
+      available API, individual requests are sent for each directory. Setting
+      this too high might make calls take a very long time.
 
     """
     info = HdfsInfo(

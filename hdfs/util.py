@@ -6,10 +6,12 @@
 from ConfigParser import (NoOptionError, NoSectionError, ParsingError,
   RawConfigParser)
 from contextlib import contextmanager
+from functools import wraps
 from itertools import chain
 from os import close, remove
 from os.path import exists, expanduser
 from tempfile import mkstemp
+import sys
 
 
 class HdfsError(Exception):
@@ -147,7 +149,28 @@ def hsize(size):
   :param size: Size in bytes.
 
   """
-  for suffix in ['bytes', 'kB', 'MB', 'GB', 'TB']:
+  for suffix in ['B', 'kB', 'MB', 'GB', 'TB']:
     if size < 1024.0:
-      return '%3.1f%s' % (size, suffix)
+      return '%3.0f%s' % (size, suffix)
     size /= 1024.0
+
+def catch(*error_classes):
+  """Returns a decorator that catches errors and prints messages to stderr.
+
+  :param *error_classes: Error classes.
+
+  Also exits with status 1 if any errors are caught.
+
+  """
+  def decorator(func):
+    """Decorator."""
+    @wraps(func)
+    def wrapper(*args, **kwargs):
+      """Wrapper. Finally."""
+      try:
+        return func(*args, **kwargs)
+      except error_classes as err:
+        sys.stderr.write('%s\n' % (err, ))
+        sys.exit(1)
+    return wrapper
+  return decorator
