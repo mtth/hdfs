@@ -27,53 +27,6 @@ class HdfsError(Exception):
     super(HdfsError, self).__init__(message % args or ())
 
 
-class HdfsInfo(object):
-
-  """Wrapper around FileStatus JSON objects.
-
-  Cf. http://hadoop.apache.org/docs/r1.0.4/webhdfs.html#FileStatus
-
-  :param status: FileStatus dictionary.
-  :param folder: Head of path.
-
-  """
-
-  summary = None
-
-  def __init__(self, status, folder):
-    path_suffix = status['pathSuffix']
-    folder = '%s/' % (folder.rstrip('/'), )
-    if path_suffix:
-      self.path = '%s%s' % (folder, path_suffix)
-    else:
-      self.path = folder.rstrip('/')
-    self.status = status
-
-  def __str__(self):
-    if self.is_dir and self.path != '/':
-      return '%s/' % (self.path, )
-    else:
-      return self.path
-
-  @property
-  def is_dir(self):
-    """Is the underlying node a directory?"""
-    return self.status['type'] == 'DIRECTORY'
-
-  @property
-  def size(self):
-    """Size in bytes."""
-    return self.summary['length'] if self.summary else self.status['length']
-
-  def add_summary(self, summary):
-    """Add summary info for directories.
-
-    :param summary: Content summary dictionary.
-
-    """
-    self.summary = summary
-
-
 class Config(object):
 
   """Configuration class.
@@ -90,7 +43,7 @@ class Config(object):
       try:
         self.parser.read(self.path)
       except ParsingError:
-        raise AzkabanError('Invalid configuration file %r.', path)
+        raise HdfsError('Invalid configuration file %r.', path)
 
   def save(self):
     """Save configuration parser back to file."""

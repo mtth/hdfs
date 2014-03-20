@@ -228,29 +228,8 @@ class TestUpload(_TestSession):
       self.client.upload('up', tpath)
     self._check_content('up', 'hello, world!')
 
-  def test_upload_directory_depth_1(self):
-    tdpath = mkdtemp()
-    with open(join(tdpath, 'foo'), 'w') as writer:
-      writer.write('hello, world!')
-    with open(join(tdpath, 'bar'), 'w') as writer:
-      writer.write('hello again, world!')
-    self.client.upload('up', tdpath, recursive=True)
-    self._check_content('up/foo', 'hello, world!')
-    self._check_content('up/bar', 'hello again, world!')
-
-  def test_upload_directory_depth_2(self):
-    tdpath = mkdtemp()
-    mkdir(join(tdpath, 'dir'))
-    with open(join(tdpath, 'foo'), 'w') as writer:
-      writer.write('hello, world!')
-    with open(join(tdpath, 'dir', 'bar'), 'w') as writer:
-      writer.write('hello again, world!')
-    self.client.upload('up', tdpath, recursive=True)
-    self._check_content('up/foo', 'hello, world!')
-    self._check_content('up/dir/bar', 'hello again, world!')
-
   @raises(HdfsError)
-  def test_upload_directory_without_recursive(self):
+  def test_upload_directory(self):
     tdpath = mkdtemp()
     try:
       self.client.upload('up', tdpath)
@@ -344,30 +323,3 @@ class TestRename(_TestSession):
     self.client._mkdirs('bar')
     self.client.rename('foo', 'bar')
     self._check_content('bar/foo', 'hello, world!')
-
-
-class TestInfo(_TestSession):
-
-  def test_file(self):
-    self.client.write('foo', 'hello, world!')
-    infos = self.client.info('foo')
-    eq_(len(infos), 1)
-    eq_(infos[0].path, 'foo')
-    eq_(
-      sorted(infos[0].status),
-      [
-        'accessTime', 'blockSize', 'group', 'length', 'modificationTime',
-        'owner', 'pathSuffix', 'permission', 'replication', 'type',
-      ],
-    )
-
-  def test_directory(self):
-    self.client.write('dir/foo', 'hello, world!')
-    self.client.write('dir/bar', 'hello, world!')
-    infos = self.client.info('dir', depth=1)
-    eq_(len(infos), 3)
-    eq_(sorted(a.path for a in infos), ['dir', 'dir/bar', 'dir/foo'])
-
-  @raises(HdfsError)
-  def test_missing_file(self):
-    self.client.info('foo')

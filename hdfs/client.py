@@ -3,7 +3,7 @@
 
 """HDFS clients."""
 
-from .util import HdfsError, HdfsInfo
+from .util import HdfsError
 from getpass import getuser
 from os import walk
 from os.path import abspath, exists, isdir, join, relpath
@@ -225,39 +225,20 @@ class Client(object):
     if not res_2:
       self._on_error(res_2)
 
-  def upload(self, hdfs_path, local_path, recursive=False, **kwargs):
+  def upload(self, hdfs_path, local_path, **kwargs):
     """Upload a file or directory to HDFS.
 
     :param hdfs_path: Target HDFS path.
-    :param hdfs_path: Local path to file (or directory if the `recursive`
-      option is set to `True`).
-    :param recursive: Recursively upload all files in `local_path`. Note that
-      when this option is set, only files are uploaded, i.e. empty directories
-      will not be created.
-    :param kwargs: Keyword arguments forwarded to :meth:`write`, these
-      will be common to all files and directories created.
+    :param hdfs_path: Local path to file.
+    :param kwargs: Keyword arguments forwarded to :meth:`write`.
 
     """
     if not exists(local_path):
       raise HdfsError('No file found at %r.', local_path)
-    elif not isdir(local_path):
-      with open(local_path) as reader:
-        self.write(hdfs_path, reader, **kwargs)
-    elif not recursive:
-      raise HdfsError(
-        'Cannot upload directory %r without the recursive option.', local_path,
-      )
-    else:
-      base_local_path = abspath(local_path)
-      for dir_path, dnames, fnames in walk(base_local_path):
-        for fname in fnames:
-          local_fpath = join(abspath(dir_path), fname)
-          hdfs_fpath = '%s/%s' % (
-            hdfs_path.rstrip('/'),
-            relpath(local_fpath, base_local_path),
-          )
-          with open(local_fpath) as reader:
-            self.write(hdfs_fpath, reader, **kwargs)
+    if isdir(local_path):
+      raise HdfsError('Cannot upload directory %r.', local_path)
+    with open(local_path) as reader:
+      self.write(hdfs_path, reader, **kwargs)
 
   def read(self, hdfs_path, writer, offset=0, length=None, buffer_size=1024):
     """Read file.
@@ -274,34 +255,21 @@ class Client(object):
     for chunk in res.iter_content(buffer_size):
       writer.write(chunk)
 
-  def download(
-    self, hdfs_path, local_path, overwrite=False, recursive=False, **kwargs
-  ):
+  def download(self, hdfs_path, local_path, overwrite=False, **kwargs):
     """Download a file from HDFS.
 
     :param hdfs_path: Path on HDFS of the file to download.
     :param local_path: Local path.
-    :param recursive: Recursively download all files in `hdfs_path`. Note that
-      when this option is set, only files are downloaded, i.e. empty
-      directories will not be created.
     :param kwargs: Keyword arguments forwarded to :meth:`read`.
 
     """
-    if recursive:
-      infos = self.infos(hdfs_path, depth=None, sizes=False)
-      rpaths = [] # TODO
-      for rpath in rpaths:
-        self.download(
-          rpath,
-          '', # TODO
-          overwrite=overwrite,
-          recursive=recursive,
-          **kwargs
-        )
+    if isdir(local_path):
+      local_path = join(local_path, hdfs_path.rsplit('/', 1)[-1])
+    if not exists(local_path) or overwrite:
+      with open(local_path, 'w') as writer:
+        self.read(hdfs_path, writer, **kwargs)
     else:
-      if not exists(local_path) or overwrite:
-        with open(local_path, 'w') as writer:
-          self.read(hdfs_path, writer, **kwargs)
+      raise HdfsError('Path %r already exists.', local_path)
 
   def delete(self, hdfs_path, recursive=False):
     """Remove a file or directory from HDFS.
@@ -330,37 +298,6 @@ class Client(object):
     res = self._rename(hdfs_src_path, destination=hdfs_dst_path)
     if not res.json()['boolean']:
       raise HdfsError('Path %r not found.', hdfs_src_path)
-
-  def info(self, hdfs_path, depth=0, sizes=False):
-    """Returns a list of :class:`~hdfs.util.FileInfo`.
-
-    :param hdfs_path: HDFS path to file or directory.
-    :param depth: Maximum depth to explore. Note that given the current
-      available API, individual requests are sent for each directory. Setting
-      this too high might make calls take a very long time. `None` implies
-      limitless!
-
-    """
-    info = HdfsInfo(
-      self._get_file_status(hdfs_path).json()['FileStatus'],
-      self._rel(hdfs_path),
-    )
-    def walk(info, depth):
-      path = info.path
-      if info.is_dir:
-        if sizes:
-          summary = self._get_content_summary(path).json()['ContentSummary']
-          info.add_summary(summary)
-        yield info
-        if depth is not None and depth > 0:
-          ls = self._list_status(path).json()['FileStatuses']
-          infos = [HdfsInfo(status, path) for status in ls['FileStatus']]
-          for a in sorted(infos, key=lambda b: b.path):
-            for c in walk(a, depth - 1):
-              yield c
-      else:
-        yield info
-    return list(walk(info, depth))
 
 
 class InsecureClient(Client):
@@ -438,5 +375,5 @@ class TokenClient(Client):
       url=url,
       params={'delegation': token},
       proxy=proxy,
-      root=root,
+      root=root or '/user/%s/' % (getuser(), ),
     )
