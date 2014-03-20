@@ -4,30 +4,16 @@
 API
 ===
 
-azkaban.project
----------------
-
-.. automodule:: azkaban.project
-    :members:
-    :show-inheritance:
-
-azkaban.job
+hdfs.client
 -----------
 
-.. automodule:: azkaban.job
+.. automodule:: hdfs.client
     :members:
     :show-inheritance:
 
-azkaban.remote
---------------
+hdfs.util
+---------
 
-.. automodule:: azkaban.remote
-    :members:
-    :show-inheritance:
-
-azkaban.util
-------------
-
-.. automodule:: azkaban.util
+.. automodule:: hdfs.util
     :members:
     :show-inheritance:
