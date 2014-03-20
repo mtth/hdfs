@@ -9,12 +9,11 @@ setup(
     name='hdfs',
     version=__version__,
     description='HdfsCLI',
-    #long_description=open('README.rst').read(),
+    long_description=open('README.rst').read(),
     author='Matthieu Monsch',
     author_email='monsch@alum.mit.edu',
-    #url='',
+    url='http://hdfscli.readthedocs.org',
     license='MIT',
-    # py_modules=['azkaban'],
     packages=find_packages(),
     classifiers=[
       'Development Status :: 3 - Alpha',
@@ -27,5 +26,7 @@ setup(
       'requests>=2.0.1',
       'requests-kerberos',
     ],
-    entry_points={'console_scripts': ['hdfs = hdfs.__main__:main']},
+    entry_points={'console_scripts': [
+      'hdfs = hdfs.__main__:main',
+    ]},
 )
