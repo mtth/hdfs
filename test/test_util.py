@@ -27,7 +27,7 @@ class TestConfig(object):
       config = Config(tpath)
       eq_(
         config.get_alias('foo'),
-        {'url': '1', 'auth': 'insecure', 'root': None}
+        {'url': '1'},
       )
 
   @raises(HdfsError)
@@ -36,13 +36,6 @@ class TestConfig(object):
       with open(tpath, 'w') as writer:
         writer.write('[foo_alias]\nurl=1\n')
       Config(tpath).get_alias('bar')
-
-  @raises(HdfsError)
-  def test_invalid_alias(self):
-    with temppath() as tpath:
-      with open(tpath, 'w') as writer:
-        writer.write('[foo_alias]\nauth=2\n')
-      Config(tpath).get_alias('foo')
 
 
 class TestHuman(object):

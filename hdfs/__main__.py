@@ -32,8 +32,7 @@ HdfsCLI exits with return status 1 if an error occurred and 0 otherwise.
 """
 
 from docopt import docopt
-from hdfs import __version__
-from hdfs.client import get_client_from_alias
+from hdfs import __version__, get_client_from_alias
 from hdfs.util import catch, HdfsError, hsize, htime
 from json import dumps
 from time import time

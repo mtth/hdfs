@@ -8,7 +8,7 @@ from ConfigParser import (NoOptionError, NoSectionError, ParsingError,
 from contextlib import contextmanager
 from functools import wraps
 from os import close, remove
-from os.path import exists, expanduser
+from os.path import exists
 from tempfile import mkstemp
 import sys
 
@@ -35,7 +35,7 @@ class Config(object):
 
   """
 
-  def __init__(self, path=expanduser('~/.hdfsrc')):
+  def __init__(self, path):
     self.parser = RawConfigParser()
     self.path = path
     if exists(path):
@@ -67,14 +67,8 @@ class Config(object):
       options = dict(self.parser.items(section))
     except NoSectionError:
       raise HdfsError('Alias not found: %r.', alias)
-    try:
-      return {
-        'url': options['url'],
-        'auth': options.get('auth', 'insecure'),
-        'root': options.get('root', None),
-      }
-    except KeyError:
-      raise HdfsError('No URL found for alias %r.', alias)
+    else:
+      return options
 
 
 @contextmanager

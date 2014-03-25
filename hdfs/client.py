@@ -3,7 +3,7 @@
 
 """HDFS clients."""
 
-from .util import Config, HdfsError
+from .util import HdfsError
 from getpass import getuser
 from os.path import exists, isdir, join
 from requests_kerberos import HTTPKerberosAuth, OPTIONAL
@@ -87,7 +87,9 @@ class _ClientType(type):
     for key, value in attrs.items():
       if isinstance(value, _Request):
         attrs[key] = value.to_method(mcs.pattern.sub('', key).upper())
-    return super(_ClientType, mcs).__new__(mcs, name, bases, attrs)
+    client = super(_ClientType, mcs).__new__(mcs, name, bases, attrs)
+    client.__registry__[client.__name__] = client
+    return client
 
 
 class Client(object):
@@ -110,7 +112,7 @@ class Client(object):
   """
 
   __metaclass__ = _ClientType
-
+  __registry__ = {}
   _root = None
 
   def __init__(self, url, auth=None, params=None, proxy=None, root=None):
@@ -121,6 +123,23 @@ class Client(object):
       self._params['doas'] = proxy
     if root and root != '/':
       self._root = root.rstrip('/')
+
+  @classmethod
+  def load(cls, class_name, options):
+    """Load client from options.
+
+    :param class_name: Client class name. Pass `None` for the base
+      :class:`Client` class.
+    :param options: Options dictionary.
+
+    """
+    class_name = class_name or 'Client'
+    try:
+      return cls.__registry__[class_name](**options)
+    except KeyError:
+      raise HdfsError('Unknown client class: %r', class_name)
+    except TypeError:
+      raise HdfsError('Invalid options: %r', options)
 
   def _abs(self, path):
     """Return absolute path.
@@ -361,8 +380,7 @@ class KerberosClient(Client):
   :param url: Hostname or IP address of HDFS namenode, prefixed with protocol,
     followed by WebHDFS port on namenode
   :param proxy: User to proxy as.
-  :param root: Root path. Used to allow relative path parameters. Defaults to
-    the current user's (as determined by `whoami`) home directory on HDFS.
+  :param root: Root path. Used to allow relative path parameters.
 
   """
 
@@ -371,7 +389,7 @@ class KerberosClient(Client):
       url,
       auth=HTTPKerberosAuth(OPTIONAL),
       proxy=proxy,
-      root=root or '/user/%s/' % (getuser(), ),
+      root=root,
     )
 
   def _on_error(self, response):
@@ -395,8 +413,7 @@ class TokenClient(Client):
     followed by WebHDFS port on namenode
   :param token: Hadoop delegation token.
   :param proxy: User to proxy as.
-  :param root: Root path. Used to allow relative path parameters. Defaults to
-    the current user's (as determined by `whoami`) home directory on HDFS.
+  :param root: Root path. Used to allow relative path parameters.
 
   """
 
@@ -405,26 +422,5 @@ class TokenClient(Client):
       url=url,
       params={'delegation': token},
       proxy=proxy,
-      root=root or '/user/%s/' % (getuser(), ),
+      root=root,
     )
-
-
-def get_client_from_alias(alias):
-  """Load client corresponding to an alias.
-
-  :param alias: Alias name.
-
-  """
-  options = Config().get_alias(alias)
-  auth = options.pop('auth')
-  try:
-    if auth == 'insecure':
-      return InsecureClient(**options)
-    elif auth == 'kerberos':
-      return KerberosClient(**options)
-    elif auth == 'token':
-      return TokenClient(**options)
-    else:
-      raise HdfsError('Invalid auth parameter %r for alias %r.', auth, alias)
-  except ValueError:
-    raise HdfsError('Invalid alias %r.', alias)
