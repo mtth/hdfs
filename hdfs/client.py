@@ -287,6 +287,46 @@ class Client(object):
     if not res.json()['boolean']:
       raise HdfsError('Path %r not found.', hdfs_src_path)
 
+  def walk(self, hdfs_path, depth=0, usage=False):
+    """Depth-first walk of remote folder hierarchy.
+
+    :param hdfs_path: Starting path.
+    :param depth: Maximum depth to explore directories.
+    :param usage: Include summary content usage for directories.
+
+    This method returns a generator containing FileStatus_ (and optionally,
+    ContentSummary_) JSON objects.
+
+    .. _FileStatus: FS_
+    .. _ContentSummary: CS_
+    .. _FS: http://hadoop.apache.org/docs/r1.0.4/webhdfs.html#FileStatus
+    .. _CS: http://hadoop.apache.org/docs/r1.0.4/webhdfs.html#ContentSummary
+
+    """
+    status = self._get_file_status(hdfs_path).json()['FileStatus']
+    def _walk(dir_path, status, depth):
+      """Recursion helper."""
+      if usage:
+        summary = self._get_content_summary(dir_path).json()['ContentSummary']
+      else:
+        summary = None
+      yield dir_path, status, summary
+      if depth > 0:
+        statuses = self._list_status(dir_path).json()['FileStatuses']
+        for status in statuses['FileStatus']:
+          path = '/'.join([dir_path, status['pathSuffix']])
+          if status['type'] == 'FILE':
+            yield path, status, None
+          else: # directory
+            if depth > 0:
+              for a in _walk(path, status, depth - 1):
+                yield a
+    if status['type'] == 'FILE':
+      yield hdfs_path, status, None
+    else:
+      for a in _walk(hdfs_path, status, depth):
+        yield a
+
 
 class InsecureClient(Client):
 

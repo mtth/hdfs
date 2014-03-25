@@ -296,3 +296,35 @@ class TestRename(_TestSession):
     self.client._mkdirs('bar')
     self.client.rename('foo', 'bar')
     self._check_content('bar/foo', 'hello, world!')
+
+
+class TestInfo(_TestSession):
+
+  def test_file(self):
+    self.client.write('foo', 'hello, world!')
+    infos = list(self.client.walk('foo'))
+    status = self.client._get_file_status('foo').json()['FileStatus']
+    eq_(len(infos), 1)
+    eq_(infos[0], ('foo', status, None))
+
+  def test_file_with_depth(self):
+    self.client.write('foo', 'hello, world!')
+    infos = list(self.client.walk('foo', depth=3))
+    status = self.client._get_file_status('foo').json()['FileStatus']
+    eq_(len(infos), 1)
+    eq_(infos[0], ('foo', status, None))
+
+  def test_dir(self):
+    self.client.write('bar/foo', 'hello, world!')
+    infos = list(self.client.walk('bar', depth=0))
+    status = self.client._get_file_status('bar').json()['FileStatus']
+    eq_(len(infos), 1)
+    eq_(infos[0], ('bar', status, None))
+
+  def test_dir_with_depth(self):
+    self.client.write('bar/foo', 'hello, world!')
+    self.client.write('bar/baz', 'hello again, world!')
+    self.client.write('bar/bax/foo', 'hello yet again, world!')
+    infos = list(self.client.walk('bar', depth=1))
+    status = self.client._get_file_status('bar/foo').json()['FileStatus']
+    eq_(len(infos), 4)
