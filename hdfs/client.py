@@ -294,8 +294,11 @@ class Client(object):
     :param depth: Maximum depth to explore directories.
     :param usage: Include summary content usage for directories.
 
-    This method returns a generator containing FileStatus_ (and optionally,
-    ContentSummary_) JSON objects.
+    This method returns a generator yielding tuples `(path, status, summary)`
+    where `path` is the relative path to the current file or directory,
+    `status` is a JSON FileStatus_ object, and `summary` a JSON ContentSummary_
+    object if `path` points to a directory and `usage=True` and `None`
+    otherwise.
 
     .. _FileStatus: FS_
     .. _ContentSummary: CS_
@@ -304,13 +307,13 @@ class Client(object):
 
     """
     status = self._get_file_status(hdfs_path).json()['FileStatus']
-    def _walk(dir_path, status, depth):
+    def _walk(dir_path, dir_status, depth):
       """Recursion helper."""
       if usage:
         summary = self._get_content_summary(dir_path).json()['ContentSummary']
       else:
         summary = None
-      yield dir_path, status, summary
+      yield dir_path, dir_status, summary
       if depth > 0:
         statuses = self._list_status(dir_path).json()['FileStatuses']
         for status in statuses['FileStatus']:
@@ -318,9 +321,8 @@ class Client(object):
           if status['type'] == 'FILE':
             yield path, status, None
           else: # directory
-            if depth > 0:
-              for a in _walk(path, status, depth - 1):
-                yield a
+            for a in _walk(path, status, depth - 1):
+              yield a
     if status['type'] == 'FILE':
       yield hdfs_path, status, None
     else:

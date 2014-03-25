@@ -298,7 +298,7 @@ class TestRename(_TestSession):
     self._check_content('bar/foo', 'hello, world!')
 
 
-class TestInfo(_TestSession):
+class TestWalk(_TestSession):
 
   def test_file(self):
     self.client.write('foo', 'hello, world!')
