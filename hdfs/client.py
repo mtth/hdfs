@@ -247,7 +247,8 @@ class Client(object):
     with open(local_path) as reader:
       self.write(hdfs_path, reader, **kwargs)
 
-  def read(self, hdfs_path, writer, offset=0, length=None, buffer_size=1024):
+  def read(self, hdfs_path, writer, offset=0, length=None, buffer_size=None,
+    callback=None, chunk_size=1024):
     """Read file.
 
     :param hdfs_path: HDFS path.
@@ -255,11 +256,30 @@ class Client(object):
     :param offset: Starting byte position.
     :param length: Number of bytes to be processed. `None` will read the entire
       file.
-    :param buffer_size: Batch size in bytes.
+    :param buffer_size: Size of the buffer in bytes used for transferring the
+      data. Defaults the the value set in the HDFS configuration.
+    :param callback: Function to be called while the download is in progress.
+      This function will be passed the current byte position as single
+      argument.
+    :param chunk_size: Interval in bytes at which the callback function will
+      be called.
+
+    ..
+
+      TODO: Do some performance testing on the batch and chunk sizes.
 
     """
-    res = self._open(hdfs_path, offset=offset, length=length)
-    for chunk in res.iter_content(buffer_size):
+    res = self._open(
+      hdfs_path,
+      offset=offset,
+      length=length,
+      buffersize=buffer_size
+    )
+    position = 0
+    for chunk in res.iter_content(chunk_size):
+      if callback:
+        callback(position)
+        position += len(chunk)
       writer.write(chunk)
 
   def download(self, hdfs_path, local_path, overwrite=False, **kwargs):

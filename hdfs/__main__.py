@@ -5,13 +5,15 @@
 
 Usage:
   hdfs [-a ALIAS] info [-jud DEPTH] RPATH
-  hdfs [-a ALIAS] download [-f] RPATH LPATH
+  hdfs [-a ALIAS] download [-fd DEPTH] RPATH LPATH
   hdfs [-a ALIAS] upload [-f] LPATH RPATH
   hdfs -h | --help | -v | --version
 
 Commands:
   info                          Display statistics about files and directories.
-  download                      Download a file. Specify - to output to stdout.
+  download                      Download a file or directory. If downloading a
+                                single file, you can specify `-` as LPATH to
+                                pipe the output to stdout.
   upload                        Upload a file. Specify - to read from stdin.
 
 Arguments:
@@ -35,7 +37,10 @@ from docopt import docopt
 from hdfs import __version__, get_client_from_alias
 from hdfs.util import catch, HdfsError, hsize, htime
 from json import dumps
+from os import makedirs
+from os.path import dirname, isdir, join
 from time import time
+import errno
 import sys
 
 
@@ -46,11 +51,11 @@ def main():
   client = get_client_from_alias(args['--alias'])
   rpath = args['RPATH']
   lpath = args['LPATH']
+  try:
+    depth = int(args['--depth'] or '0')
+  except ValueError:
+    raise HdfsError('Invalid --depth option: %r.', args['--depth'])
   if args['info']:
-    try:
-      depth = int(args['--depth'] or '0')
-    except ValueError:
-      raise HdfsError('Invalid --depth option: %r.', args['--depth'])
     gen = client.walk(rpath, depth, args['--usage'])
     if args['--json']:
       info = [
@@ -85,18 +90,64 @@ def main():
       client.write(rpath, reader, overwrite=force)
       sys.stdout.write('OK\n')
   elif args['download']:
-    if lpath != '-':
-      sys.stdout.write('Downloading %s to %s ... ' % (rpath, lpath))
-      sys.stdout.flush()
-      try:
-        client.download(rpath, lpath, overwrite=args['--force'])
-      except HdfsError as err:
-        sys.stdout.write('%s\n' % (err, ))
-      else:
-        sys.stdout.write('OK\n')
+    force = args['--force']
+    if depth:
+      if lpath == '-':
+        raise HdfsError(
+          'Piping to stdout only supported when downloading a single file.'
+        )
+      for _rpath, status, _ in client.walk(rpath, depth=depth):
+        if status['type'] == 'FILE':
+          _rel_rpath = _rpath.replace(r'^.*?%s/' % (rpath, ), '').split('/')
+          _lpath = join(lpath, *_rel_rpath)
+          download_file(client, _rpath, _lpath, force, status['length'])
     else:
-      client.read(rpath, sys.stdout)
+      if lpath == '-':
+        client.read(rpath, sys.stdout)
+      else:
+        download_file(client, rpath, lpath, force)
 
+
+def download_file(client, rpath, lpath, force, size=None):
+  """Download a file from HDFS.
+
+  :param client: :class:`~hdfs.client.Client` instance.
+  :param rpath: Remote path.
+  :param lpath: Local path. Any missing directories in the path hierarchy will
+    be created.
+  :param force: Overwrite an existing file. Note that this does not allow the
+    creation of new directories to overwrite existing files. Only the terminal
+    node can.
+  :param size: Optional size in bytes, will save a remote call.
+
+  """
+  try:
+    makedirs(dirname(lpath))
+  except OSError as err:
+    if err.errno == errno.EEXIST and isdir(dirname(lpath)):
+      pass
+    else:
+      sys.stderr.write('%s ERROR: invalid local path %s\n' % (rpath, lpath))
+      return
+  sys.stdout.write('%s  ??%%' % (rpath, ))
+  sys.stdout.flush()
+  try:
+    size = size or list(client.walk(rpath))[0][1]['length']
+    def callback(position):
+      progress = 100 * position / size
+      sys.stdout.write('\r%s %3i%%' % (rpath, progress))
+      sys.stdout.flush()
+    client.download(
+      rpath,
+      lpath,
+      overwrite=force,
+      callback=callback,
+    )
+  except HdfsError as err:
+    sys.stdout.write('\n')
+    sys.stderr.write('%s\n' % (err, ))
+  else:
+    sys.stdout.write('\r%s     \n' % (rpath, ))
 
 if __name__ == '__main__':
   main()
