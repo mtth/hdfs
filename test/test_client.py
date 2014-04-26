@@ -98,18 +98,13 @@ class _TestSession(object):
     eq_(self.client._open(path).content, content)
 
   def _file_exists(self, path):
-    if '/' in path:
-      head, tail = path.rsplit('/', 1)
-    else:
-      head = ''
-      tail = path
     try:
-      statuses = self.client._list_status(head).json()['FileStatuses']
+      status = self.client.status(path)
     except HdfsError:
       # head doesn't exist
       return False
     else:
-      return path in set(e['pathSuffix'] for e in statuses['FileStatus'])
+      return True
 
 
 class TestApi(_TestSession):
@@ -122,7 +117,7 @@ class TestApi(_TestSession):
   def test_list_status_test_root(self):
     eq_(
       self.client._list_status('').content,
-      self.client._list_status(self.client._root).content,
+      self.client._list_status(self.client.root).content,
     )
 
   def test_get_file_status(self):
@@ -149,7 +144,7 @@ class TestApi(_TestSession):
     ok_(not status(self.client._delete(path)))
 
   def test_rename_file(self):
-    paths = ['foo', '%s/bar' % (self.client._root.rstrip('/'), )]
+    paths = ['foo', '%s/bar' % (self.client.root.rstrip('/'), )]
     self.client._create(paths[0], data='hello')
     ok_(status(self.client._rename(paths[0], destination=paths[1])))
     ok_(not self._file_exists(paths[0]))
@@ -157,7 +152,7 @@ class TestApi(_TestSession):
     self.client._delete(paths[1])
 
   def test_rename_file_to_existing(self):
-    paths = ['foo', '%s/bar' % (self.client._root.rstrip('/'), )]
+    paths = ['foo', '%s/bar' % (self.client.root.rstrip('/'), )]
     self.client._create(paths[0], data='hello')
     self.client._create(paths[1], data='hi')
     try:
@@ -204,7 +199,7 @@ class TestWrite(_TestSession):
     pass # TODO
 
   @raises(HdfsError)
-  def test_create_to_existing_fie_without_overwrite(self):
+  def test_create_to_existing_file_without_overwrite(self):
     self.client.write('up', 'hello, world!')
     self.client.write('up', 'hello again, world!')
 
@@ -224,6 +219,31 @@ class TestWrite(_TestSession):
     # conversely, can't overwrite a file with a directory
     self.client.write('up', 'hello, world!')
     self.client.write('up/up', 'hello again, world!')
+
+  def test_callback_with_string(self):
+    a = []
+    def callback():
+      a.append(48)
+    self.client.write('up', 'hello', callback=callback)
+    eq_(len(a), 0)
+
+  def test_callback_with_generator(self):
+    a = []
+    def callback():
+      a.append(48)
+    self.client.write('up', (e for e in ['hello', 'world']), callback=callback)
+    eq_(len(a), 2)
+
+  def test_callback_with_file_object(self):
+    a = []
+    def callback():
+      a.append(48)
+    with temppath() as tpath:
+      with open(tpath, 'w') as writer:
+        writer.write('hello, world!\nand a second line')
+      with open(tpath) as reader:
+        self.client.write('up', reader, callback=callback)
+    eq_(len(a), 2)
 
 
 class TestUpload(_TestSession):
@@ -332,33 +352,71 @@ class TestRename(_TestSession):
     self._check_content('bar/foo', 'hello, world!')
 
 
+class TestStatus(_TestSession):
+
+  def test_directory(self):
+    status = self.client.status('')
+    eq_(status['type'], 'DIRECTORY')
+    eq_(status['length'], 0)
+
+  def test_file(self):
+    self.client.write('foo', 'hello, world!')
+    status = self.client.status('foo')
+    eq_(status['type'], 'FILE')
+    eq_(status['length'], 13)
+
+  @raises(HdfsError)
+  def test_missing(self):
+    self.client.status('foo')
+
+
+class TestContent(_TestSession):
+
+  def test_directory(self):
+    self.client.write('foo', 'hello, world!')
+    content = self.client.content('')
+    eq_(content['directoryCount'], 1)
+    eq_(content['fileCount'], 1)
+    eq_(content['length'], 13)
+
+  def test_file(self):
+    self.client.write('foo', 'hello, world!')
+    content = self.client.content('foo')
+    eq_(content['directoryCount'], 0)
+    eq_(content['fileCount'], 1)
+    eq_(content['length'], 13)
+
+  @raises(HdfsError)
+  def test_missing(self):
+    self.client.content('foo')
+
+
 class TestWalk(_TestSession):
 
   def test_file(self):
     self.client.write('foo', 'hello, world!')
     infos = list(self.client.walk('foo'))
-    status = self.client._get_file_status('foo').json()['FileStatus']
+    status = self.client.status('foo')
     eq_(len(infos), 1)
-    eq_(infos[0], ('foo', status, None))
+    eq_(infos[0], (osp.join(self.client.root, 'foo'), status))
 
   def test_file_with_depth(self):
     self.client.write('foo', 'hello, world!')
-    infos = list(self.client.walk('foo', depth=3))
-    status = self.client._get_file_status('foo').json()['FileStatus']
+    infos = list(self.client.walk('foo', depth=48))
+    status = self.client.status('foo')
     eq_(len(infos), 1)
-    eq_(infos[0], ('foo', status, None))
+    eq_(infos[0], (osp.join(self.client.root, 'foo'), status))
 
-  def test_dir(self):
+  def test_dir_without_depth(self):
     self.client.write('bar/foo', 'hello, world!')
     infos = list(self.client.walk('bar', depth=0))
-    status = self.client._get_file_status('bar').json()['FileStatus']
+    status = self.client.status('bar')
     eq_(len(infos), 1)
-    eq_(infos[0], ('bar', status, None))
+    eq_(infos[0], (osp.join(self.client.root, 'bar'), status))
 
   def test_dir_with_depth(self):
     self.client.write('bar/foo', 'hello, world!')
     self.client.write('bar/baz', 'hello again, world!')
     self.client.write('bar/bax/foo', 'hello yet again, world!')
     infos = list(self.client.walk('bar', depth=1))
-    status = self.client._get_file_status('bar/foo').json()['FileStatus']
     eq_(len(infos), 4)

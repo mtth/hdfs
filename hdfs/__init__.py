@@ -7,7 +7,7 @@ __all__ = [
   'get_client_from_alias',
   'Client', 'InsecureClient', 'KerberosClient', 'TokenClient',
 ]
-__version__ = '0.1.3'
+__version__ = '0.2.0'
 
 from os.path import expanduser
 try:

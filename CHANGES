@@ -2,7 +2,20 @@ HdfsCLI
 =======
 
 
-Version 0.1.0 (?)
------------------
+Version 0.2.0 (2014/04/26)
+--------------------------
+
+* Added `Client.status` and `Client.content` methods.
+* Added callback to `Client.write`.
+
+Breaking changes:
+
+* Removed content from `Client.walk`.
+* Simplified CLI. All download and uploads are normalized through standard in,
+  and standard out.
+
+
+Version 0.1.0 (2014/03/25)
+--------------------------
 
 * Initial release

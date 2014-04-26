@@ -4,30 +4,38 @@
 """HdfsCLI: a command line interface for WebHDFS.
 
 Usage:
-  hdfs [-a ALIAS] info [-jud DEPTH] RPATH
-  hdfs [-a ALIAS] download [-fd DEPTH] RPATH LPATH
-  hdfs [-a ALIAS] upload [-f] LPATH RPATH
+  hdfs [-a ALIAS] [--info] [-jd DEPTH] [PATH]
+  hdfs [-a ALIAS] --read [-p PARTS] PATH
+  hdfs [-a ALIAS] --write [-o] PATH
   hdfs -h | --help | -v | --version
 
 Commands:
-  info                          Display statistics about files and directories.
-  download                      Download a file or directory. If downloading a
-                                single file, you can specify `-` as LPATH to
-                                pipe the output to stdout.
-  upload                        Upload a file. Specify - to read from stdin.
+  --info                        View information about files and directories.
+                                This is the default command.
+  --read                        Read a file from HDFS to standard out. If
+                                `PATH` is a directory, this command will
+                                attempt to read (in order) any part-files found
+                                directly under it.
+  --write                       Write from standard in to HDFS.
 
 Arguments:
-  RPATH                         Remote path (on HDFS).
-  LPATH                         Local path.
+  PATH                          Remote HDFS path.
 
 Options:
   -a ALIAS --alias=ALIAS        Alias.
-  -d DEPTH --depth=DEPTH        Maximum depth to explore directories.
-  -f --force                    Overwrite existing files.
+  -d DEPTH --depth=DEPTH        Maximum depth to explore directories. Specify
+                                `-1` for no limit.
+  -o --overwrite                Overwrite any existing file.
   -h --help                     Show this message and exit.
   -j --json                     Output JSON instead of tab delimited data.
-  -u --usage                    Include content summary for directories.
+  -p PARTS --parts=PARTS        Comma separated list of part-file numbers. Only
+                                those will be read if `PATH` is partitioned.
   -v --version                  Show version and exit.
+
+Examples:
+  hdfs -a prod /user/foo
+  hdfs --read logs/1987-03-23 >>logs
+  hdfs --write -f data/weights.tsv <weights.tsv
 
 HdfsCLI exits with return status 1 if an error occurred and 0 otherwise.
 
@@ -37,117 +45,113 @@ from docopt import docopt
 from hdfs import __version__, get_client_from_alias
 from hdfs.util import catch, HdfsError, hsize, htime
 from json import dumps
-from os import makedirs
-from os.path import dirname, isdir, join
 from time import time
-import errno
+import re
 import sys
 
+
+def infos(client, hdfs_path, depth, json):
+  """Get informations about files and directories.
+
+  :param client: :class:`~hdfs.client.Client` instance.
+  :param hdfs_path: Remote path.
+  :param depth: Maximum exploration depth.
+  :param json: Return JSON output.
+
+  """
+  def _infos():
+    """Helper generator."""
+    for path, status in client.walk(hdfs_path, depth=depth):
+      if status['type'] == 'DIRECTORY':
+        yield path, status, client.content(path)
+      else:
+        yield path, status, None
+  if json:
+    info = [
+      {'path': path, 'status': status, 'content': content}
+      for path, status, content in _infos()
+    ]
+    sys.stdout.write('%s\n' % (dumps(info), ))
+  else:
+    for fpath, status, content in _infos():
+      type_ = status['type']
+      if type_ == 'DIRECTORY':
+        size = hsize(content['length']) if content else '     -'
+      else:
+        size = hsize(status['length'])
+      time_ = htime(time() - status['modificationTime'] / 1000)
+      sys.stdout.write('%s\t%s\t%s\t%s\n' % (size, time_, type_[0], fpath))
+
+def read(client, hdfs_path, suffix=''):
+  """Download a file from HDFS.
+
+  :param client: :class:`~hdfs.client.Client` instance.
+  :param hdfs_path: Remote path.
+  :param size: Size in bytes of file read. Used for progress indicator.
+
+  """
+  if sys.stdout.isatty():
+    client.read(hdfs_path, sys.stdout)
+  else:
+    size = client.status(hdfs_path)['length']
+    message = '%s\t%s%s' % (hsize(size), hdfs_path, suffix)
+    sys.stderr.write('%s\t ??%%\r' % (message, ))
+    sys.stderr.flush()
+    try:
+      def callback(position, out=sys.stderr):
+        """Callback helper. Note the stderr local variable caching."""
+        progress = 100 * position / size
+        out.write('%s\t%3i%%\r' % (message, progress))
+        out.flush()
+      client.read(hdfs_path, sys.stdout, callback=callback)
+    except HdfsError as err:
+      sys.stderr.write('%s\t%s\n' % (message, err))
+    else:
+      sys.stderr.write('%s\t     \n' % (message, ))
 
 @catch(HdfsError)
 def main():
   """Entry point."""
   args = docopt(__doc__, version=__version__)
   client = get_client_from_alias(args['--alias'])
-  rpath = args['RPATH']
-  lpath = args['LPATH']
+  rpath = args['PATH'] or ''
   try:
     depth = int(args['--depth'] or '0')
   except ValueError:
-    raise HdfsError('Invalid --depth option: %r.', args['--depth'])
-  if args['info']:
-    gen = client.walk(rpath, depth, args['--usage'])
-    if args['--json']:
-      info = [
-        {'path': path, 'status': status, 'summary': summary}
-        for path, status, summary in gen
-      ]
-      sys.stdout.write('%s\n' % (dumps(info), ))
+    raise HdfsError('Invalid `--depth` option: %r.', args['--depth'])
+  if args['--write']:
+    reader = (line for line in sys.stdin) # doesn't work with stdin, why?
+    client.write(rpath, reader, overwrite=args['--overwrite'])
+  elif args['--read']:
+    content = client.content(rpath)
+    if not content['directoryCount']:
+      read(client, rpath)
     else:
-      for fpath, status, summary in gen:
-        type_ = status['type']
-        if type_ == 'DIRECTORY':
-          size = hsize(summary['length']) if summary else '     -'
-        else:
-          size = hsize(status['length'])
-        time_ = htime(time() - status['modificationTime'] / 1000)
-        sys.stdout.write('%s\t%s\t%s\t%s\n' % (size, time_, type_[0], fpath))
-  elif args['upload']:
-    force = args['--force']
-    if lpath != '-':
-      sys.stdout.write('Uploading %s to %s ... ' % (lpath, rpath))
-      sys.stdout.flush()
-      try:
-        client.upload(rpath, lpath, overwrite=force)
-      except HdfsError as err:
-        sys.stdout.write('%s\n' % (err, ))
+      pattern = re.compile(r'^part-(?:m|r)-(\d+)[^/]*$')
+      matches = (
+        (path, pattern.match(status['pathSuffix']))
+        for path, status in client.walk(rpath, depth=1)
+      )
+      part_files = dict(
+        (int(match.group(1)), path)
+        for path, match in matches
+        if match
+      )
+      if not part_files:
+        raise HdfsError('No part-files found in directory %r.', rpath)
+      if args['--parts']:
+        try:
+          paths = [part_files[int(p)] for p in args['--parts'].split(',')]
+        except ValueError:
+          raise HdfsError('Invalid `--parts` option: %r.', args['--parts'])
+        except KeyError as err:
+          raise HdfsError('Missing part-file: %r.', err.args[0])
       else:
-        sys.stdout.write('OK\n')
-    else:
-      sys.stdout.write('Uploading from stdin to %s ... ' % (rpath, ))
-      sys.stdout.flush()
-      reader = (line for line in sys.stdin) # doesn't work with stdin, why?
-      client.write(rpath, reader, overwrite=force)
-      sys.stdout.write('OK\n')
-  elif args['download']:
-    force = args['--force']
-    if depth:
-      if lpath == '-':
-        raise HdfsError(
-          'Piping to stdout only supported when downloading a single file.'
-        )
-      for _rpath, status, _ in client.walk(rpath, depth=depth):
-        if status['type'] == 'FILE':
-          _rel_rpath = _rpath.replace(r'^.*?%s/' % (rpath, ), '').split('/')
-          _lpath = join(lpath, *_rel_rpath)
-          download_file(client, _rpath, _lpath, force, status['length'])
-    else:
-      if lpath == '-':
-        client.read(rpath, sys.stdout)
-      else:
-        download_file(client, rpath, lpath, force)
-
-
-def download_file(client, rpath, lpath, force, size=None):
-  """Download a file from HDFS.
-
-  :param client: :class:`~hdfs.client.Client` instance.
-  :param rpath: Remote path.
-  :param lpath: Local path. Any missing directories in the path hierarchy will
-    be created.
-  :param force: Overwrite an existing file. Note that this does not allow the
-    creation of new directories to overwrite existing files. Only the terminal
-    node can.
-  :param size: Optional size in bytes, will save a remote call.
-
-  """
-  try:
-    makedirs(dirname(lpath))
-  except OSError as err:
-    if err.errno == errno.EEXIST and isdir(dirname(lpath)):
-      pass
-    else:
-      sys.stderr.write('%s ERROR: invalid local path %s\n' % (rpath, lpath))
-      return
-  sys.stdout.write('%s  ??%%' % (rpath, ))
-  sys.stdout.flush()
-  try:
-    size = size or list(client.walk(rpath))[0][1]['length']
-    def callback(position):
-      progress = 100 * position / size
-      sys.stdout.write('\r%s %3i%%' % (rpath, progress))
-      sys.stdout.flush()
-    client.download(
-      rpath,
-      lpath,
-      overwrite=force,
-      callback=callback,
-    )
-  except HdfsError as err:
-    sys.stdout.write('\n')
-    sys.stderr.write('%s\n' % (err, ))
+        paths = sorted(part_files.values())
+      for index, path in enumerate(paths):
+        read(client, path, '\t[%s/%s]' % (index + 1, len(paths)))
   else:
-    sys.stdout.write('\r%s     \n' % (rpath, ))
+    infos(client, rpath, depth, args['--json'])
 
 if __name__ == '__main__':
   main()

@@ -5,10 +5,38 @@
 
 from .util import HdfsError
 from getpass import getuser
-from os.path import exists, isdir, join
 from requests_kerberos import HTTPKerberosAuth, OPTIONAL
+import os.path as osp
 import re
 import requests as rq
+
+
+def _hdfs_abspath(path, root):
+  """Return normalized absolute path.
+
+  :param path: HDFS path.
+  :param root: Root, used to allow relative paths.
+
+  """
+  if not (osp.isabs(path) or root and osp.isabs(root)):
+    raise HdfsError('Path %r is relative but no absolute root found.', path)
+  return osp.normpath(osp.join(root, path))
+
+def _on_error(response):
+  """Callback when an API response has a non 2XX status code.
+
+  :param response: Response.
+
+  """
+  if response.status_code == 401:
+    raise HdfsError('Authentication failure. Check your credentials.')
+  try:
+    # Cf. http://hadoop.apache.org/docs/r1.0.4/webhdfs.html#Error+Responses
+    message = response.json()['RemoteException']['message']
+  except ValueError:
+    # No clear one thing to display, display entire message content
+    message = response.content
+  raise HdfsError(message)
 
 
 class _Request(object):
@@ -24,11 +52,10 @@ class _Request(object):
 
   """
 
-  api_prefix = '/webhdfs/v1'
+  webhdfs_prefix = '/webhdfs/v1'
   doc_url = 'http://hadoop.apache.org/docs/r1.0.4/webhdfs.html'
 
   def __init__(self, verb, **kwargs):
-    kwargs.setdefault('allow_redirects', True) # convenience
     self.kwargs = kwargs
     try:
       self.handler = getattr(rq, verb.lower())
@@ -36,8 +63,7 @@ class _Request(object):
       raise HdfsError('Invalid HTTP verb %r.', verb)
 
   def __call__(self):
-    # make pylint happy
-    pass
+    pass # make pylint happy
 
   def to_method(self, operation):
     """Returns method associated with request to attach to client.
@@ -50,7 +76,11 @@ class _Request(object):
     """
     def api_handler(client, path, data=None, **params):
       """Wrapper function."""
-      url = '%s%s%s' % (client.url, self.api_prefix, client._abs(path))
+      url = '%s%s%s' % (
+        client.url,
+        self.webhdfs_prefix,
+        _hdfs_abspath(path, client.root),
+      )
       params['op'] = operation
       for key, value in client._params.items():
         params.setdefault(key, value)
@@ -62,7 +92,7 @@ class _Request(object):
         **self.kwargs
       )
       if not response: # non 2XX status code
-        return client._on_error(response)
+        return _on_error(response)
       else:
         return response
     api_handler.__name__ = '%s_handler' % (operation.lower(), )
@@ -113,16 +143,14 @@ class Client(object):
 
   __metaclass__ = _ClientType
   __registry__ = {}
-  _root = None
 
-  def __init__(self, url, auth=None, params=None, proxy=None, root=None):
+  def __init__(self, url, root=None, auth=None, params=None, proxy=None):
     self.url = url
+    self.root = root
     self._auth = auth
     self._params = params or {}
     if proxy:
       self._params['doas'] = proxy
-    if root and root != '/':
-      self._root = root.rstrip('/')
 
   @classmethod
   def load(cls, class_name, options):
@@ -141,52 +169,12 @@ class Client(object):
     except TypeError:
       raise HdfsError('Invalid options: %r', options)
 
-  def _abs(self, path):
-    """Return absolute path.
-
-    :param path: HDFS path.
-
-    """
-    path = re.compile(r'^(\./|\.$)').sub('', path)
-    if not path.startswith('/'):
-      if not self._root:
-        raise HdfsError('Invalid relative path %r.', path)
-      else:
-        path = '%s/%s' % (self._root, path)
-    return path
-
-  def _rel(self, path):
-    """Return relative path.
-
-    :param path: HDFS path.
-
-    If the client's `root` is found in the path, it will be replaced by a
-    `'.'`.
-
-    """
-    path = self._abs(path)
-    return re.compile('^%s' % (self._root, )).sub('.', path)
-
-  def _on_error(self, response):
-    """Callback when an API response has a non 2XX status code.
-
-    :param response: Response.
-
-    """
-    try:
-      # Cf. http://hadoop.apache.org/docs/r1.0.4/webhdfs.html#Error+Responses
-      message = response.json()['RemoteException']['message']
-    except ValueError:
-      # No clear one thing to display?
-      message = response.content
-    raise HdfsError(message)
-
   # Raw API endpoints
 
   _append = _Request('PUT') # doesn't allow for streaming
-  _append_1 = _Request('POST', allow_redirects=False)
+  _append_1 = _Request('POST', allow_redirects=False) # cf. `read`
   _create = _Request('PUT') # doesn't allow for streaming
-  _create_1 = _Request('PUT', allow_redirects=False)
+  _create_1 = _Request('PUT', allow_redirects=False) # cf. `write`
   _delete = _Request('DELETE')
   _get_content_summary = _Request('GET')
   _get_file_checksum = _Request('GET')
@@ -203,10 +191,36 @@ class Client(object):
 
   # Exposed endpoints
 
-  def write(
-    self, hdfs_path, data, overwrite=False, permission=None, blocksize=None,
-    replication=None,
-  ):
+  def content(self, hdfs_path):
+    """Get content summary for a file or folder on HDFS.
+
+    :param hdfs_path: Remote path.
+
+    This method returns a JSON ContentSummary_ object if `hdfs_path` exists and
+    raises :class:`HdfsError` otherwise.
+
+    .. _ContentSummary: CS_
+    .. _CS: http://hadoop.apache.org/docs/r1.0.4/webhdfs.html#ContentSummary
+
+    """
+    return self._get_content_summary(hdfs_path).json()['ContentSummary']
+
+  def status(self, hdfs_path):
+    """Get status for a file or folder on HDFS.
+
+    :param hdfs_path: Remote path.
+
+    This method returns a JSON FileStatus_ object if `hdfs_path` exists and
+    raises :class:`HdfsError` otherwise.
+
+    .. _FileStatus: FS_
+    .. _FS: http://hadoop.apache.org/docs/r1.0.4/webhdfs.html#FileStatus
+
+    """
+    return self._get_file_status(hdfs_path).json()['FileStatus']
+
+  def write(self, hdfs_path, data, overwrite=False, permission=None,
+    blocksize=None, replication=None, callback=None):
     """Create a file on HDFS.
 
     :param hdfs_path: Path where to create file. The necessary directories will
@@ -219,6 +233,9 @@ class Client(object):
       Leading zeros may be omitted.
     :param blocksize: Block size of the file.
     :param replication: Number of replications of the file.
+    :param callback: Function to be called while the upload is in progress.
+      This function is called if `data` is a generator or file object right
+      before each yield.
 
     """
     res_1 = self._create_1(
@@ -228,9 +245,16 @@ class Client(object):
       blocksize=blocksize,
       replication=replication,
     )
+    if callback and not isinstance(data, basestring):
+      def _data(data=data):
+        """Wrapped data generator. Note the local variable caching."""
+        for e in data:
+          callback()
+          yield e
+      data = _data()
     res_2 = rq.put(res_1.headers['location'], data=data)
     if not res_2:
-      self._on_error(res_2)
+      _on_error(res_2)
 
   def upload(self, hdfs_path, local_path, **kwargs):
     """Upload a file or directory to HDFS.
@@ -240,10 +264,10 @@ class Client(object):
     :param kwargs: Keyword arguments forwarded to :meth:`write`.
 
     """
-    if not exists(local_path):
+    if not osp.exists(local_path):
       raise HdfsError('No file found at %r.', local_path)
-    if isdir(local_path):
-      raise HdfsError('Cannot upload directory %r.', local_path)
+    if osp.isdir(local_path):
+      raise HdfsError('%r is a directory, cannot upload.', local_path)
     with open(local_path) as reader:
       self.write(hdfs_path, reader, **kwargs)
 
@@ -264,10 +288,6 @@ class Client(object):
     :param chunk_size: Interval in bytes at which the callback function will
       be called.
 
-    ..
-
-      TODO: Do some performance testing on the batch and chunk sizes.
-
     """
     res = self._open(
       hdfs_path,
@@ -286,17 +306,17 @@ class Client(object):
     """Download a file from HDFS.
 
     :param hdfs_path: Path on HDFS of the file to download.
-    :param local_path: Local path.
+    :param local_path: Local path. This must not be a directory.
     :param kwargs: Keyword arguments forwarded to :meth:`read`.
 
     """
-    if isdir(local_path):
-      local_path = join(local_path, hdfs_path.rsplit('/', 1)[-1])
-    if not exists(local_path) or overwrite:
+    if osp.isdir(local_path):
+      raise HdfsError('%r is a directory. Cannot download.', local_path)
+    if not osp.exists(local_path) or overwrite:
       with open(local_path, 'w') as writer:
         self.read(hdfs_path, writer, **kwargs)
     else:
-      raise HdfsError('Path %r already exists.', local_path)
+      raise HdfsError('%r already exists. Aborting download.', local_path)
 
   def delete(self, hdfs_path, recursive=False):
     """Remove a file or directory from HDFS.
@@ -309,7 +329,7 @@ class Client(object):
     """
     res = self._delete(hdfs_path, recursive=recursive)
     if not res.json()['boolean']:
-      raise HdfsError('Path %r not found.', hdfs_path)
+      raise HdfsError('Remote path %r not found.', hdfs_path)
 
   def rename(self, hdfs_src_path, hdfs_dst_path):
     """Move a file or folder.
@@ -320,50 +340,41 @@ class Client(object):
       a file, this method will raise :class:`~hdfs.util.HdfsError`.
 
     """
-    if not hdfs_dst_path.startswith('/'):
-      hdfs_dst_path = '%s/%s' % (self._root, hdfs_dst_path)
+    hdfs_dst_path = _hdfs_abspath(hdfs_dst_path, self.root)
     res = self._rename(hdfs_src_path, destination=hdfs_dst_path)
     if not res.json()['boolean']:
-      raise HdfsError('Path %r not found.', hdfs_src_path)
+      raise HdfsError('Remote path %r not found.', hdfs_src_path)
 
-  def walk(self, hdfs_path, depth=0, usage=False):
-    """Depth-first walk of remote folder hierarchy.
+  def walk(self, hdfs_path, depth=0):
+    """Depth-first walk of remote folder statuses.
 
     :param hdfs_path: Starting path.
-    :param depth: Maximum depth to explore directories.
-    :param usage: Include summary content usage for directories.
+    :param depth: Maximum depth to explore. Specify `-1` for no limit.
 
-    This method returns a generator yielding tuples `(path, status, summary)`
-    where `path` is the relative path to the current file or directory,
-    `status` is a JSON FileStatus_ object, and `summary` a JSON ContentSummary_
-    object if `path` points to a directory and `usage=True` and `None`
-    otherwise.
+    This method returns a generator yielding tuples `(path, status)`
+    where `path` is the absolute path to the current file or directory, and
+    `status` is a JSON FileStatus_ object.
 
     .. _FileStatus: FS_
-    .. _ContentSummary: CS_
     .. _FS: http://hadoop.apache.org/docs/r1.0.4/webhdfs.html#FileStatus
-    .. _CS: http://hadoop.apache.org/docs/r1.0.4/webhdfs.html#ContentSummary
 
     """
-    status = self._get_file_status(hdfs_path).json()['FileStatus']
+    hdfs_path = _hdfs_abspath(hdfs_path, self.root)
     def _walk(dir_path, dir_status, depth):
       """Recursion helper."""
-      if usage:
-        summary = self._get_content_summary(dir_path).json()['ContentSummary']
-      else:
-        summary = None
-      yield dir_path, dir_status, summary
-      if depth > 0:
+      yield dir_path, dir_status
+      if depth != 0:
         statuses = self._list_status(dir_path).json()['FileStatuses']
         for status in statuses['FileStatus']:
-          path = '/'.join([dir_path, status['pathSuffix']])
+          path = osp.join(dir_path, status['pathSuffix'])
           if status['type'] == 'FILE':
-            yield path, status, None
+            yield path, status
           else: # directory
             for a in _walk(path, status, depth - 1):
               yield a
+    status = self.status(hdfs_path)
     if status['type'] == 'FILE':
-      yield hdfs_path, status, None
+      yield hdfs_path, status
     else:
       for a in _walk(hdfs_path, status, depth):
         yield a
@@ -411,18 +422,6 @@ class KerberosClient(Client):
       proxy=proxy,
       root=root,
     )
-
-  def _on_error(self, response):
-    """Callback when an API response has a non-200 status code.
-
-    :param response: response.
-
-    """
-    if response.status_code == 401:
-      raise HdfsError(
-        'Authentication failure. Check your kerberos credentials.'
-      )
-    return super(KerberosClient, self)._on_error(response)
 
 
 class TokenClient(Client):
