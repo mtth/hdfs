@@ -47,10 +47,6 @@ class _Request(object):
   :param verb: HTTP verb (`'GET'`, `'PUT'`, etc.).
   :param kwargs: Keyword arguments passed to the request handler.
 
-  Note that by default the `allow_redirects` keyword argument is set to `True`
-  and passed to the request handler. This is for convenience as all but 2 of
-  the API endpoints require it.
-
   """
 
   webhdfs_prefix = '/webhdfs/v1'
@@ -152,36 +148,6 @@ class Client(object):
     self._params = params or {}
     if proxy:
       self._params['doas'] = proxy
-
-  @classmethod
-  def _from_options(cls, class_name, options):
-    """Load client from options.
-
-    :param class_name: Client class name. Pass `None` for the base
-      :class:`Client` class.
-    :param options: Options dictionary.
-
-    """
-    class_name = class_name or 'Client'
-    try:
-      return cls.__registry__[class_name](**options)
-    except KeyError:
-      raise HdfsError('Unknown client class: %r', class_name)
-    except TypeError:
-      raise HdfsError('Invalid options: %r', options)
-
-  @classmethod
-  def from_alias(cls, alias, path=None):
-    """Load client associated with configuration alias.
-
-    :param alias: Alias name.
-    :param path: Path to configuration file. Defaults to `.hdfsrc` in the
-      current user's home directory.
-
-    """
-    path = path or osp.expanduser('~/.hdfsrc')
-    options = Config(path).get_alias(alias)
-    return cls._from_options(options.pop('client', None), options)
 
   # Raw API endpoints
 
@@ -440,6 +406,38 @@ class Client(object):
     else:
       for a in _walk(hdfs_path, status, depth):
         yield a
+
+  # Class loaders
+
+  @classmethod
+  def _from_options(cls, class_name, options):
+    """Load client from options.
+
+    :param class_name: Client class name. Pass `None` for the base
+      :class:`Client` class.
+    :param options: Options dictionary.
+
+    """
+    class_name = class_name or 'Client'
+    try:
+      return cls.__registry__[class_name](**options)
+    except KeyError:
+      raise HdfsError('Unknown client class: %r', class_name)
+    except TypeError:
+      raise HdfsError('Invalid options: %r', options)
+
+  @classmethod
+  def from_alias(cls, alias, path=None):
+    """Load client associated with configuration alias.
+
+    :param alias: Alias name.
+    :param path: Path to configuration file. Defaults to `.hdfsrc` in the
+      current user's home directory.
+
+    """
+    path = path or osp.expanduser('~/.hdfsrc')
+    options = Config(path).get_alias(alias)
+    return cls._from_options(options.pop('client', None), options)
 
 
 # Custom client classes
