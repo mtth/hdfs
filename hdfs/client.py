@@ -226,11 +226,11 @@ class Client(object):
     :param hdfs_path: Remote path. If it points to a non partitioned file,
       a list with only element that path is returned. This makes it easier
       to handle these two cases.
-    :param parts: List of part-files numbers to select or number. If a number,
-      that many partitions will be chosen at random. By default, all part-files
-      are returned. If `parts` is a list and one of the parts is not found or
-      too many samples are demanded, an :class:`~hdfs.util.HdfsError` is
-      raised.
+    :param parts: List of part-files numbers or total number of part-files to
+      select. If a number, that many partitions will be chosen at random. By
+      default, all part-files are returned, in random order. If `parts` is a
+      list and one of the parts is not found or too many samples are demanded,
+      an :class:`~hdfs.util.HdfsError` is raised.
 
     """
     content = self.content(hdfs_path)
@@ -259,7 +259,7 @@ class Client(object):
         except KeyError as err:
           raise HdfsError('No part-file %r in %r.', err.args[0], hdfs_path)
       else:
-        paths = sorted(part_files.values())
+        paths = sample(part_files.values(), len(part_files))
       return paths
 
   def write(self, hdfs_path, data, overwrite=False, permission=None,
@@ -319,6 +319,9 @@ class Client(object):
       yielding every `chunk_size` bytes. Note that this can cause the entire
       file to be yielded at once if the character is not appropriate.
 
+    If only reading part of a file, don't forget to close the connection by
+    terminating the generator by using its `close` method.
+
     """
     res = self._open(
       hdfs_path,
@@ -326,18 +329,26 @@ class Client(object):
       length=length,
       buffersize=buffer_size
     )
-    if not buffer_char:
-      for chunk in res.iter_content(chunk_size):
-        yield chunk
-    else:
-      buf = ''
-      for chunk in res.iter_content(chunk_size):
-        buf += chunk
-        splits = buf.split(buffer_char)
-        for part in splits[:-1]:
-          yield part
-        buf = splits[-1]
-      yield buf
+    def reader():
+      """Generator that also terminates the connection when closed."""
+      try:
+        if not buffer_char:
+          for chunk in res.iter_content(chunk_size):
+            yield chunk
+        else:
+            buf = ''
+            for chunk in res.iter_content(chunk_size):
+              buf += chunk
+              splits = buf.split(buffer_char)
+              for part in splits[:-1]:
+                yield part
+              buf = splits[-1]
+            yield buf
+      except GeneratorExit:
+        pass
+      finally:
+        res.close()
+    return reader()
 
   def download(self, hdfs_path, local_path, overwrite=False, **kwargs):
     """Download a file from HDFS.

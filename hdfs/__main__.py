@@ -130,7 +130,7 @@ def main(args):
     for index, path in enumerate(parts):
       size = client.status(path)['length']
       message = '%s\t%s\t[%s/%s]' % (hsize(size), path, index + 1, len(parts))
-      read(client.reader(path), size, message)
+      read(client.read(path), size, message)
   else:
     infos(client, rpath, depth, args['--json'])
 

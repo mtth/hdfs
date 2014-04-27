@@ -6,18 +6,20 @@
 Usage:
   hdfsavro [-a ALIAS] --schema PATH
   hdfsavro [-a ALIAS] --head [-n NUM] [-p PARTS] PATH
+  hdfsavro [-a ALIAS] --sample (-f FREQ | -n NUM) PATH
 
 Commands:
-  --head                        Pretty print first few records.
   --schema                      Pretty print schema.
+  --head                        Pretty print first few records as JSON.
+  --sample                      Sample records and output JSON.
 
 Arguments:
-  PATH                          Remote path to Avro file. `#LATEST` can be used
-                                to indicate the most recently updated file.
+  PATH                          Remote path to Avro file.
 
 Options:
   -a ALIAS --alias=ALIAS        Alias.
   -h --help                     Show this message and exit.
+  -f FREQ --freq=FREQ           Probability of sampling a record.
   -n NUM --num=NUM              Number of records to output [default: 5].
   -p PARTS --parts=PARTS        Part-files. `1,` to get a unique part-file. By
                                 default, use all part-files.
@@ -31,6 +33,7 @@ import zlib
 from docopt import docopt
 from itertools import islice
 from json import dumps
+from random import random
 from tempfile import mkstemp
 import avro as av
 import avro.datafile as avd
@@ -144,7 +147,7 @@ class _LazyFileReader(object):
     self._raw_decoder = _LazyBinaryDecoder(self._reader, self._path)
     # load header data
     header = self._read_header()
-    self._sync_marker = header['sync']
+    self._sync_marker = header['sync'][2:].decode('hex')
     self._meta = header['meta']
     self._codec = self._meta['avro.codec']
     # get ready to read by attaching schema to the datum reader
@@ -153,6 +156,7 @@ class _LazyFileReader(object):
     return self
 
   def __exit__(self, exc_type, exc_value, traceback):
+    self._reader.close()
     os.remove(self._path)
 
   def __iter__(self):
@@ -163,9 +167,9 @@ class _LazyFileReader(object):
     header = self._datum_reader.read_data(
       avd.META_SCHEMA, avd.META_SCHEMA, self._raw_decoder
     )
-    magic = header.get('magic')
-    if magic != '0x4f626a01': # HEX encoding of avd.MAGIC
-      msg = 'Invalid magic #: %s doesn\'t match HEX(%s).' % (magic, avd.MAGIC)
+    magic = header.get('magic')[2:].decode('hex')
+    if magic != avd.MAGIC:
+      msg = 'Invalid magic #: %s doesn\'t match %s.' % (magic, avd.MAGIC)
       raise av.schema.AvroException(msg)
     codec = header['meta'].setdefault('avro.codec', 'null')
     if codec not in avd.VALID_CODECS:
@@ -174,7 +178,6 @@ class _LazyFileReader(object):
 
   def _read_block_header(self):
     """Find block count and set the decoder accordingly."""
-    self._block_count = self._raw_decoder.read_long()
     if self._codec == 'null':
       # Skip a long; we don't need to use the length.
       self._raw_decoder.skip_long()
@@ -203,7 +206,12 @@ class _LazyFileReader(object):
       proposed_sync_marker = self._raw_decoder.read(avd.SYNC_SIZE)
       if proposed_sync_marker != self._sync_marker:
         self._raw_decoder.seek(-avd.SYNC_SIZE, 1)
-      self._read_block_header()
+      try:
+        self._block_count = self._raw_decoder.read_long()
+      except TypeError: # end of file
+        raise StopIteration
+      else:
+        self._read_block_header()
     datum = self._datum_reader.read(self._datum_decoder)
     self._block_count -= 1
     return datum
@@ -259,6 +267,24 @@ def main(args):
       raise HdfsError('Invalid `--num` option: %r.', args['--num'])
     for record in islice(reader, n_records):
       print dumps(record, indent=2)
+  elif args['--sample']:
+    num = args['--num']
+    frq = args['--freq']
+    if frq:
+      try:
+        freq = float(frq)
+      except ValueError:
+        raise HdfsError('Invalid `--freq` option: %r.', args['--freq'])
+      for record in reader:
+        if random() <= freq:
+          print dumps(record)
+    else:
+      try:
+        n_records = int(num)
+      except ValueError:
+        raise HdfsError('Invalid `--num` option: %r.', num)
+      for record in islice(reader, n_records):
+        print dumps(record)
 
 if __name__ == '__main__':
   main(docopt(__doc__))
