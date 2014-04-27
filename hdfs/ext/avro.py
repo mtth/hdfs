@@ -237,6 +237,20 @@ class AvroReader(object):
 
   """
 
+  #:  Avro record generator. For convenience, you can also iterate directly
+  #:  on the :class:`AvroReader` object. E.g.
+  #:
+  #:  .. code-block:: python
+  #:
+  #:    reader = AvroReader(client, 'foo.avro')
+  #:    for record in reader:
+  #:      print record.to_json()
+  #:
+  records = None
+
+  #:  Avro schema.
+  schema = None
+
   def __init__(self, client, hdfs_path, parts=None):
     self._client = client
     self._parts = client.parts(hdfs_path, parts)
@@ -253,19 +267,7 @@ class AvroReader(object):
             yield reader.schema # avoids having to expose the readers directly
           for record in reader:
             yield record
-
-    #:  Avro record generator. For convenience, you can also iterate directly
-    #:  on the :class:`AvroReader` object. E.g.
-    #:
-    #:  .. code-block:: python
-    #:
-    #:    reader = AvroReader(client, 'foo.avro')
-    #:    for record in reader:
-    #:      print record.to_json()
-    #:
     self.records = _reader()
-
-    #:  Avro schema.
     self.schema = self.records.next()
 
   def __iter__(self):

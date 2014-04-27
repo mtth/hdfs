@@ -414,9 +414,6 @@ class Client(object):
     where `path` is the absolute path to the current file or directory, and
     `status` is a JSON FileStatus_ object.
 
-    .. _FileStatus: FS_
-    .. _FS: http://hadoop.apache.org/docs/r1.0.4/webhdfs.html#FileStatus
-
     """
     hdfs_path = self.resolve(hdfs_path)
     def _walk(dir_path, dir_status, depth):
