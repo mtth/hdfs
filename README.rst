@@ -26,13 +26,13 @@ CLI
   $ hdfs --info --depth=1
      0 B    3d  D  /user/alice
 
-  $ echo 'Hello, world!' | hdfs /user/alice/hello.rst --write
+  $ echo 'Hello, world!' | hdfs hello.rst --write
 
   $ hdfs --info --depth=1
     14 B    1m  D  /user/alice
     14 B    1m  F  /user/alice/hello.rst
 
-  $ hdfs /user/alice/data --read
+  $ hdfs hello.rst --read
   Hello, world!
 
 Other options include support for merging part-files, progress meters. Cf.
