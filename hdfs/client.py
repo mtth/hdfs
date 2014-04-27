@@ -181,8 +181,7 @@ class Client(object):
 
     def expand_latest(match):
       """Substitute #LATEST marker."""
-      start, end = match.span()
-      prefix = match.string[:start]
+      prefix = match.string[:match.start()]
       suffix = ''
       n = match.group(1) # n as in {N} syntax
       for _ in repeat(None, int(n) if n else 1):
@@ -347,14 +346,14 @@ class Client(object):
           for chunk in res.iter_content(chunk_size):
             yield chunk
         else:
-            buf = ''
-            for chunk in res.iter_content(chunk_size):
-              buf += chunk
-              splits = buf.split(buffer_char)
-              for part in splits[:-1]:
-                yield part
-              buf = splits[-1]
-            yield buf
+          buf = ''
+          for chunk in res.iter_content(chunk_size):
+            buf += chunk
+            splits = buf.split(buffer_char)
+            for part in splits[:-1]:
+              yield part
+            buf = splits[-1]
+          yield buf
       except GeneratorExit:
         pass
       finally:
