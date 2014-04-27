@@ -5,6 +5,7 @@
 
 from .util import HdfsError
 from getpass import getuser
+from random import sample
 from requests_kerberos import HTTPKerberosAuth, OPTIONAL
 import os.path as osp
 import re
@@ -220,7 +221,7 @@ class Client(object):
     return self._get_file_status(hdfs_path).json()['FileStatus']
 
   def write(self, hdfs_path, data, overwrite=False, permission=None,
-    blocksize=None, replication=None, callback=None):
+    blocksize=None, replication=None):
     """Create a file on HDFS.
 
     :param hdfs_path: Path where to create file. The necessary directories will
@@ -233,9 +234,6 @@ class Client(object):
       Leading zeros may be omitted.
     :param blocksize: Block size of the file.
     :param replication: Number of replications of the file.
-    :param callback: Function to be called while the upload is in progress.
-      This function is called if `data` is a generator or file object right
-      before each yield.
 
     """
     res_1 = self._create_1(
@@ -245,13 +243,6 @@ class Client(object):
       blocksize=blocksize,
       replication=replication,
     )
-    if callback and not isinstance(data, basestring):
-      def _data(data=data):
-        """Wrapped data generator. Note the local variable caching."""
-        for e in data:
-          callback()
-          yield e
-      data = _data()
     res_2 = rq.put(res_1.headers['location'], data=data)
     if not res_2:
       _on_error(res_2)
@@ -271,22 +262,20 @@ class Client(object):
     with open(local_path) as reader:
       self.write(hdfs_path, reader, **kwargs)
 
-  def read(self, hdfs_path, writer, offset=0, length=None, buffer_size=None,
-    callback=None, chunk_size=1024):
-    """Read file.
+  def read(self, hdfs_path, offset=0, length=None, buffer_size=None,
+    chunk_size=1024, buffer_char=None):
+    """Read file. Returns a generator.
 
     :param hdfs_path: HDFS path.
-    :param writer: File object.
     :param offset: Starting byte position.
     :param length: Number of bytes to be processed. `None` will read the entire
       file.
     :param buffer_size: Size of the buffer in bytes used for transferring the
       data. Defaults the the value set in the HDFS configuration.
-    :param callback: Function to be called while the download is in progress.
-      This function will be passed the current byte position as single
-      argument.
-    :param chunk_size: Interval in bytes at which the callback function will
-      be called.
+    :param chunk_size: Interval in bytes at which the generator will yield.
+    :param buffer_char: Character by which to buffer the file instead of
+      yielding every `chunk_size` bytes. Note that this can cause the entire
+      file to be yielded at once if the character is not appropriate.
 
     """
     res = self._open(
@@ -295,12 +284,18 @@ class Client(object):
       length=length,
       buffersize=buffer_size
     )
-    position = 0
-    for chunk in res.iter_content(chunk_size):
-      if callback:
-        callback(position)
-        position += len(chunk)
-      writer.write(chunk)
+    if not buffer_char:
+      for chunk in res.iter_content(chunk_size):
+        yield chunk
+    else:
+      buf = ''
+      for chunk in res.iter_content(chunk_size):
+        buf += chunk
+        splits = buf.split(buffer_char)
+        for part in splits[:-1]:
+          yield part
+        buf = splits[-1]
+      yield buf
 
   def download(self, hdfs_path, local_path, overwrite=False, **kwargs):
     """Download a file from HDFS.
@@ -314,7 +309,8 @@ class Client(object):
       raise HdfsError('%r is a directory. Cannot download.', local_path)
     if not osp.exists(local_path) or overwrite:
       with open(local_path, 'w') as writer:
-        self.read(hdfs_path, writer, **kwargs)
+        for chunk in self.read(hdfs_path, **kwargs):
+          writer.write(chunk)
     else:
       raise HdfsError('%r already exists. Aborting download.', local_path)
 
@@ -378,6 +374,48 @@ class Client(object):
     else:
       for a in _walk(hdfs_path, status, depth):
         yield a
+
+  def parts(self, hdfs_path, parts=None):
+    """Returns a list of part-files corresponding to a path.
+
+    :param hdfs_path: Remote path. If it points to a non partitioned file,
+      a list with only element that path is returned. This makes it easier
+      to handle these two cases.
+    :param parts: List of part-files numbers to select or number. If a number,
+      that many partitions will be chosen at random. By default, all part-files
+      are returned. If `parts` is a list and one of the parts is not found or
+      too many samples are demanded, an :class:`~hdfs.util.HdfsError` is
+      raised.
+
+    """
+    content = self.content(hdfs_path)
+    if not content['directoryCount']:
+      if parts and parts != 1 and parts != [0]:
+        raise HdfsError('%r is not partitioned.', hdfs_path)
+      return [hdfs_path]
+    else:
+      pattern = re.compile(r'^part-(?:m|r)-(\d+)[^/]*$')
+      matches = (
+        (path, pattern.match(status['pathSuffix']))
+        for path, status in self.walk(hdfs_path, depth=1)
+      )
+      part_files = dict(
+        (int(match.group(1)), path)
+        for path, match in matches
+        if match
+      )
+      if parts:
+        if isinstance(parts, int):
+          if parts > len(part_files):
+            raise HdfsError('Not enough part-files in %r.', hdfs_path)
+          parts = sample(part_files, parts)
+        try:
+          paths = [part_files[p] for p in parts]
+        except KeyError as err:
+          raise HdfsError('No part-file %r in %r.', err.args[0], hdfs_path)
+      else:
+        paths = sorted(part_files.values())
+      return paths
 
 
 class InsecureClient(Client):

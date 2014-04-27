@@ -82,37 +82,41 @@ def infos(client, hdfs_path, depth, json):
       time_ = htime(time() - status['modificationTime'] / 1000)
       sys.stdout.write('%s\t%s\t%s\t%s\n' % (size, time_, type_[0], fpath))
 
-def read(client, hdfs_path, suffix=''):
+def read(reader, size, message, _out=sys.stdout, _err=sys.stderr):
   """Download a file from HDFS.
 
-  :param client: :class:`~hdfs.client.Client` instance.
-  :param hdfs_path: Remote path.
-  :param size: Size in bytes of file read. Used for progress indicator.
+  :param reader: Generator.
+  :param message: Message printed for each file read.
+  :param _out: Performance caching.
+  :param _err: Performance caching.
 
   """
-  if sys.stdout.isatty():
-    client.read(hdfs_path, sys.stdout)
+  if _out.isatty():
+    for chunk in reader:
+      _out.write(chunk)
   else:
-    size = client.status(hdfs_path)['length']
-    message = '%s\t%s%s' % (hsize(size), hdfs_path, suffix)
-    sys.stderr.write('%s\t ??%%\r' % (message, ))
-    sys.stderr.flush()
+    _err.write('%s\t ??%%\r' % (message, ))
+    _err.flush()
     try:
-      def callback(position, out=sys.stderr):
-        """Callback helper. Note the stderr local variable caching."""
+      position = 0
+      for chunk in reader:
+        position += len(chunk)
         progress = 100 * position / size
-        out.write('%s\t%3i%%\r' % (message, progress))
-        out.flush()
-      client.read(hdfs_path, sys.stdout, callback=callback)
-    except HdfsError as err:
-      sys.stderr.write('%s\t%s\n' % (message, err))
+        _err.write('%s\t%3i%%\r' % (message, progress))
+        _err.flush()
+        _out.write(chunk)
+    except HdfsError as exc:
+      _err.write('%s\t%s\n' % (message, exc))
     else:
-      sys.stderr.write('%s\t     \n' % (message, ))
+      _err.write('%s\t     \n' % (message, ))
 
 @catch(HdfsError)
-def main():
-  """Entry point."""
-  args = docopt(__doc__, version=__version__)
+def main(args):
+  """Entry point.
+
+  :param args: `docopt` dictionary.
+
+  """
   client = get_client_from_alias(args['--alias'])
   rpath = args['PATH'] or ''
   try:
@@ -123,35 +127,13 @@ def main():
     reader = (line for line in sys.stdin) # doesn't work with stdin, why?
     client.write(rpath, reader, overwrite=args['--overwrite'])
   elif args['--read']:
-    content = client.content(rpath)
-    if not content['directoryCount']:
-      read(client, rpath)
-    else:
-      pattern = re.compile(r'^part-(?:m|r)-(\d+)[^/]*$')
-      matches = (
-        (path, pattern.match(status['pathSuffix']))
-        for path, status in client.walk(rpath, depth=1)
-      )
-      part_files = dict(
-        (int(match.group(1)), path)
-        for path, match in matches
-        if match
-      )
-      if not part_files:
-        raise HdfsError('No part-files found in directory %r.', rpath)
-      if args['--parts']:
-        try:
-          paths = [part_files[int(p)] for p in args['--parts'].split(',')]
-        except ValueError:
-          raise HdfsError('Invalid `--parts` option: %r.', args['--parts'])
-        except KeyError as err:
-          raise HdfsError('Missing part-file: %r.', err.args[0])
-      else:
-        paths = sorted(part_files.values())
-      for index, path in enumerate(paths):
-        read(client, path, '\t[%s/%s]' % (index + 1, len(paths)))
+    parts = client.parts(rpath)
+    for index, path in enumerate(parts):
+      size = client.status(path)['length']
+      message = '%s\t%s\t[%s/%s]' % (hsize(size), path, index + 1, len(parts))
+      read(client.reader(path), size, message)
   else:
     infos(client, rpath, depth, args['--json'])
 
 if __name__ == '__main__':
-  main()
+  main(docopt(__doc__, version=__version__))

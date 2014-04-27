@@ -220,31 +220,6 @@ class TestWrite(_TestSession):
     self.client.write('up', 'hello, world!')
     self.client.write('up/up', 'hello again, world!')
 
-  def test_callback_with_string(self):
-    a = []
-    def callback():
-      a.append(48)
-    self.client.write('up', 'hello', callback=callback)
-    eq_(len(a), 0)
-
-  def test_callback_with_generator(self):
-    a = []
-    def callback():
-      a.append(48)
-    self.client.write('up', (e for e in ['hello', 'world']), callback=callback)
-    eq_(len(a), 2)
-
-  def test_callback_with_file_object(self):
-    a = []
-    def callback():
-      a.append(48)
-    with temppath() as tpath:
-      with open(tpath, 'w') as writer:
-        writer.write('hello, world!\nand a second line')
-      with open(tpath) as reader:
-        self.client.write('up', reader, callback=callback)
-    eq_(len(a), 2)
-
 
 class TestUpload(_TestSession):
 
@@ -290,11 +265,15 @@ class TestDelete(_TestSession):
 
 class TestRead(_TestSession):
 
+  def _read(self, writer, *args, **kwargs):
+    for chunk in self.client.read(*args, **kwargs):
+      writer.write(chunk)
+
   def test_read_file(self):
     self.client.write('foo', 'hello, world!')
     with temppath() as tpath:
       with open(tpath, 'w') as writer:
-        self.client.read('foo', writer)
+        self._read(writer, 'foo')
       with open(tpath) as reader:
         eq_(reader.read(), 'hello, world!')
 
@@ -303,19 +282,19 @@ class TestRead(_TestSession):
     self.client._mkdirs('foo')
     with temppath() as tpath:
       with open(tpath, 'w') as writer:
-        self.client.read('foo', writer)
+        self._read(writer, 'foo')
 
   @raises(HdfsError)
   def test_read_missing_file(self):
     with temppath() as tpath:
       with open(tpath, 'w') as writer:
-        self.client.read('foo', writer)
+        self._read(writer, 'foo')
 
   def test_read_file_from_offset(self):
     self.client.write('foo', 'hello, world!')
     with temppath() as tpath:
       with open(tpath, 'w') as writer:
-        self.client.read('foo', writer, offset=7)
+        self._read(writer, 'foo', offset=7)
       with open(tpath) as reader:
         eq_(reader.read(), 'world!')
 
@@ -323,7 +302,7 @@ class TestRead(_TestSession):
     self.client.write('foo', 'hello, world!')
     with temppath() as tpath:
       with open(tpath, 'w') as writer:
-        self.client.read('foo', writer, offset=7, length=5)
+        self._read(writer, 'foo', offset=7, length=5)
       with open(tpath) as reader:
         eq_(reader.read(), 'world')
 
