@@ -1,7 +1,11 @@
 .. default-role:: code
 
-HdfsCLI
-=======
+
+HdfsCLI |build_image|
+---------------------
+
+.. |build_image| image:: https://travis-ci.org/mtth/hdfs.png?branch=master
+  :target: https://travis-ci.org/mtth/hdfs
 
 API and command line interface for HDFS.
 
@@ -11,31 +15,53 @@ Features
 
 * Works with secure and insecure clusters (including Kerberos authentication).
 * Comprehensive python bindings for the `WebHDFS API`_.
-* Lightweight CLI (under development).
+* Lightweight CLI.
 
 
-Example
--------
+CLI
+---
+
+.. code-block:: bash
+
+  $ hdfs --info --depth=1
+     0 B    3d  D  /user/alice
+
+  $ echo 'Hello, world!' | hdfs /user/alice/hello.rst --write
+
+  $ hdfs --info --depth=1
+    14 B    1m  D  /user/alice
+    14 B    1m  F  /user/alice/hello.rst
+
+  $ hdfs /user/alice/data --read
+  Hello, world!
+
+Other options include support for merging part-files, progress meters. Cf.
+`hdfs --help` for more.
+
+
+API
+---
+
+Sample usage of the python bindings:
 
 .. code-block:: python
 
   from hdfs import KerberosClient
 
   # Instantiate the client
-  client = KerberosClient('http://namenode:port')
+  client = KerberosClient('http://namenode:port', root='/user/alice')
 
-  # Create a file on HDFS named 'foo' with contents 'Hello, world!'
-  client.write('foo', 'Hello, world!')
+  # Write a file '/user/alice/hello.md' on HDFS with contents 'Hello, world!'
+  client.write('hello.md', 'Hello, world!')
 
-  # Rename it to bar
-  client.rename('foo', 'bar')
+  # Rename it
+  client.rename('hello.md', 'hello.rst')
 
-  # Download it locally as baz
-  client.download('bar', 'baz')
+  # Download it locally
+  client.download('hello.rst', 'hello.rst')
 
   # Remove it from HDFS
-  client.delete('bar')
-
+  client.delete('hello.rst')
 
 
 Documentation
