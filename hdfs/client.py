@@ -239,7 +239,7 @@ class Client(object):
         raise HdfsError('%r is not partitioned.', hdfs_path)
       return [hdfs_path]
     else:
-      pattern = re.compile(r'^part-(?:m|r)-(\d+)[^/]*$')
+      pattern = re.compile(r'^part-(?:(?:m|r)-|)(\d+)[^/]*$')
       matches = (
         (path, pattern.match(status['pathSuffix']))
         for path, status in self.walk(hdfs_path, depth=1)
