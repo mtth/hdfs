@@ -27,13 +27,13 @@ Options:
 """
 
 from __future__ import absolute_import
-from .. import get_client_from_alias
+from ..client import Client
 from ..util import HdfsError, catch
 import zlib
 from docopt import docopt
 from itertools import islice
 from json import dumps
-from random import random
+from random import random, shuffle
 from tempfile import mkstemp
 import avro as av
 import avro.datafile as avd
@@ -47,21 +47,6 @@ try:
   import snappy
 except ImportError:
   pass
-
-
-class _DatumReader(avi.DatumReader):
-
-  """DatumReader that HEX-encodes "fixed" fields.
-
-  If we don't do this, the JSON encoder will blow up when faced with non-
-  unicode characters. This is simpler and more efficient than the alternative
-  of writing our custom JSON encoder.
-
-  """
-
-  def read_fixed(self, writers_schema, readers_schema, decoder):
-    """Return HEX-encoded value instead of raw byte-string."""
-    return '0x' + decoder.read(writers_schema.size).encode('hex')
 
 
 class _LazyBinaryDecoder(avi.BinaryDecoder):
@@ -81,7 +66,7 @@ class _LazyBinaryDecoder(avi.BinaryDecoder):
     self.loaded = 0
     self.exhausted = False
 
-  def load(self, size):
+  def _load(self, size):
     """Load more data. Should only be called when at the end of the file!"""
     pos = self.file.tell()
     while size > 0:
@@ -100,7 +85,7 @@ class _LazyBinaryDecoder(avi.BinaryDecoder):
     data = self.file.read(size)
     size -= len(data)
     if size and not self.exhausted:
-      self.load(size)
+      self._load(size)
       data += self.file.read(size)
     return data
 
@@ -112,11 +97,26 @@ class _LazyBinaryDecoder(avi.BinaryDecoder):
     """Skip bytes."""
     missing = len(self.file.read(size)) - size
     if missing and not self.exhausted:
-      self.load(missing)
+      self._load(missing)
       self.file.seek(missing)
 
 
-class _LazyFileReader(object):
+class _DatumReader(avi.DatumReader):
+
+  """DatumReader that HEX-encodes "fixed" fields.
+
+  If we don't do this, the JSON encoder will blow up when faced with non-
+  unicode characters. This is simpler and more efficient than the alternative
+  of writing our custom JSON encoder.
+
+  """
+
+  def read_fixed(self, writers_schema, readers_schema, decoder):
+    """Return HEX-encoded value instead of raw byte-string."""
+    return '0x' + decoder.read(writers_schema.size).encode('hex')
+
+
+class _DataFileReader(object):
 
   """Read remote avro file.
 
@@ -125,6 +125,16 @@ class _LazyFileReader(object):
   This is a more efficient implementation of the :class:`~avro.DataFileReader`,
   customized for reading remote files. The default one reads the entire file
   before emitting any records which is dramatically slow in our case.
+
+  It should be used as a context manager. E.g.
+
+  .. code-block:: python
+
+    reader = client.read('foo.avro')
+    with _DataFileReader(reader) as avro_reader:
+      schema = avro_reader.schema
+      for record in avro_reader:
+        pass # do something ...
 
   """
 
@@ -198,7 +208,7 @@ class _LazyFileReader(object):
       self._datum_decoder = avi.BinaryDecoder(StringIO(uncompressed))
       self._raw_decoder.check_crc32(uncompressed)
     else:
-      raise avd.DataFileException("Unknown codec: %r" % self.codec)
+      raise avd.DataFileException("Unknown codec: %r" % self._codec)
 
   def next(self):
     """Return the next datum in the file."""
@@ -217,38 +227,61 @@ class _LazyFileReader(object):
     return datum
 
 
-def load(client, hdfs_path, parts=None):
-  """Return schema and record generator.
+class AvroReader(object):
+
+  """Lazy remote Avro file reader.
 
   :param client: :class:`hdfs.client.Client` instance.
   :param hdfs_path: Remote path.
   :param parts: Cf. :meth:`hdfs.client.Client.parts`.
 
   """
-  paths = client.parts(hdfs_path, parts)
-  if not paths:
-    raise HdfsError('No avro file found at %r.', hdfs_path)
-  def _reader():
-    """Record generator over all part-files."""
-    for index, path in enumerate(paths):
-      with _LazyFileReader(client.read(path)) as reader:
-        if not index:
-          yield reader.schema # avoids having to expose the readers directly
-        for record in reader:
-          yield record
-  gen = _reader()
-  schema = gen.next()
-  return schema, gen
+
+  def __init__(self, client, hdfs_path, parts=None):
+    self._client = client
+    self._parts = client.parts(hdfs_path, parts)
+    if not self._parts:
+      raise HdfsError('No Avro file found at %r.', hdfs_path)
+    def _reader():
+      """Record generator over all part-files."""
+      paths = self._parts.keys()
+      if not parts:
+        shuffle(paths)
+      for index, path in enumerate(paths):
+        with _DataFileReader(client.read(path)) as reader:
+          if not index:
+            yield reader.schema # avoids having to expose the readers directly
+          for record in reader:
+            yield record
+
+    #:  Avro record generator. For convenience, you can also iterate directly
+    #:  on the :class:`AvroReader` object. E.g.
+    #:
+    #:  .. code-block:: python
+    #:
+    #:    reader = AvroReader(client, 'foo.avro')
+    #:    for record in reader:
+    #:      print record.to_json()
+    #:
+    self.records = _reader()
+
+    #:  Avro schema.
+    self.schema = self.records.next()
+
+  def __iter__(self):
+    return self.records
+
+  @property
+  def length(self):
+    """Total reader length in bytes."""
+    return sum(s['length'] for s in self._parts.values())
 
 
 @catch(HdfsError)
-def main(args):
-  """Entry point.
-
-  :param args: `docopt` dictionary.
-
-  """
-  client = get_client_from_alias(args['--alias'])
+def main():
+  """Entry point."""
+  args = docopt(__doc__)
+  client = Client.from_alias(args['--alias'])
   try:
     parts = args['--parts'] or '0'
     if ',' in parts:
@@ -257,15 +290,15 @@ def main(args):
       parts = int(parts)
   except ValueError:
     raise HdfsError('Invalid `--parts` option: %r.', args['--parts'])
-  schema, reader = load(client, args['PATH'] or '', parts)
+  avro_file = AvroReader(client, args['PATH'] or '', parts)
   if args['--schema']:
-    print dumps(schema.to_json(), indent=2)
+    print dumps(avro_file.schema.to_json(), indent=2)
   elif args['--head']:
     try:
       n_records = int(args['--num'])
     except ValueError:
       raise HdfsError('Invalid `--num` option: %r.', args['--num'])
-    for record in islice(reader, n_records):
+    for record in islice(avro_file, n_records):
       print dumps(record, indent=2)
   elif args['--sample']:
     num = args['--num']
@@ -275,7 +308,7 @@ def main(args):
         freq = float(frq)
       except ValueError:
         raise HdfsError('Invalid `--freq` option: %r.', args['--freq'])
-      for record in reader:
+      for record in avro_file:
         if random() <= freq:
           print dumps(record)
     else:
@@ -283,8 +316,8 @@ def main(args):
         n_records = int(num)
       except ValueError:
         raise HdfsError('Invalid `--num` option: %r.', num)
-      for record in islice(reader, n_records):
+      for record in islice(avro_file, n_records):
         print dumps(record)
 
 if __name__ == '__main__':
-  main(docopt(__doc__))
+  main()

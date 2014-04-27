@@ -3,7 +3,7 @@
 
 """HDFS clients."""
 
-from .util import HdfsError
+from .util import Config, HdfsError
 from getpass import getuser
 from random import sample
 from requests_kerberos import HTTPKerberosAuth, OPTIONAL
@@ -154,7 +154,7 @@ class Client(object):
       self._params['doas'] = proxy
 
   @classmethod
-  def load(cls, class_name, options):
+  def _from_options(cls, class_name, options):
     """Load client from options.
 
     :param class_name: Client class name. Pass `None` for the base
@@ -169,6 +169,19 @@ class Client(object):
       raise HdfsError('Unknown client class: %r', class_name)
     except TypeError:
       raise HdfsError('Invalid options: %r', options)
+
+  @classmethod
+  def from_alias(cls, alias, path=None):
+    """Load client associated with configuration alias.
+
+    :param alias: Alias name.
+    :param path: Path to configuration file. Defaults to `.hdfsrc` in the
+      current user's home directory.
+
+    """
+    path = path or osp.expanduser('~/.hdfsrc')
+    options = Config(path).get_alias(alias)
+    return cls._from_options(options.pop('client', None), options)
 
   # Raw API endpoints
 
@@ -221,32 +234,32 @@ class Client(object):
     return self._get_file_status(hdfs_path).json()['FileStatus']
 
   def parts(self, hdfs_path, parts=None):
-    """Returns a list of part-files corresponding to a path.
+    """Returns a dictionary of part-files corresponding to a path.
 
     :param hdfs_path: Remote path. If it points to a non partitioned file,
-      a list with only element that path is returned. This makes it easier
-      to handle these two cases.
+      a dictionary with only element that path is returned. This makes it
+      easier to handle these two cases.
     :param parts: List of part-files numbers or total number of part-files to
       select. If a number, that many partitions will be chosen at random. By
-      default, all part-files are returned, in random order. If `parts` is a
-      list and one of the parts is not found or too many samples are demanded,
-      an :class:`~hdfs.util.HdfsError` is raised.
+      default all part-files are returned. If `parts` is a list and one of the
+      parts is not found or too many samples are demanded, an
+      :class:`~hdfs.util.HdfsError` is raised.
 
     """
     content = self.content(hdfs_path)
     if not content['directoryCount']:
       if parts and parts != 1 and parts != [0]:
         raise HdfsError('%r is not partitioned.', hdfs_path)
-      return [hdfs_path]
+      return {hdfs_path: self.status(hdfs_path)}
     else:
       pattern = re.compile(r'^part-(?:(?:m|r)-|)(\d+)[^/]*$')
       matches = (
-        (path, pattern.match(status['pathSuffix']))
+        (path, pattern.match(status['pathSuffix']), status)
         for path, status in self.walk(hdfs_path, depth=1)
       )
       part_files = dict(
-        (int(match.group(1)), path)
-        for path, match in matches
+        (int(match.group(1)), (path, status))
+        for path, match, status in matches
         if match
       )
       if parts:
@@ -255,11 +268,11 @@ class Client(object):
             raise HdfsError('Not enough part-files in %r.', hdfs_path)
           parts = sample(part_files, parts)
         try:
-          paths = [part_files[p] for p in parts]
+          paths = dict(part_files[p] for p in parts)
         except KeyError as err:
           raise HdfsError('No part-file %r in %r.', err.args[0], hdfs_path)
       else:
-        paths = sample(part_files.values(), len(part_files))
+        paths = dict(part_files.values())
       return paths
 
   def write(self, hdfs_path, data, overwrite=False, permission=None,
@@ -428,6 +441,9 @@ class Client(object):
       for a in _walk(hdfs_path, status, depth):
         yield a
 
+
+# Custom client classes
+# ---------------------
 
 class InsecureClient(Client):
 

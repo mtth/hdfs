@@ -25,8 +25,10 @@ setup(
       'docopt',
       'requests>=2.0.1',
       'requests-kerberos',
+      'avro',
     ],
     entry_points={'console_scripts': [
       'hdfs = hdfs.__main__:main',
+      'hdfsavro = hdfs.ext.avro:main',
     ]},
 )

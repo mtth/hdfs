@@ -3,7 +3,6 @@
 
 """Test Hdfs client interactions with HDFS."""
 
-from hdfs import get_client_from_alias
 from hdfs.util import Config, temppath
 from hdfs.client import *
 from ConfigParser import NoOptionError, NoSectionError
@@ -27,11 +26,11 @@ class TestLoad(object):
   """Test client loader."""
 
   def test_bare(self):
-    client = Client.load(None, {'url': 'foo'})
+    client = Client._from_options(None, {'url': 'foo'})
     ok_(isinstance(client, Client))
 
   def test_kerberos(self):
-    client = Client.load('KerberosClient', {'url': 'foo'})
+    client = Client._from_options('KerberosClient', {'url': 'foo'})
     ok_(isinstance(client, KerberosClient))
 
   def test_new_type(self):
@@ -39,20 +38,20 @@ class TestLoad(object):
       def __init__(self, url, bar):
         super(NewClient, self).__init__(url)
         self.bar = bar
-    client = Client.load('NewClient', {'url': 123, 'bar': 2})
+    client = Client._from_options('NewClient', {'url': 123, 'bar': 2})
     eq_(client.bar, 2)
 
   @raises(HdfsError)
   def test_missing_options(self):
-    client = Client.load('KerberosClient', {})
+    client = Client._from_options('KerberosClient', {})
 
   @raises(HdfsError)
   def test_invalid_options(self):
-    client = Client.load(None, {'foo': 123})
+    client = Client._from_options(None, {'foo': 123})
 
   @raises(HdfsError)
   def test_missing_type(self):
-    client = Client.load('foo', {})
+    client = Client._from_options('foo', {})
 
 
 class _TestSession(object):
@@ -76,7 +75,7 @@ class _TestSession(object):
   @classmethod
   def setup_class(cls):
     try:
-      client = get_client_from_alias('test')
+      client = Client.from_alias('test')
       client._delete('', recursive=True)
     except (NoOptionError, NoSectionError, HdfsError):
       cls.client = None

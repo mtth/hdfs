@@ -42,7 +42,8 @@ HdfsCLI exits with return status 1 if an error occurred and 0 otherwise.
 """
 
 from docopt import docopt
-from hdfs import __version__, get_client_from_alias
+from hdfs import __version__
+from hdfs.client import Client
 from hdfs.util import catch, HdfsError, hsize, htime
 from json import dumps
 from time import time
@@ -110,13 +111,10 @@ def read(reader, size, message, _out=sys.stdout, _err=sys.stderr):
       _err.write('%s\t     \n' % (message, ))
 
 @catch(HdfsError)
-def main(args):
-  """Entry point.
-
-  :param args: `docopt` dictionary.
-
-  """
-  client = get_client_from_alias(args['--alias'])
+def main():
+  """Entry point."""
+  args = docopt(__doc__, version=__version__)
+  client = Client.from_alias(args['--alias'])
   rpath = args['PATH'] or ''
   try:
     depth = int(args['--depth'] or '0')
@@ -135,4 +133,4 @@ def main(args):
     infos(client, rpath, depth, args['--json'])
 
 if __name__ == '__main__':
-  main(docopt(__doc__, version=__version__))
+  main()
