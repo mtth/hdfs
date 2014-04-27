@@ -5,23 +5,14 @@
 
 from .util import Config, HdfsError
 from getpass import getuser
+from itertools import repeat
 from random import sample
 from requests_kerberos import HTTPKerberosAuth, OPTIONAL
+import os
 import os.path as osp
 import re
 import requests as rq
 
-
-def _hdfs_abspath(path, root):
-  """Return normalized absolute path.
-
-  :param path: HDFS path.
-  :param root: Root, used to allow relative paths.
-
-  """
-  if not (osp.isabs(path) or root and osp.isabs(root)):
-    raise HdfsError('Path %r is relative but no absolute root found.', path)
-  return osp.normpath(osp.join(root, path))
 
 def _on_error(response):
   """Callback when an API response has a non 2XX status code.
@@ -76,7 +67,7 @@ class _Request(object):
       url = '%s%s%s' % (
         client.url,
         self.webhdfs_prefix,
-        _hdfs_abspath(path, client.root),
+        client.resolve(path),
       )
       params['op'] = operation
       for key, value in client._params.items():
@@ -170,6 +161,47 @@ class Client(object):
   _set_times = _Request('PUT')
 
   # Exposed endpoints
+
+  def resolve(self, hdfs_path):
+    """Return absolute, normalized path, with special markers expanded.
+
+    :param hdfs_path: Remote path.
+
+    Currently supported markers:
+
+    * `'#LATEST'`: this marker gets expanded to the most recently updated file
+      or folder. They can be combined using the `'{N}'` suffix. For example,
+      `'foo/#LATEST{2}'` is equivalent to `'foo/#LATEST/#LATEST'`.
+
+    """
+    path = hdfs_path
+    if not (osp.isabs(path) or self.root and osp.isabs(self.root)):
+      raise HdfsError('Path %r is relative but no absolute root found.', path)
+    path = osp.normpath(osp.join(self.root, path))
+
+    def expand_latest(match):
+      """Substitute #LATEST marker."""
+      start, end = match.span()
+      prefix = match.string[:start]
+      suffix = ''
+      n = match.group(1) # n as in {N} syntax
+      for _ in repeat(None, int(n) if n else 1):
+        statuses = self._list_status(osp.join(prefix, suffix)).json()
+        candidates = sorted([
+          (-status['modificationTime'], status['pathSuffix'])
+          for status in statuses['FileStatuses']['FileStatus']
+        ])
+        if not candidates:
+          raise HdfsError('Cannot expand #LATEST. %r is empty.', prefix)
+        elif len(candidates) == 1 and candidates[0][1] == '':
+          raise HdfsError('Cannot expand #LATEST. %r is a file.', prefix)
+        suffix = osp.join(suffix, candidates[0][1])
+      return os.sep + suffix
+
+    # #LATEST expansion (could cache the pattern, but not worth it)
+    path = re.sub(r'/?#LATEST(?:{(\d+)})?(?=/|$)', expand_latest, path)
+
+    return path
 
   def content(self, hdfs_path):
     """Get content summary for a file or folder on HDFS.
@@ -368,7 +400,7 @@ class Client(object):
       a file, this method will raise :class:`~hdfs.util.HdfsError`.
 
     """
-    hdfs_dst_path = _hdfs_abspath(hdfs_dst_path, self.root)
+    hdfs_dst_path = self.resolve(hdfs_dst_path)
     res = self._rename(hdfs_src_path, destination=hdfs_dst_path)
     if not res.json()['boolean']:
       raise HdfsError('Remote path %r not found.', hdfs_src_path)
@@ -387,7 +419,7 @@ class Client(object):
     .. _FS: http://hadoop.apache.org/docs/r1.0.4/webhdfs.html#FileStatus
 
     """
-    hdfs_path = _hdfs_abspath(hdfs_path, self.root)
+    hdfs_path = self.resolve(hdfs_path)
     def _walk(dir_path, dir_status, depth):
       """Recursion helper."""
       yield dir_path, dir_status
@@ -427,7 +459,7 @@ class Client(object):
       raise HdfsError('Invalid options: %r', options)
 
   @classmethod
-  def from_alias(cls, alias, path=None):
+  def from_alias(cls, alias=None, path=None):
     """Load client associated with configuration alias.
 
     :param alias: Alias name.

@@ -29,7 +29,6 @@ Options:
 from __future__ import absolute_import
 from ..client import Client
 from ..util import HdfsError, catch
-import zlib
 from docopt import docopt
 from itertools import islice
 from json import dumps
@@ -39,6 +38,7 @@ import avro as av
 import avro.datafile as avd
 import avro.io as avi
 import os
+import zlib
 try:
   from cStringIO import StringIO
 except ImportError:

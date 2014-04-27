@@ -398,3 +398,40 @@ class TestWalk(_TestSession):
     self.client.write('bar/bax/foo', 'hello yet again, world!')
     infos = list(self.client.walk('bar', depth=1))
     eq_(len(infos), 4)
+
+
+class TestLatestExpansion(_TestSession):
+
+  def test_resolve_simple(self):
+    self.client.write('bar', 'hello, world!')
+    self.client.write('foo', 'hello again, world!')
+    eq_(self.client.resolve('#LATEST'), osp.join(self.client.root, 'foo'))
+
+  def test_resolve_nested(self):
+    self.client.write('baz/bar', 'hello, world!')
+    self.client.write('bar/bar', 'hello there, world!')
+    self.client.write('bar/foo', 'hello again, world!')
+    latest = self.client.resolve('#LATEST/#LATEST')
+    eq_(latest, osp.join(self.client.root, 'bar', 'foo'))
+
+  def test_resolve_multiple(self):
+    self.client.write('bar/bar', 'hello, world!')
+    self.client.write('bar/foo', 'hello again, world!')
+    latest = self.client.resolve('#LATEST/#LATEST')
+    eq_(latest, osp.join(self.client.root, 'bar', 'foo'))
+
+  def test_resolve_multiple_shortcut(self):
+    self.client.write('bar/bar', 'hello, world!')
+    self.client.write('bar/foo', 'hello again, world!')
+    latest = self.client.resolve('#LATEST{2}')
+    eq_(latest, osp.join(self.client.root, 'bar', 'foo'))
+
+  @raises(HdfsError)
+  def test_resolve_file(self):
+    self.client.write('bar', 'hello, world!')
+    self.client.resolve('bar/#LATEST')
+
+  @raises(HdfsError)
+  def test_resolve_empty_directory(self):
+    self.client._mkdirs('bar')
+    self.client.resolve('bar/#LATEST')
