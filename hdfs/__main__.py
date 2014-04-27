@@ -46,7 +46,6 @@ from hdfs import __version__, get_client_from_alias
 from hdfs.util import catch, HdfsError, hsize, htime
 from json import dumps
 from time import time
-import re
 import sys
 
 

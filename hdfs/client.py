@@ -220,6 +220,48 @@ class Client(object):
     """
     return self._get_file_status(hdfs_path).json()['FileStatus']
 
+  def parts(self, hdfs_path, parts=None):
+    """Returns a list of part-files corresponding to a path.
+
+    :param hdfs_path: Remote path. If it points to a non partitioned file,
+      a list with only element that path is returned. This makes it easier
+      to handle these two cases.
+    :param parts: List of part-files numbers to select or number. If a number,
+      that many partitions will be chosen at random. By default, all part-files
+      are returned. If `parts` is a list and one of the parts is not found or
+      too many samples are demanded, an :class:`~hdfs.util.HdfsError` is
+      raised.
+
+    """
+    content = self.content(hdfs_path)
+    if not content['directoryCount']:
+      if parts and parts != 1 and parts != [0]:
+        raise HdfsError('%r is not partitioned.', hdfs_path)
+      return [hdfs_path]
+    else:
+      pattern = re.compile(r'^part-(?:m|r)-(\d+)[^/]*$')
+      matches = (
+        (path, pattern.match(status['pathSuffix']))
+        for path, status in self.walk(hdfs_path, depth=1)
+      )
+      part_files = dict(
+        (int(match.group(1)), path)
+        for path, match in matches
+        if match
+      )
+      if parts:
+        if isinstance(parts, int):
+          if parts > len(part_files):
+            raise HdfsError('Not enough part-files in %r.', hdfs_path)
+          parts = sample(part_files, parts)
+        try:
+          paths = [part_files[p] for p in parts]
+        except KeyError as err:
+          raise HdfsError('No part-file %r in %r.', err.args[0], hdfs_path)
+      else:
+        paths = sorted(part_files.values())
+      return paths
+
   def write(self, hdfs_path, data, overwrite=False, permission=None,
     blocksize=None, replication=None):
     """Create a file on HDFS.
@@ -374,48 +416,6 @@ class Client(object):
     else:
       for a in _walk(hdfs_path, status, depth):
         yield a
-
-  def parts(self, hdfs_path, parts=None):
-    """Returns a list of part-files corresponding to a path.
-
-    :param hdfs_path: Remote path. If it points to a non partitioned file,
-      a list with only element that path is returned. This makes it easier
-      to handle these two cases.
-    :param parts: List of part-files numbers to select or number. If a number,
-      that many partitions will be chosen at random. By default, all part-files
-      are returned. If `parts` is a list and one of the parts is not found or
-      too many samples are demanded, an :class:`~hdfs.util.HdfsError` is
-      raised.
-
-    """
-    content = self.content(hdfs_path)
-    if not content['directoryCount']:
-      if parts and parts != 1 and parts != [0]:
-        raise HdfsError('%r is not partitioned.', hdfs_path)
-      return [hdfs_path]
-    else:
-      pattern = re.compile(r'^part-(?:m|r)-(\d+)[^/]*$')
-      matches = (
-        (path, pattern.match(status['pathSuffix']))
-        for path, status in self.walk(hdfs_path, depth=1)
-      )
-      part_files = dict(
-        (int(match.group(1)), path)
-        for path, match in matches
-        if match
-      )
-      if parts:
-        if isinstance(parts, int):
-          if parts > len(part_files):
-            raise HdfsError('Not enough part-files in %r.', hdfs_path)
-          parts = sample(part_files, parts)
-        try:
-          paths = [part_files[p] for p in parts]
-        except KeyError as err:
-          raise HdfsError('No part-file %r in %r.', err.args[0], hdfs_path)
-      else:
-        paths = sorted(part_files.values())
-      return paths
 
 
 class InsecureClient(Client):
