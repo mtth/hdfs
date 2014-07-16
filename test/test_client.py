@@ -4,16 +4,15 @@
 """Test Hdfs client interactions with HDFS."""
 
 from hdfs.util import Config, temppath
-from hdfs.client import *
-from ConfigParser import NoOptionError, NoSectionError
-from getpass import getuser
-from nose.tools import eq_, ok_, raises, nottest
-from nose.plugins.skip import SkipTest
+from hdfs.client import HdfsError, Client
+from hdfs import KerberosClient
+
+import os.path as osp
+from nose.tools import eq_, ok_, raises
 from os import mkdir, rmdir
-from os.path import join
-from shutil import rmtree
 from tempfile import mkdtemp
-from time import sleep
+
+from test_base import _TestSession
 
 
 def status(response):
@@ -53,57 +52,6 @@ class TestLoad(object):
   def test_missing_type(self):
     client = Client._from_options('foo', {})
 
-
-class _TestSession(object):
-
-  """Base class to run tests using remote HDFS.
-
-  These tests are run only if a `test.alias` is defined in the `~/.hdfsrc`
-  configuration file.
-
-  .. warning::
-
-    The test directory is entirely cleaned during tests. Don't put anything
-    important in it!
-
-  Also contains a few helper functions.
-
-  """
-
-  delay = 1 # delay in seconds between tests
-
-  @classmethod
-  def setup_class(cls):
-    try:
-      client = Client.from_alias('test')
-      client._delete('', recursive=True)
-    except (NoOptionError, NoSectionError, HdfsError):
-      cls.client = None
-    else:
-      cls.client = client
-
-  def setup(self):
-    if not self.client:
-      raise SkipTest
-    else:
-      self.client._mkdirs('')
-
-  def teardown(self):
-    if self.client:
-      self.client._delete('', recursive=True)
-    sleep(self.delay)
-
-  def _check_content(self, path, content):
-    eq_(self.client._open(path).content, content)
-
-  def _file_exists(self, path):
-    try:
-      status = self.client.status(path)
-    except HdfsError:
-      # head doesn't exist
-      return False
-    else:
-      return True
 
 
 class TestApi(_TestSession):
