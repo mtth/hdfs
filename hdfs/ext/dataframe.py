@@ -156,7 +156,7 @@ def read_df(
 
       task_wrapper = joblib.delayed
       task_runner  = joblib.Parallel(
-          n_jobs=local_num_tasks, verbose=verbose, backend=backend)
+          n_jobs=local_num_tasks, verbose=False, backend=backend)
 
     else:
       task_wrapper = lambda x: x
