@@ -61,7 +61,7 @@ def _verbose_print(verbose, msg):
 # TODO: Move into client code?
 # Can't be nested inside another function so that joblib can pickle it
 def _do_download(client, local_path, hdfs_path, file_dict, verbose = False):
-  save_name = local_path + file_name.replace('/', '_')
+  save_name = local_path + hdfs_path.replace('/', '_')
   save_name_partial = save_name + '.partial'
 
   try: # print our own exception messages, because joblib swallows exceptions
@@ -78,7 +78,7 @@ def _do_download(client, local_path, hdfs_path, file_dict, verbose = False):
       total_size = file_dict['length']
 
       _verbose_print(verbose, "Saving from %s to %s [%dMB]" % \
-            (file_name, save_name, round(total_size/(1024*1024))) )
+            (hdfs_path, save_name, round(total_size/(1024*1024))) )
  
       dir_name = os.path.dirname(save_name)
       if not os.path.exists(dir_name):
