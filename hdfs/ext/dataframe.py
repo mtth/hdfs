@@ -8,8 +8,7 @@ also commonly used).
 
 This extension requires the presence of `pandas` and `numpy` libraries.  For 
 reading Avro files, the `fastavro` library is necessary.  This extension
-supports downloading multiple HDFS part files in parallel; for this 
-functionality, the `joblib` library is required.
+supports downloading multiple HDFS part files in parallel.
 
 """
 
@@ -30,6 +29,8 @@ import logging
 
 import gzip
 import avro
+
+from multiprocessing.pool import ThreadPool
 
 try:
   import pandas as pd
@@ -81,50 +82,11 @@ def convert_dtype(dtype):
     raise HdfsError('Dont know Avro equivalent of type %s' % dtype)
 
 
-# Function to download a file from HDFS and save locally
-# TODO: Rewrite using threading module and move into client code?
-# Can't be nested inside another function so that joblib can pickle it
-def _do_download(client, local_name, hdfs_path, file_dict):
 
-  local_name_partial = local_name + '.partial'
-  ONE_MB = 1024*1024
-
-  try: # print our own exception messages, because joblib swallows exceptions
-
-    do_download = True
-    if os.path.exists(local_name):
-      logging.info('%s already exists', local_name)
-      if 1000*os.path.getmtime(local_name) > file_dict['modificationTime']:
-        do_download = False
-      else:
-        logging.info('... but older than HDFS version')
-
-    if do_download:
-      total_size = file_dict['length']
-
-      logging.info(
-        "Saving %s to %s [%dMB]", hdfs_path, local_name, 
-        round(total_size/ONE_MB)) 
- 
-      dir_name = os.path.dirname(local_name)
-      if not os.path.exists(dir_name):
-        logging.info("Creating directory %s", dir_name)
-        os.makedirs(dir_name)
-
-      client.download(
-          hdfs_path, local_name_partial, overwrite=True, chunk_size=ONE_MB)
-
-      os.rename(local_name_partial, local_name)
-
-  except Exception, e:
-    if os.path.exists(local_name_partial):
-      os.remove(local_name_partial)
-
-    raise HdfsError(str(e))
 
 
 def read_df(client, hdfs_path, format, use_gzip = False, sep = '\t', 
-  index_cols = None, num_tasks = None, local_dir = None):
+  index_cols = None, num_threads = None, local_dir = None):
   """Function to read in pandas `DataFrame` from a remote HDFS file.
 
   :param client: :class:`hdfs.client.Client` instance.
@@ -137,8 +99,8 @@ def read_df(client, hdfs_path, format, use_gzip = False, sep = '\t',
   :param index_cols: Which columns of remote file should be made index columns
     of `pandas` dataframe.  If set to `None`, `pandas` will create a row
     number index.
-  :param num_tasks: Number of tasks in which to parallelize downloading of 
-    parts of HDFS file using the `joblib` library.  This can speed up 
+  :param num_threads: Number of threads in which to parallelize downloading of 
+    parts of HDFS file.  This can speed up 
     downloading speed significantly. A value of `None` or `1` indicates that 
     parallelization will not be used.  A value of `-1` indicates creates as
     many tasks as there are parts to the HDFS file.
@@ -151,65 +113,86 @@ def read_df(client, hdfs_path, format, use_gzip = False, sep = '\t',
 
   .. code-block:: python
 
-    df = read_df(client, '/tmp/data.tsv', 'csv', num_tasks=-1)
+    df = read_df(client, '/tmp/data.tsv', 'csv', num_threads=-1)
 
   """
 
-  def _run_in_parallel(func, args_list, passed_num_tasks, backend="threading"):
-    # Utility function to launch multiple tasks if necessary using joblib 
-    if passed_num_tasks is not None:
-      try:
-        import joblib
-      except ImportError:
-        raise HdfsError('Need to have joblib library installed ' +
-                        'in order to run jobs in parallel')
+  # Function to download a file from HDFS and save locally
+  def _do_download(hdfs_file, local_name):
 
-    if passed_num_tasks == -1:
-      local_num_tasks = len(args_list)
-    else:
-      local_num_tasks = passed_num_tasks
+    local_name_partial = local_name + '.partial'
 
-    if local_num_tasks is not None and local_num_tasks > 1:
+    try: 
 
-      logging.info('(running in parallel)')
+      dir_name = os.path.dirname(local_name)
+      if not os.path.exists(dir_name):
+        logging.info("Creating directory %s", dir_name)
+        os.makedirs(dir_name)
 
-      task_wrapper = joblib.delayed
-      task_runner  = joblib.Parallel(
-          n_jobs=local_num_tasks, verbose=False, backend=backend)
+      client.download(
+          hdfs_file, local_name_partial, overwrite=True, chunk_size=1024*1024)
 
-    else:
-      task_wrapper = lambda x: x
-      task_runner  = lambda x: x
+      os.rename(local_name_partial, local_name)
 
-    return task_runner( list(task_wrapper(func)(*args) for args in args_list ))
+    finally:
+      if os.path.exists(local_name_partial):
+        os.remove(local_name_partial)
 
-  def _get_local_filename(hdfs_path):
+
+  def _get_local_filename(hdfs_file):
     # Convert a remote HDFS filename into a local filename
-    return os.path.join(local_dir, hdfs_path.replace('/', '_'))
+    return os.path.join(local_dir, hdfs_file.replace('/', '_'))
 
 
   def _download_files():
     # Download file parts in directory
 
-
     TEMPORARY_NAME = '_temporary'
-    parts = [
-        (file_name, _get_local_filename(file_name), file_dict) 
-        for file_name, file_dict in client.walk(hdfs_path, depth=1)
-        if file_dict['type'] == 'FILE' 
-        and posixpath.basename(file_name) != TEMPORARY_NAME]
 
-    # Sort file parts by name
-    parts = sorted(parts, key=operator.itemgetter(0))
+    file_infos = dict(client.walk(hdfs_path, depth=1))
 
-    logging.info('Downloading %d files', len(parts))
+    all_parts      = []
+    download_parts = []
+    for hdfs_file in sorted(file_infos.keys()):
+      if file_infos[hdfs_file]['type'] != 'FILE': 
+        continue
+      if posixpath.basename(hdfs_file) == TEMPORARY_NAME:
+        continue
 
-    _run_in_parallel(_do_download, [
-        (client, local_name, file_name, file_dict) 
-        for (file_name, local_name, file_dict) in parts
-        ], num_tasks, "threading")
+      file_dict  = file_infos[hdfs_file]
+      local_name = _get_local_filename(hdfs_file)
 
-    return parts
+      all_parts.append((hdfs_file, local_name))
+
+      if os.path.exists(local_name):
+        if 1000*os.path.getmtime(local_name) < file_dict['modificationTime']:
+          logging.info('%s already exists, but older than HDFS version', 
+            local_name)
+        elif os.path.getsize(local_name) != file_dict['length']:
+          logging.info('%s already exists, but file sizes differ', local_name)
+        else:
+          logging.info('%s already exists, skipping', local_name)
+          continue
+
+      download_parts.append((hdfs_file, local_name))
+
+      logging.info("Will save %s to %s [%dMB]", hdfs_file, local_name, 
+        round(file_dict['length']/(1024*1024))) 
+   
+    logging.info('Downloading %d files', len(download_parts))
+
+    use_num_threads = len(to_download) if num_threads == -1 else num_threads
+    if use_num_threads is not None and use_num_threads > 1:
+      logging.info('(running in parallel, %d threads)', use_num_threads)
+      p = ThreadPool(use_num_threads)
+      call_download_func = lambda x: _do_download(*x)
+      p.map(call_download_func, download_parts)
+
+    else:
+      for args in to_download:
+        _do_download(*args)
+
+    return all_parts
 
 
   def _process_csv(saved_files):
@@ -297,9 +280,11 @@ def read_df(client, hdfs_path, format, use_gzip = False, sep = '\t',
     return df
 
   if format == 'csv':
-    logging.info('Loading CSV formatted data from %s', hdfs_path)
+    logging.info('Loading %s CSV formatted data from %s', 
+      'compressed' if use_gzip else 'uncompressed',
+      hdfs_path)
     if sep is None:
-      raise HdfsError('sep parameter must be not None for CSV reading')
+      raise HdfsError('sep parameter must not be None for CSV reading')
     process_function = _process_csv
 
   elif format == 'avro':
@@ -428,7 +413,7 @@ def write_df(df, client, hdfs_path, format, use_gzip = False, sep = '\t',
     finish_function  = _finish_avro
 
   else:
-    raise HdfsError('Unkown data format %s' % format)
+    raise ValueError('Unkown data format %s' % format)
 
   t = time.time()
 

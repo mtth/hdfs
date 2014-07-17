@@ -47,7 +47,7 @@ class TestDataframe(_TestSession):
     return local_dir
 
   def run_write_read(self, df, format, use_gzip = False, sep = '\t', 
-      index_cols = None, local_dir = None, num_tasks = None):
+      index_cols = None, local_dir = None, num_threads = None):
 
     ext = format + ('.gz' if use_gzip else '')
     f = '/tmp/akolchin/dfreader_test/test.' + ext
@@ -59,7 +59,7 @@ class TestDataframe(_TestSession):
     returned_df = read_df(
       self.client, f, 'csv', 
       sep=sep, use_gzip=use_gzip, index_cols=index_cols, 
-      local_dir=local_dir, num_tasks=num_tasks)
+      local_dir=local_dir, num_threads=num_threads)
 
     assert_frame_equal(df, returned_df)
     return returned_df
@@ -91,11 +91,6 @@ class TestDataframe(_TestSession):
     self.run_write_read(returned_df, 'csv', self.local_temp_dir())
 
   def test_parallel_download(self):
-    try:
-      import joblib
-    except ImportError:
-      raise SkipTest
-
-    self.run_write_read(self.get_df(), 'csv', num_tasks = -1)
+    self.run_write_read(self.get_df(), 'csv', num_threads = -1)
 
    
