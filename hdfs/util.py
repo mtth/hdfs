@@ -125,7 +125,7 @@ def htime(time):
 def catch(*error_classes):
   """Returns a decorator that catches errors and prints messages to stderr.
 
-  :param *error_classes: Error classes.
+  :param \*error_classes: Error classes.
 
   Also exits with status 1 if any errors are caught.
 

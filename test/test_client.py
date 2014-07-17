@@ -12,7 +12,7 @@ from nose.tools import eq_, ok_, raises
 from os import mkdir, rmdir
 from tempfile import mkdtemp
 
-from test_base import _TestSession
+from helpers import _TestSession
 
 
 def status(response):

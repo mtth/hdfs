@@ -15,14 +15,13 @@ from nose.plugins.skip import SkipTest
 import pandas as pd
 from pandas.util.testing import assert_frame_equal
 
-from test_base import _TestSession
+from helpers import _TestSession
 
 
 class TestDataframe(_TestSession):
 
   def setup(self):
     super(TestDataframe, self).setup()
-    self.verbose        = True
 
   @staticmethod
   def get_df():
@@ -33,19 +32,19 @@ class TestDataframe(_TestSession):
          {'A' : 23, 'B' :  1}])
 
   @classmethod
-  def local_temp_path(cls):
-    local_path = tempfile.mkdtemp()
-    if os.path.exists(local_path):
-      shutil.rmtree(local_path)
-    os.mkdir(local_path)
-    return local_path
+  def local_temp_dir(cls):
+    local_dir = tempfile.mkdtemp()
+    if os.path.exists(local_dir):
+      shutil.rmtree(local_dir)
+    os.mkdir(local_dir)
+    return local_dir
 
   def run_write_read(
       self, df, format, 
       use_gzip   = False, 
       sep        = '\t', 
       index_cols = None, 
-      local_path = None, 
+      local_dir = None, 
       num_tasks  = None):
 
     ext = format + ('.gz' if use_gzip else '')
@@ -58,7 +57,7 @@ class TestDataframe(_TestSession):
     returned_df = read_df(
       self.client, f, 'csv', 
       sep=sep, use_gzip=use_gzip, index_cols=index_cols, 
-      local_path=local_path, num_tasks=num_tasks, verbose=self.verbose)
+      local_dir=local_dir, num_tasks=num_tasks)
 
     assert_frame_equal(df, returned_df)
     return returned_df
@@ -85,9 +84,9 @@ class TestDataframe(_TestSession):
 
   def test_local_tmp_path(self):
     df = self.get_df()
-    returned_df = self.run_write_read(df, 'csv', self.local_temp_path())
+    returned_df = self.run_write_read(df, 'csv', self.local_temp_dir())
     # Should be cached now
-    self.run_write_read(returned_df, 'csv', self.local_temp_path())
+    self.run_write_read(returned_df, 'csv', self.local_temp_dir())
 
   def test_parallel_download(self):
     try:
