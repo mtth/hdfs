@@ -9,18 +9,25 @@ import tempfile
 
 
 from hdfs.ext.dataframe import read_df, write_df
-
 from nose.plugins.skip import SkipTest
-
-import pandas as pd
-from pandas.util.testing import assert_frame_equal
-
 from helpers import _TestSession
+
+try:
+  import pandas as pd
+  from pandas.util.testing import assert_frame_equal
+except ImportError:
+  pass
 
 
 class TestDataframe(_TestSession):
 
   def setup(self):
+    try:
+      import pandas
+      import numpy
+    except ImportError:
+      raise SkipTest
+
     super(TestDataframe, self).setup()
 
   @staticmethod
@@ -39,13 +46,8 @@ class TestDataframe(_TestSession):
     os.mkdir(local_dir)
     return local_dir
 
-  def run_write_read(
-      self, df, format, 
-      use_gzip   = False, 
-      sep        = '\t', 
-      index_cols = None, 
-      local_dir = None, 
-      num_tasks  = None):
+  def run_write_read(self, df, format, use_gzip = False, sep = '\t', 
+      index_cols = None, local_dir = None, num_tasks = None):
 
     ext = format + ('.gz' if use_gzip else '')
     f = '/tmp/akolchin/dfreader_test/test.' + ext
