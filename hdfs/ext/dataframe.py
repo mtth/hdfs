@@ -2,7 +2,14 @@
 # encoding: utf-8
 
 """Dataframe: an HdfsCLI extension for reading and writing `pandas` dataframes.
+Dataframes can be read and written into HDFS files stored in one of two formats:
+either Avro or CSV (comma separated values, though other separators such as TAB
+also commonly used.)
 
+This extension requires the presence of `pandas` and `numpy` libraries.  For 
+reading Avro files, the `fastavro` library is necessary.  This extension
+supports downloading multiple HDFS part files in parallel; for this 
+functionality, the `joblib` library is required.
 """
 
 from __future__ import absolute_import
@@ -14,12 +21,13 @@ import os
 import sys
 import itertools
 import operator
+import tempfile
 from collections import OrderedDict
 import io
 import subprocess
+import gzip
 
 import avro
-import gzip
 
 try:
   import pandas as pd
@@ -290,7 +298,6 @@ def read_df(
     raise Exception('Unkown data format %s' % format)
 
   if local_path is None:
-    import tempfile
     local_path = tempfile.mkdtemp()
     _verbose_print(verbose, "local_path not specified, using %s" % local_path)
 
