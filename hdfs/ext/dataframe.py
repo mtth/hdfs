@@ -1,8 +1,7 @@
 #!/usr/bin/env python
 # encoding: utf-8
 
-"""HdfsAvro: an Avro extension for HdfsCLI.
-
+"""Dataframe: an HdfsCLI extension for reading and writing `pandas` dataframes.
 
 """
 
@@ -30,7 +29,7 @@ except ImportError:
 
 
 def gzip_compress(uncompressed):
-  """Function that gzip's its input
+  """Utility function that compresses its input using gzip
 
   :param uncompressed: String to compress
   """
@@ -41,20 +40,27 @@ def gzip_compress(uncompressed):
   return compressed.getvalue()
 
 def gzip_decompress(compressed):
+  """Utility function that decompresses its gzipped-input
 
-  #return gzip.GzipFile(fileobj=io.BytesIO(compressed)).read()
+  :param compressed: Bytes to uncompress
+  """
 
+  # zcat substantially faster than built-in gzip library
   p = subprocess.Popen(
       ['zcat'],stdin=subprocess.PIPE, stdout=subprocess.PIPE)
   out, _ = p.communicate(compressed)
+
   return out
 
 def _verbose_print(verbose, msg):
+  # Print error message if verbose flag is set to True
   if verbose:
     print '#', msg
 
+# Function to download a file from HDFS and save locally
+# TODO: Move into client code?
 # Can't be nested inside another function so that joblib can pickle it
-def _do_download(client, local_path, file_name, file_dict, verbose = False):
+def _do_download(client, local_path, hdfs_path, file_dict, verbose = False):
   save_name = local_path + file_name.replace('/', '_')
   save_name_partial = save_name + '.partial'
 
@@ -79,9 +85,8 @@ def _do_download(client, local_path, file_name, file_dict, verbose = False):
         _verbose_print(verbose, "Creating directory %s" % dir_name)
         os.makedirs(dir_name)
 
-      with open(save_name_partial, 'wb') as f:
-        for chunk in client.read(file_name, chunk_size=1024*1024):
-          f.write(chunk)
+      client.download(
+          hdfs_path, save_name_partial, overwrite=True, chunk_size=1024*1024)
 
       os.rename(save_name_partial, save_name)
 
@@ -97,20 +102,42 @@ def read_df(
     use_gzip   = False, 
     sep        = '\t', 
     index_cols = None,
-    num_tasks  = 1, 
+    num_tasks  = None, 
     local_path = None, 
     verbose    = False):
   """Function to read in pandas `DataFrame` from a remote HDFS file
 
-  :param client: :class:`hdfs.client.Client` instance.
-  :param hdfs_path: Remote path.
+  :param client: :class:`hdfs.client.Client` instance
+  :param hdfs_path: Remote path
   :param format: Indicates format of remote file, currently either `'avro'` 
-                 or `'csv'`
-  :param use_gzip 
+    or `'csv'`
+  :param use_gzip: Whether remote file is gzip-compressed or not.  Only 
+    available for `'csv'` format
+  :param sep: Separator to use for `'csv'` file format
+  :param index_cols: Which columns of remote file should be made index columns
+    of `pandas` dataframe.  If set to `None`, `pandas` will create a row
+    number index
+  :param num_tasks: Number of tasks in which to parallelize downloading of 
+    parts of HDFS file using the `joblib` library.  This can speed up 
+    downloading speed significantly. A value of `None` or `1` indicates that 
+    parallelization will not be used.  A value of `-1` indicates creates as
+    many tasks as there are parts to the HDFS file
+  :param local_path: Local directory in which to save downloaded files. If 
+    set to `None`, a temporary directory will be used.  Otherwise, if remote
+    files already exist in the local directory and are older than downloaded
+    version, they will not be downloaded again
+  :param verbose: Whether to enable printing of extra debugging information
+
+  E.g.:
+
+  .. code-block:: python
+
+    df = read_df(client, '/tmp/data.tsv', 'csv', num_tasks=-1, verbose=True)
+
   """
 
   def _run_in_parallel(func, args_list, passed_num_tasks, backend="threading"):
-
+    # Utility function to launch multiple tasks if necessary using joblib 
     if passed_num_tasks is not None:
       try:
         import joblib
@@ -140,7 +167,7 @@ def read_df(
 
 
   def _download_files():
-    # Download list of file parts in directory
+    # Download file parts in directory
     parts = dict(
         (fileName, fileInfo) 
         for fileName, fileInfo in client.walk(hdfs_path, depth=1)
@@ -159,9 +186,8 @@ def read_df(
     return file_names
 
 
-
-  # ***** TSV processing code ****
   def _process_csv(saved_files):
+    # Loads downloaded csv files and return a pandas dataframe
 
     PIG_HEADER = '_.pig_header'
     PIG_SCHEMA = '_.pig_schema'
@@ -190,18 +216,9 @@ def read_df(
     
     contents = []
     for filename in data_files:
-      #with (gzip.GzipFile(filename) if use_gzip else open(filename)) as f:
       with open(filename, 'rb') as f:
         contents.append( f.read() )
 
-    """
-    if use_gzip:
-      if verbose:
-        print "Unzipping"
-      contents = _run_in_parallel(gzip_decompress, contents, 
-        -1 if num_tasks is not None else None, "threading")
-          
-    """
     for filename in data_files:
       s = time.time()
       with open(filename, 'rb') as f:
@@ -226,8 +243,9 @@ def read_df(
     return df
 
 
-  # ***** Avro processing code ****
   def _process_avro(saved_files):
+
+    # Loads downloaded avro files and returns a pandas dataframe
 
     try:
       import fastavro
@@ -250,7 +268,9 @@ def read_df(
     return df
 
 
-  # ***** MAIN FUNCTION BODY *****
+  # *****************************************
+  # ***** MAIN FUNCTION BODY of read_df *****
+  # *****************************************
 
   if hdfs_path[-1] != '/':
     hdfs_path = hdfs_path + '/'
@@ -298,6 +318,33 @@ def write_df(
     do_overwrite = False, 
     rows_per_part = -1, 
     verbose = False):
+  """Function to write a pandas `DataFrame` to a remote HDFS file
+
+  :param df: `pandas` dataframe object to write
+  :param client: :class:`hdfs.client.Client` instance
+  :param hdfs_path: Remote path
+  :param format: Indicates format of remote file, currently either `'avro'` 
+    or `'csv'`
+  :param use_gzip: Whether remote file is gzip-compressed or not.  Only 
+    available for `'csv'` format
+  :param sep: Separator to use for `'csv'` file format
+  :param do_overwrite: Whether to overwrite files on HDFS if they exist
+  :param rows_per_part: Indicates how to split dataframe into separate part
+    files on HDFS.  If set to `-1`, then a single part file will be created
+    containing all dataframe rows.  Otherwise, a set of part files will be 
+    created, with each part file containing `rows_per_part` rows
+  :param verbose: Whether to enable printing of extra debugging information
+
+  E.g.:
+
+  .. code-block:: python
+
+    df = pd.DataFrame.from_records(
+        [{'A' :  1, 'B' :  2},
+         {'A' : 11, 'B' : 23}])
+    write_df(df, client, '/tmp/data.tsv', 'csv', verbose=True)
+
+  """
 
   def _get_csv_use_index(df):
     r = len(df.index.names) > 1 or df.index.names[0] is not None
@@ -366,8 +413,9 @@ def write_df(
     pass
 
 
-  # ***** MAIN FUNCTION BODY *****
-  # ******************************
+  # *******************************************
+  # ***** MAIN FUNCTION BODY FOR write_df *****
+  # *******************************************
   if hdfs_path[-1] != '/':
     hdfs_path = hdfs_path + '/'
 
