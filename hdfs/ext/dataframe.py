@@ -118,7 +118,9 @@ def read_df(client, hdfs_path, format, use_gzip = False, sep = '\t',
     PIG_CSV_HEADER = '.pig_header'
 
     header_file = os.path.join(local_dir, PIG_CSV_HEADER)
-    client.download(posixpath.join(hdfs_path, PIG_CSV_HEADER), header_file, 
+    # Use download_parts instead of download because it doesn't throw an
+    # exception when file already exists
+    client.download_parts(posixpath.join(hdfs_path, PIG_CSV_HEADER), header_file, 
       overwrite=overwrite)
 
     merged_files = io.BytesIO()
