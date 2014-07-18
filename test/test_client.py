@@ -10,6 +10,8 @@ from hdfs import KerberosClient
 import os.path as osp
 from nose.tools import eq_, ok_, raises
 from os import mkdir, rmdir
+from shutil import rmtree
+
 from tempfile import mkdtemp
 
 from helpers import _TestSession
@@ -276,6 +278,24 @@ class TestRename(_TestSession):
     self.client._mkdirs('bar')
     self.client.rename('foo', 'bar')
     self._check_content('bar/foo', 'hello, world!')
+
+class TestDownloadParts(_TestSession):
+  def test_download_parts(self):
+    self.client._mkdirs('testdir')
+    self.client.write('testdir/part-r-00000', 'this is part 0')
+    self.client.write('testdir/part-r-00001', 'this is part 1')
+    self.client.write('testdir/part-r-00002', 'this is part 2')
+
+    tdpath = mkdtemp()
+    local_names = []
+    try:
+      local_names = self.client.download_parts('testdir', tdpath)
+      for fndx, fname in enumerate(sorted(local_names)):
+        ok_(osp.exists(fname))
+        with open(fname, 'r') as f:
+          ok_(f.read() == 'this is part %d' % fndx)
+    finally:
+      rmtree(tdpath)
 
 
 class TestStatus(_TestSession):

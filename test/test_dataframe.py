@@ -54,7 +54,7 @@ class TestDataframe(_TestSession):
 
     write_df(
       df, self.client, f, 'csv', 
-      sep=sep, use_gzip=use_gzip, do_overwrite=True, rows_per_part=2)
+      sep=sep, use_gzip=use_gzip, overwrite=True, rows_per_part=2)
 
     returned_df = read_df(
       self.client, f, 'csv', 

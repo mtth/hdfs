@@ -12,7 +12,8 @@ import os
 import os.path as osp
 import re
 import requests as rq
-
+import posixpath
+from multiprocessing.pool import ThreadPool
 
 def _on_error(response):
   """Callback when an API response has a non 2XX status code.
@@ -360,22 +361,117 @@ class Client(object):
         res.close()
     return reader()
 
-  def download(self, hdfs_path, local_path, overwrite=False, **kwargs):
+  def _download_check(self, hdfs_path, local_path, overwrite=False, 
+    file_dict=None):
+    # Check whether file should be downloaded given overwrite mode
+    if osp.isdir(local_path):
+      raise HdfsError('%r is a directory. Cannot download.', local_path)
+
+    if osp.exists(local_path):
+      if not overwrite:
+        return False
+      elif overwrite == 'smart':
+        if file_dict is None:
+          file_dict = self.status(hdfs_path)
+        if (1000*osp.getmtime(local_path) >= file_dict['modificationTime'] and
+            osp.getsize(local_path) == file_dict['length']):
+          return False
+    return True
+
+  @staticmethod
+  def _get_local_file_name(hdfs_path, local_path):
+    # Get local filename for downloaded HDFS file
+    return osp.join(local_path, posixpath.basename(hdfs_path))
+
+
+  def download(self, hdfs_path, local_path, overwrite=False, file_dict=None, 
+    **kwargs):
     """Download a file from HDFS.
 
     :param hdfs_path: Path on HDFS of the file to download.
     :param local_path: Local path. This must not be a directory.
+    :param overwrite: Overwrite mode. If equal to `False` and local file exists,
+      an :class:`~hdfs.util.HdfsError` will be raised.  If equal to `True`, 
+      file will be overwritten.  If equal to `'smart'`, file will be overwritten
+      if it is older than HDFS version or has a different file size.
+    :param file_dict: Dictionary containing information about HDFS file.  Used
+      to get modification date and size for `'smart'` overwrite mode.  If not,
+      provided and this information is needed, it will be retrieved from HDFS.
     :param kwargs: Keyword arguments forwarded to :meth:`read`.
 
     """
-    if osp.isdir(local_path):
-      raise HdfsError('%r is a directory. Cannot download.', local_path)
-    if not osp.exists(local_path) or overwrite:
-      with open(local_path, 'w') as writer:
+
+    if not self._download_check(hdfs_path, local_path, overwrite, file_dict):
+        raise HdfsError('%r already exists. Aborting download.', local_path)
+
+    local_path_partial = local_path + '.partial'
+    try:
+      with open(local_path_partial, 'w') as writer:
         for chunk in self.read(hdfs_path, **kwargs):
           writer.write(chunk)
+
+      os.rename(local_path_partial, local_path)
+
+    finally:
+      if osp.exists(local_path_partial):
+        os.remove(local_path_partial)
+
+  def download_parts(self, hdfs_path, local_path, overwrite=False, 
+    num_threads = None, **kwargs):
+    """Download a file from HDFS and save locally, or all the part-files if
+    HDFS location is a directory.
+
+    :param hdfs_path: Path on HDFS of the file or directory to download.
+    :param local_path: Local path. If remote path contains multiple part files,
+      this must be a directory.
+    :param overwrite: Overwrite mode. If equal to `False` and local file exists,
+      an :class:`~hdfs.util.HdfsError` will be raised.  If equal to `True`, 
+      file will be overwritten.  If equal to `'smart'`, file will be overwritten
+      if it is older than HDFS version or has a different file size.
+    :param num_threads: Number of threads to use for parallel downloading of 
+      part-files. A value of `None` or `1` indicates that parallelization won't
+      be used; `-1` uses as many threads as there are part-files.
+    :param kwargs: Keyword arguments forwarded to :meth:`read`.
+
+    """
+    file_infos = dict(self.walk(hdfs_path, depth=1))
+
+    download_parts = []
+    local_part_names = []
+    parts = self.parts(hdfs_path)
+    for hdfs_file in sorted(parts):
+
+      file_dict = file_infos[hdfs_file]
+
+      if osp.isdir(local_path):
+        local_part_name = self._get_local_file_name(hdfs_file, local_path)
+      else:
+        if len(parts) > 1:
+          raise HdfsError('More than 1 part file found under %s, local path ' +
+            'must be a directory', hdfs_path)
+        else:
+          local_part_name = local_path
+
+      if self._download_check(hdfs_path, local_part_name, overwrite, file_dict):
+        download_parts.append((hdfs_file, local_part_name))
+
+      local_part_names.append(local_part_name)
+   
+    use_num_threads = len(download_parts) if num_threads == -1 else num_threads
+
+    start_download = lambda x: \
+      self.download(*x, overwrite=overwrite, file_dict=file_dict, **kwargs)
+
+    if use_num_threads is not None and use_num_threads > 1:
+      p = ThreadPool(use_num_threads)
+      p.map(start_download, download_parts)
+
     else:
-      raise HdfsError('%r already exists. Aborting download.', local_path)
+      for args in download_parts:
+        start_download(args)
+
+    return local_part_names
+
 
   def delete(self, hdfs_path, recursive=False):
     """Remove a file or directory from HDFS.

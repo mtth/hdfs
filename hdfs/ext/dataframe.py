@@ -82,11 +82,8 @@ def convert_dtype(dtype):
     raise HdfsError('Dont know Avro equivalent of type %s' % dtype)
 
 
-
-
-
 def read_df(client, hdfs_path, format, use_gzip = False, sep = '\t', 
-  index_cols = None, num_threads = None, local_dir = None):
+  index_cols = None, num_threads = None, local_dir = None, overwrite=False):
   """Function to read in pandas `DataFrame` from a remote HDFS file.
 
   :param client: :class:`hdfs.client.Client` instance.
@@ -99,11 +96,9 @@ def read_df(client, hdfs_path, format, use_gzip = False, sep = '\t',
   :param index_cols: Which columns of remote file should be made index columns
     of `pandas` dataframe.  If set to `None`, `pandas` will create a row
     number index.
-  :param num_threads: Number of threads in which to parallelize downloading of 
-    parts of HDFS file.  This can speed up 
-    downloading speed significantly. A value of `None` or `1` indicates that 
-    parallelization will not be used.  A value of `-1` indicates creates as
-    many tasks as there are parts to the HDFS file.
+  :param num_threads: Number of threads to use for parallel downloading of 
+    part-files. A value of `None` or `1` indicates that parallelization won't
+    be used; `-1` uses as many threads as there are part-files.
   :param local_dir: Local directory in which to save downloaded files. If 
     set to `None`, a temporary directory will be used.  Otherwise, if remote
     files already exist in the local directory and are older than downloaded
@@ -117,106 +112,14 @@ def read_df(client, hdfs_path, format, use_gzip = False, sep = '\t',
 
   """
 
-  # Function to download a file from HDFS and save locally
-  def _do_download(hdfs_file, local_name):
-
-    local_name_partial = local_name + '.partial'
-
-    try: 
-
-      dir_name = os.path.dirname(local_name)
-      if not os.path.exists(dir_name):
-        logging.info("Creating directory %s", dir_name)
-        os.makedirs(dir_name)
-
-      client.download(
-          hdfs_file, local_name_partial, overwrite=True, chunk_size=1024*1024)
-
-      os.rename(local_name_partial, local_name)
-
-    finally:
-      if os.path.exists(local_name_partial):
-        os.remove(local_name_partial)
-
-
-  def _get_local_filename(hdfs_file):
-    # Convert a remote HDFS filename into a local filename
-    return os.path.join(local_dir, hdfs_file.replace('/', '_'))
-
-
-  def _download_files():
-    # Download file parts in directory
-
-    TEMPORARY_NAME = '_temporary'
-
-    file_infos = dict(client.walk(hdfs_path, depth=1))
-
-    all_parts      = []
-    download_parts = []
-    for hdfs_file in sorted(file_infos.keys()):
-      if file_infos[hdfs_file]['type'] != 'FILE': 
-        continue
-      if posixpath.basename(hdfs_file) == TEMPORARY_NAME:
-        continue
-
-      file_dict  = file_infos[hdfs_file]
-      local_name = _get_local_filename(hdfs_file)
-
-      all_parts.append((hdfs_file, local_name))
-
-      if os.path.exists(local_name):
-        if 1000*os.path.getmtime(local_name) < file_dict['modificationTime']:
-          logging.info('%s already exists, but older than HDFS version', 
-            local_name)
-        elif os.path.getsize(local_name) != file_dict['length']:
-          logging.info('%s already exists, but file sizes differ', local_name)
-        else:
-          logging.info('%s already exists, skipping', local_name)
-          continue
-
-      download_parts.append((hdfs_file, local_name))
-
-      logging.info("Will save %s to %s [%dMB]", hdfs_file, local_name, 
-        round(file_dict['length']/(1024*1024))) 
-   
-    logging.info('Downloading %d files', len(download_parts))
-
-    use_num_threads = len(to_download) if num_threads == -1 else num_threads
-    if use_num_threads is not None and use_num_threads > 1:
-      logging.info('(running in parallel, %d threads)', use_num_threads)
-      p = ThreadPool(use_num_threads)
-      call_download_func = lambda x: _do_download(*x)
-      p.map(call_download_func, download_parts)
-
-    else:
-      for args in to_download:
-        _do_download(*args)
-
-    return all_parts
-
-
-  def _process_csv(saved_files):
+  def _process_csv(data_files):
     # Loads downloaded csv files and return a pandas dataframe
 
-    PIG_HEADER = '.pig_header'
-    PIG_SCHEMA = '.pig_schema'
+    PIG_CSV_HEADER = '.pig_header'
 
-    header_files = [local_name 
-      for hdfs_name, local_name, _ in saved_files 
-      if posixpath.basename(hdfs_name) == PIG_HEADER]
-    data_files   = sorted([local_name 
-      for hdfs_name, local_name, _ in saved_files 
-      if posixpath.basename(hdfs_name) not in (PIG_HEADER, PIG_SCHEMA) ])
-
-    if len(header_files) != 1:
-      if len(header_files) > 1:
-        raise HdfsError('More than 1 header file found!')
-      else:
-        raise HdfsError('No header file found!')
-    header_file = header_files[0]
-
-    if not data_files:
-      raise HdfsError('No data files found')
+    header_file = os.path.join(local_dir, PIG_CSV_HEADER)
+    client.download(posixpath.join(hdfs_path, PIG_CSV_HEADER), header_file, 
+      overwrite=overwrite)
 
     merged_files = io.BytesIO()
     with open(header_file, 'r') as f:
@@ -239,7 +142,6 @@ def read_df(client, hdfs_path, format, use_gzip = False, sep = '\t',
       delay = time.time() - s
       logging.info('Loaded %s in %0.3fs', filename, delay)
 
-
     merged_files.seek(0)
 
     logging.info("Loading dataframe")
@@ -252,9 +154,7 @@ def read_df(client, hdfs_path, format, use_gzip = False, sep = '\t',
 
     return df
 
-
-  def _process_avro(saved_files):
-
+  def _process_avro(data_files):
     # Loads downloaded avro files and returns a pandas dataframe
 
     try:
@@ -263,12 +163,11 @@ def read_df(client, hdfs_path, format, use_gzip = False, sep = '\t',
       raise HdfsError('Need to have fastavro library installed ' + 
                       'in order to dataframes from Avro files')
 
-
     open_files = []
     try:
-      for filename in saved_files:
-        logging.info("Opening %s", filename)
-        open_files.append( open(filename,'rb') )
+      for f in data_files:
+        logging.info("Opening %s", f)
+        open_files.append( open(f,'rb') )
 
       reader_chain = itertools.chain(*[fastavro.reader(f) for f in open_files])
       df = pd.DataFrame.from_records(reader_chain, index=index_cols)
@@ -285,13 +184,13 @@ def read_df(client, hdfs_path, format, use_gzip = False, sep = '\t',
       hdfs_path)
     if sep is None:
       raise HdfsError('sep parameter must not be None for CSV reading')
-    process_function = _process_csv
+    process_function  = _process_csv
 
   elif format == 'avro':
     logging.info('Loading Avro formatted data from %s', hdfs_path)
     if use_gzip:
       raise HdfsError('Cannot use gzip compression with Avro format')
-    process_function = _process_avro
+    process_function  = _process_avro
   else:
     raise Exception('Unkown data format %s' % format)
 
@@ -301,8 +200,13 @@ def read_df(client, hdfs_path, format, use_gzip = False, sep = '\t',
 
   t = time.time()
 
-  saved_files = _download_files()
-  df = process_function(saved_files)
+  data_files = client.download_parts(hdfs_path, local_dir, 
+    num_threads=num_threads, overwrite=overwrite)
+
+  if not data_files:
+    raise HdfsError('No data files found')
+
+  df = process_function(data_files)
 
   logging.info('Done in %0.3f', time.time() - t)
   
@@ -310,7 +214,7 @@ def read_df(client, hdfs_path, format, use_gzip = False, sep = '\t',
 
 
 def write_df(df, client, hdfs_path, format, use_gzip = False, sep = '\t', 
-  do_overwrite = False, rows_per_part = -1):
+  overwrite = False, rows_per_part = -1):
   """Function to write a pandas `DataFrame` to a remote HDFS file.
 
   :param df: `pandas` dataframe object to write.
@@ -321,7 +225,7 @@ def write_df(df, client, hdfs_path, format, use_gzip = False, sep = '\t',
   :param use_gzip: Whether remote file is gzip-compressed or not.  Only 
     available for `'csv'` format.
   :param sep: Separator to use for `'csv'` file format.
-  :param do_overwrite: Whether to overwrite files on HDFS if they exist.
+  :param overwrite: Whether to overwrite files on HDFS if they exist.
   :param rows_per_part: Indicates how to split dataframe into separate part
     files on HDFS.  If set to `-1`, then a single part file will be created
     containing all dataframe rows.  Otherwise, a set of part files will be 
@@ -419,7 +323,7 @@ def write_df(df, client, hdfs_path, format, use_gzip = False, sep = '\t',
 
   try:
     client.status(hdfs_path)
-    if do_overwrite:
+    if overwrite:
       client.delete(hdfs_path, recursive=True)
     else:
       raise HdfsError('%s already exists' % hdfs_path)
