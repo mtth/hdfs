@@ -3,3 +3,5 @@
 
 """Extensions."""
 
+__all__ = ['avro', 'dataframe']
+
