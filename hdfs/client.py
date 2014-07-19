@@ -447,8 +447,8 @@ class Client(object):
         local_part_name = self._get_local_file_name(hdfs_file, local_path)
       else:
         if len(parts) > 1:
-          raise HdfsError('More than 1 part file found under %s, local path ' +
-            'must be a directory', hdfs_path)
+          raise HdfsError('More than 1 part file found under %s, but ' +
+            'local path %s is not a directory', hdfs_path, local_path)
         else:
           local_part_name = local_path
 
