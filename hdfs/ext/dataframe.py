@@ -117,11 +117,14 @@ def read_df(client, hdfs_path, format, use_gzip = False, sep = '\t',
 
     PIG_CSV_HEADER = '.pig_header'
 
-    header_file = os.path.join(local_dir, PIG_CSV_HEADER)
-    # Use download_parts instead of download because it doesn't throw an
-    # exception when file already exists
-    client.download_parts(posixpath.join(hdfs_path, PIG_CSV_HEADER), header_file, 
-      overwrite=overwrite)
+    hdfs_header_file = posixpath.join(hdfs_path, PIG_CSV_HEADER)
+    header_file = client._get_local_file_name(hdfs_header_file, local_dir)
+
+    header_info = client.status(hdfs_header_file)
+    if client._download_check(hdfs_path, header_file, overwrite=overwrite, 
+      file_dict=header_info):
+      client.download(hdfs_header_file, header_file, overwrite=overwrite,
+        file_dict=header_info)
 
     merged_files = io.BytesIO()
     with open(header_file, 'r') as f:

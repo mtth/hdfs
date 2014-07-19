@@ -421,9 +421,8 @@ class Client(object):
     """Download a file from HDFS and save locally, or all the part-files if
     HDFS location is a directory.
 
-    :param hdfs_path: Path on HDFS of the file or directory to download.
-    :param local_path: Local path. If remote path contains multiple part files,
-      this must be a directory.
+    :param hdfs_path: Path on HDFS of the directory to download.
+    :param local_path: Local path. This must be a directory.
     :param overwrite: Overwrite mode. If equal to `False` and local file exists,
       an :class:`~hdfs.util.HdfsError` will be raised.  If equal to `True`, 
       file will be overwritten.  If equal to `'smart'`, file will be overwritten
@@ -436,21 +435,17 @@ class Client(object):
     """
     file_infos = dict(self.walk(hdfs_path, depth=1))
 
+    if len(file_infos) == 1 and file_infos.keys()[0] == hdfs_path:
+      raise HdfsError('hdfs_path %s should be a directory', hdfs_path)
+
     download_parts = []
     local_part_names = []
     parts = self.parts(hdfs_path)
-    for hdfs_file in sorted(parts):
 
+    for hdfs_file in sorted(parts):
       file_dict = file_infos[hdfs_file]
 
-      if osp.isdir(local_path):
-        local_part_name = self._get_local_file_name(hdfs_file, local_path)
-      else:
-        if len(parts) > 1:
-          raise HdfsError('More than 1 part file found under %s, but ' +
-            'local path %s is not a directory', hdfs_path, local_path)
-        else:
-          local_part_name = local_path
+      local_part_name = self._get_local_file_name(hdfs_file, local_path)
 
       if self._download_check(hdfs_path, local_part_name, overwrite, file_dict):
         download_parts.append((hdfs_file, local_part_name))
@@ -459,16 +454,19 @@ class Client(object):
    
     use_num_threads = len(download_parts) if num_threads == -1 else num_threads
 
-    start_download = lambda x: \
-      self.download(*x, overwrite=overwrite, file_dict=file_dict, **kwargs)
+
+    def _start_download(args):
+      hdfs_file, local_part_name = args
+      self.download(hdfs_file, local_part_name, overwrite=overwrite, 
+        file_dict=file_infos[hdfs_file], **kwargs)
 
     if use_num_threads is not None and use_num_threads > 1:
       p = ThreadPool(use_num_threads)
-      p.map(start_download, download_parts)
+      p.map(_start_download, download_parts)
 
     else:
       for args in download_parts:
-        start_download(args)
+        _start_download(args)
 
     return local_part_names
 

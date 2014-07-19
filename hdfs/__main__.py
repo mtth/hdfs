@@ -7,7 +7,7 @@ Usage:
   hdfs [-a ALIAS] [--info] [-j] [-d DEPTH] [PATH]
   hdfs [-a ALIAS] --read PATH
   hdfs [-a ALIAS] --write [-o] PATH
-  hdfs [-a ALIAS] --download [-t THREADS] [-o|-s] PATH LOCALDIR
+  hdfs [-a ALIAS] --download [-t THREADS] [-o|-s] PATH LOCALPATH
   hdfs -h | --help | -v | --version
 
 Commands:
@@ -17,14 +17,15 @@ Commands:
                                 `PATH` is a directory, this command will
                                 attempt to read (in order) any part-files found
                                 directly under it.
-  --download                    Download a file from HDFS to a local path. If
-                                `PATH` is a directory, attempt to download all 
-                                part-files found directly under it.                    
+  --download                    Download a file from HDFS. If `PATH` is a 
+                                directory, attempt to download all part-file
+                                found directly under into directory specified
+                                by `LOCALPATH`.  Otherwise, download the file.
   --write                       Write from standard in to HDFS.
 
 Arguments:
   PATH                          Remote HDFS path.
-  LOCALDIR                      Local directory for downloaded files. 
+  LOCALPATH                     Local file or directory for downloadeding. 
 
 Options:
   -a ALIAS --alias=ALIAS        Alias.
@@ -57,6 +58,7 @@ from hdfs.util import catch, HdfsError, hsize, htime
 from json import dumps
 from time import time
 import sys
+import os
 
 
 def infos(client, hdfs_path, depth, json):
@@ -144,8 +146,18 @@ def main():
       message = '%s\t%s\t[%s/%s]' % (hsize(size), path, index + 1, len(parts))
       read(client.read(path), size, message)
   elif args['--download']:
-    client.download_parts(rpath, args['LOCALDIR'], overwrite=overwrite, 
-      num_threads=int(args['--threads']))
+    status_dict = client.status(rpath)
+    if status_dict['type'] == 'DIRECTORY':
+      client.download_parts(rpath, args['LOCALPATH'], overwrite=overwrite, 
+        num_threads=int(args['--threads']))
+    else:
+      lpath = args['LOCALPATH'] 
+      if os.path.isdir(lpath) or os.path.join(lpath,"") == lpath:
+        # local path is a directory
+        lpath = client._get_local_file_name(rpath, lpath)
+
+      client.download(rpath, lpath, overwrite=overwrite)
+
   else:
     infos(client, rpath, depth, args['--json'])
 
