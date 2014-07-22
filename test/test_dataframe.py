@@ -8,47 +8,39 @@ import os
 import tempfile
 
 
-from hdfs.ext.dataframe import read_df, write_df
 from nose.plugins.skip import SkipTest
 from helpers import _TestSession
 
+SKIP = False
+
 try:
+  from hdfs.ext.dataframe import read_df, write_df
   import pandas as pd
   from pandas.util.testing import assert_frame_equal
+
 except ImportError:
+  SKIP = True
   pass
 
 
 class TestDataframe(_TestSession):
 
   def setup(self):
-    try:
-      import pandas
-      import numpy
-    except ImportError:
+    if SKIP:
       raise SkipTest
 
     super(TestDataframe, self).setup()
 
-  @staticmethod
-  def get_df():
-    return pd.DataFrame.from_records(
+    self.test_df = pd.DataFrame.from_records(
         [{'A' :  1, 'B' :  2},
          {'A' : 11, 'B' : 23},
          {'A' :100, 'B' :211},
          {'A' : 23, 'B' :  1}])
 
-  @classmethod
-  def local_temp_dir(cls):
-    local_dir = tempfile.mkdtemp()
-    if os.path.exists(local_dir):
-      shutil.rmtree(local_dir)
-    os.mkdir(local_dir)
-    return local_dir
-
   def run_write_read(self, df, format, use_gzip = False, sep = '\t', 
       index_cols = None, local_dir = None, num_threads = None):
 
+    # Location on HDFS
     ext = format + ('.gz' if use_gzip else '')
     f = '/tmp/akolchin/dfreader_test/test.' + ext
 
@@ -65,32 +57,42 @@ class TestDataframe(_TestSession):
     return returned_df
 
   def test_csv(self):
-    self.run_write_read(self.get_df(), format='csv')
+    self.run_write_read(self.test_df, format='csv')
 
   def test_csv_gz(self):
-    self.run_write_read(self.get_df(), format='csv', use_gzip=True)
+    self.run_write_read(self.test_df, format='csv', use_gzip=True)
 
   def test_csv_comma(self):
-    self.run_write_read(self.get_df(), format='csv', sep=',')
+    self.run_write_read(self.test_df, format='csv', sep=',')
 
   def test_csv_index(self):
-    df = self.get_df().set_index('A')
+    df = self.test_df.copy().set_index('A')
     self.run_write_read(df, format='csv', index_cols = ['A'])
 
   def test_avro(self):
-    self.run_write_read(self.get_df(), format='avro')
+    self.run_write_read(self.test_df, format='avro')
 
   def test_avro_index(self):
-    df = self.get_df().set_index('A')
+    df = self.test_df.copy().set_index('A')
     self.run_write_read(df, format='avro', index_cols = ['A'])
 
   def test_local_tmp_path(self):
-    df = self.get_df()
-    returned_df = self.run_write_read(df, 'csv', self.local_temp_dir())
-    # Should be cached now
-    self.run_write_read(returned_df, 'csv', self.local_temp_dir())
+    temp1 = tempfile.mkdtemp()
+    try:
+      returned_df = self.run_write_read(self.test_df, 'csv', temp1)
+
+      temp2 = tempfile.mkdtemp()
+      try:
+        # Should be cached now
+        self.run_write_read(returned_df, 'csv', temp2)
+
+      finally:
+        shutil.rmtree(temp2)
+
+    finally:
+      shutil.rmtree(temp1)
 
   def test_parallel_download(self):
-    self.run_write_read(self.get_df(), 'csv', num_threads = -1)
+    self.run_write_read(self.test_df, 'csv', num_threads = -1)
 
    

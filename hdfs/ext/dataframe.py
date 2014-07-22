@@ -25,18 +25,21 @@ import operator
 import tempfile
 import io
 import subprocess
-import logging
+import shutil
 
 import gzip
 import avro
 
 from multiprocessing.pool import ThreadPool
 
+import logging
+logger = logging.getLogger(__name__)
+
 try:
   import pandas as pd
   import numpy as np
 except ImportError:
-  raise HdfsError('pandas and numpy libraries needed for dataframe extension')
+  raise ImportError('pandas and numpy libraries needed for dataframe extension')
 
 def gzip_compress(uncompressed):
   """Utility function that compresses its input using gzip.
@@ -79,7 +82,7 @@ def convert_dtype(dtype):
   elif np.issubdtype(dtype, np.bool_):
     return 'boolean'
   else:
-    raise HdfsError('Dont know Avro equivalent of type %s' % dtype)
+    raise HdfsError('Dont know Avro equivalent of type %r.', dtype)
 
 
 def read_df(client, hdfs_path, format, use_gzip = False, sep = '\t', 
@@ -112,109 +115,105 @@ def read_df(client, hdfs_path, format, use_gzip = False, sep = '\t',
 
   """
 
-  def _process_csv(data_files):
-    # Loads downloaded csv files and return a pandas dataframe
+  IS_TEMP_DIR = False
 
-    PIG_CSV_HEADER = '.pig_header'
+  try:
+    if local_dir is None:
+      local_dir = tempfile.mkdtemp()
+      logger.info('local_dir not specified, using %r.', local_dir)
 
-    hdfs_header_file = posixpath.join(hdfs_path, PIG_CSV_HEADER)
-    header_file = client._get_local_file_name(hdfs_header_file, local_dir)
+    if format == 'csv':
+      logger.info('Loading %r CSV formatted data from %r', 
+        'compressed' if use_gzip else 'uncompressed',
+        hdfs_path)
 
-    header_info = client.status(hdfs_header_file)
-    if client._download_check(hdfs_path, header_file, overwrite=overwrite, 
-      file_dict=header_info):
-      client.download(hdfs_header_file, header_file, overwrite=overwrite,
-        file_dict=header_info)
+      if sep is None:
+        raise HdfsError('sep parameter must not be None for CSV reading.')
 
-    merged_files = io.BytesIO()
-    with open(header_file, 'r') as f:
-      header_data = f.read()
-      merged_files.write(header_data)
+      def _process_function(data_files):
+          # Loads downloaded csv files and return a pandas dataframe
 
+          PIG_CSV_HEADER = '.pig_header'
+          hdfs_header_file = posixpath.join(hdfs_path, PIG_CSV_HEADER)
+          header_file = client.download(hdfs_header_file, local_dir,
+            overwrite=overwrite)[0]
+          
+          merged_files = io.BytesIO()
+          with open(header_file, 'r') as f:
+            merged_files.write(f.read())
+
+          for filename in data_files:
+            s = time.time()
+            with open(filename, 'rb') as f:
+              contents = f.read()
+              if use_gzip:
+                contents = gzip_decompress(contents)
+              merged_files.write(contents)
+            delay = time.time() - s
+            logger.info('Loaded %s in %0.3fs', filename, delay)
+
+          merged_files.seek(0)
+
+          logger.info("Loading dataframe")
+
+          df = pd.io.parsers.read_csv(merged_files, sep=sep)
+          if index_cols is not None:
+            df = df.set_index(index_cols)
+
+          merged_files.close()
+
+          return df
+
+    elif format == 'avro':
+      logger.info('Loading Avro formatted data from %r', hdfs_path)
+      if use_gzip:
+        raise HdfsError('Cannot use gzip compression with Avro format.')
+      process_function  = _process_avro
+
+      def _process_function(data_files):
+        # Loads downloaded avro files and returns a pandas dataframe
+
+        try:
+          import fastavro
+        except ImportError:
+          raise HdfsError('Need to have fastavro library installed ' + 
+                          'in order to dataframes from Avro files.')
+
+        open_files = []
+        try:
+          for f in data_files:
+            logger.info("Opening %s", f)
+            open_files.append( open(f,'rb') )
+
+          reader_chain = itertools.chain(*[fastavro.reader(f) for f in open_files])
+          df = pd.DataFrame.from_records(reader_chain, index=index_cols)
+
+        finally:
+          for f in open_files: 
+            f.close()
+
+        return df
+
+    else:
+      raise ValueError('Unkown data format %s' % (format,) )
+
+
+    t = time.time()
+
+    data_files = client.download(hdfs_path, local_dir, num_threads=num_threads, 
+      overwrite=overwrite)
+
+    if not data_files:
+      raise HdfsError('No data files found')
+
+    df = _process_function(data_files)
+
+    logger.info('Done in %0.3f', time.time() - t)
     
-    contents = []
-    for filename in data_files:
-      with open(filename, 'rb') as f:
-        contents.append( f.read() )
+  finally:
+    if IS_TEMP_DIR:
+      shutil.rmtree(local_dir)
 
-    for filename in data_files:
-      s = time.time()
-      with open(filename, 'rb') as f:
-        contents = f.read()
-        if use_gzip:
-          contents = gzip_decompress(contents)
-        merged_files.write(contents)
-      delay = time.time() - s
-      logging.info('Loaded %s in %0.3fs', filename, delay)
-
-    merged_files.seek(0)
-
-    logging.info("Loading dataframe")
-
-    df = pd.io.parsers.read_csv(merged_files, sep=sep)
-    if index_cols is not None:
-      df = df.set_index(index_cols)
-
-    merged_files.close()
-
-    return df
-
-  def _process_avro(data_files):
-    # Loads downloaded avro files and returns a pandas dataframe
-
-    try:
-      import fastavro
-    except ImportError:
-      raise HdfsError('Need to have fastavro library installed ' + 
-                      'in order to dataframes from Avro files')
-
-    open_files = []
-    try:
-      for f in data_files:
-        logging.info("Opening %s", f)
-        open_files.append( open(f,'rb') )
-
-      reader_chain = itertools.chain(*[fastavro.reader(f) for f in open_files])
-      df = pd.DataFrame.from_records(reader_chain, index=index_cols)
-
-    finally:
-      for f in open_files: 
-        f.close()
-
-    return df
-
-  if format == 'csv':
-    logging.info('Loading %s CSV formatted data from %s', 
-      'compressed' if use_gzip else 'uncompressed',
-      hdfs_path)
-    if sep is None:
-      raise HdfsError('sep parameter must not be None for CSV reading')
-    process_function  = _process_csv
-
-  elif format == 'avro':
-    logging.info('Loading Avro formatted data from %s', hdfs_path)
-    if use_gzip:
-      raise HdfsError('Cannot use gzip compression with Avro format')
-    process_function  = _process_avro
-  else:
-    raise Exception('Unkown data format %s' % format)
-
-  if local_dir is None:
-    local_dir = tempfile.mkdtemp()
-    logging.info('local_dir not specified, using %s', local_dir)
-
-  t = time.time()
-
-  data_files = client.download_parts(hdfs_path, local_dir, 
-    num_threads=num_threads, overwrite=overwrite)
-
-  if not data_files:
-    raise HdfsError('No data files found')
-
-  df = process_function(data_files)
-
-  logging.info('Done in %0.3f', time.time() - t)
-  
   return df
 
 
@@ -247,82 +246,73 @@ def write_df(df, client, hdfs_path, format, use_gzip = False, sep = '\t',
 
   """
 
-  def _get_csv_use_index(df):
-    # Only include index columns in the CSV output if they do not seem to be a
-    # row-id automatically added by `pandas` (resulting in a single,
-    # unnamed index column)
-    r = len(df.index.names) > 1 or df.index.names[0] is not None
-    return r
-
-  def _get_csv(df):
-    use_index = _get_csv_use_index(df)
-    r = df.to_csv(sep=sep, header=False, index=use_index)
-    if use_gzip:
-      r = gzip_compress(r)
-    return r
-
-  def _finish_csv(df):
-    use_index = _get_csv_use_index(df)
-    header = df[0:0].to_csv(sep=sep, header=True, index=use_index).strip()
-    header_hdfs_filename = posixpath.join(hdfs_path, '.pig_header')
-    client.write(header_hdfs_filename, header + "\n", overwrite=True)
-
-  def _get_avro(df):
-
-    fields_str = [
-        '{"name": "%s", "type": "%s"}' % (fldname, convert_dtype(dtype)) 
-        for fldname, dtype in zip(df.columns, df.dtypes)]
-    schema_str = """\
-  { "type": "record",
-    "name": "dfrecord",
-    "fields": [
-    """ + ",\n".join(fields_str) + """
-    ]
-  }"""
-
-    schema = avro.schema.parse(schema_str)
-
-    # Create a 'record' (datum) writer
-    rec_writer  = avro.io.DatumWriter(schema)
-
-    out_buffer  = io.BytesIO()
-    # Create a 'data file' (avro file) writer
-    avro_writer = avro.datafile.DataFileWriter(
-        out_buffer,
-        rec_writer,
-        writers_schema = schema)
-
-    for r in df.to_dict(outtype='records'):
-      avro_writer.append(r)
-
-    avro_writer.flush() 
-    r = out_buffer.getvalue()
-    avro_writer.close() 
-    return r
-
-  def _finish_avro(df):
-    pass
-
 
   if format == 'csv':
 
-    logging.info('Writing CSV formatted data to %s', hdfs_path)
+    # Only include index columns in the CSV output if they do not seem to be a
+    # row-id automatically added by `pandas` (resulting in a single,
+    # unnamed index column)
+    csv_use_index = len(df.index.names) > 1 or df.index.names[0] is not None
 
-    process_function = _get_csv
-    finish_function  = _finish_csv
+    def _process_function(df):
+      r = df.to_csv(sep=sep, header=False, index=csv_use_index)
+      if use_gzip:
+        r = gzip_compress(r)
+      return r
+
+    def _finish_function(df):
+      header = df[0:0].to_csv(sep=sep, header=True, index=csv_use_index).strip()
+      header_hdfs_filename = posixpath.join(hdfs_path, '.pig_header')
+      client.write(header_hdfs_filename, header + "\n", overwrite=True)
+
+    logger.info('Writing CSV formatted data to %s', hdfs_path)
+
 
   elif format == 'avro':
 
-    logging.info('Writing Avro formatted data to %s', hdfs_path)
-
     if use_gzip:
-      raise HdfsError('Cannot use gzip compression with Avro format')
+      raise HdfsError('Cannot use gzip compression with Avro format.')
 
-    process_function = _get_avro
-    finish_function  = _finish_avro
+    def _process_function(df):
+
+      fields_str = [
+          '{"name": "%s", "type": "%s"}' % (fldname, convert_dtype(dtype)) 
+          for fldname, dtype in zip(df.columns, df.dtypes)]
+      schema_str = """\
+    { "type": "record",
+      "name": "dfrecord",
+      "fields": [
+      """ + ",\n".join(fields_str) + """
+      ]
+    }"""
+
+      schema = avro.schema.parse(schema_str)
+
+      # Create a 'record' (datum) writer
+      rec_writer  = avro.io.DatumWriter(schema)
+
+      out_buffer  = io.BytesIO()
+      # Create a 'data file' (avro file) writer
+      avro_writer = avro.datafile.DataFileWriter(
+          out_buffer,
+          rec_writer,
+          writers_schema = schema)
+
+      for r in df.to_dict(outtype='records'):
+        avro_writer.append(r)
+
+      avro_writer.flush() 
+      r = out_buffer.getvalue()
+      avro_writer.close() 
+      return r
+
+    def _finish_function(df):
+      pass
+
+    logger.info('Writing Avro formatted data to %r', hdfs_path)
 
   else:
-    raise ValueError('Unkown data format %s' % format)
+    raise ValueError('Unkown data format %r.' % (format,) )
 
   t = time.time()
 
@@ -331,7 +321,7 @@ def write_df(df, client, hdfs_path, format, use_gzip = False, sep = '\t',
     if overwrite:
       client.delete(hdfs_path, recursive=True)
     else:
-      raise HdfsError('%s already exists' % hdfs_path)
+      raise HdfsError('%r already exists.', hdfs_path)
   except HdfsError:
     pass
 
@@ -342,12 +332,12 @@ def write_df(df, client, hdfs_path, format, use_gzip = False, sep = '\t',
     end_ndx = min(start_ndx + rows_per_part, len(df))
     client.write(
         posixpath.join(hdfs_path, 'part-r-%05d' % part_num), 
-        process_function(df.iloc[start_ndx:end_ndx]), 
+        _process_function(df.iloc[start_ndx:end_ndx]), 
         overwrite=False)
 
-  finish_function(df)
+  _finish_function(df)
 
-  logging.info('Done in %0.3f', time.time() - t)
+  logger.info('Done in %0.3f', time.time() - t)
   
   return df
 
