@@ -17,10 +17,9 @@ Commands:
                                 `PATH` is a directory, this command will
                                 attempt to read (in order) any part-files found
                                 directly under it.
-  --download                    Download a file from HDFS. If `PATH` is a 
-                                directory, attempt to download all part-files
-                                found directly under into directory specified
-                                by `LOCALPATH`.  Otherwise, download the file.
+  --download                    Download a file from HDFS into `LOCALPATH`. If 
+                                `PATH` is a directory, attempt to download all 
+                                part-files found in it into `LOCALPATH`.
   --write                       Write from standard in to HDFS.
 
 Arguments:
@@ -28,7 +27,7 @@ Arguments:
   LOCALPATH                     Local file or directory for downloading. 
 
 Options:
-  -a ALIAS --alias=ALIAS        Alias, defaults to that pointed to by 
+  -a ALIAS --alias=ALIAS        Alias, defaults to alias pointed to by 
                                 `default.alias` in ~/.hdfsrc.
   -d DEPTH --depth=DEPTH        Maximum depth to explore directories. Specify
                                 `-1` for no limit [default: 0].
