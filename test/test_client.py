@@ -355,6 +355,7 @@ class TestDownload(_TestSession):
     try:
       l  = self.client.download(remotepath, localpath)
       mod_time1 = osp.getmtime(l[0])
+      time.sleep(1)
       call_func(remotepath, localpath)
       mod_time2 = osp.getmtime(l[0])
     finally:
