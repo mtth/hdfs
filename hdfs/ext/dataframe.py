@@ -26,6 +26,7 @@ import io
 import subprocess
 import shutil
 from itertools import chain
+import math
 
 import gzip
 import avro
@@ -217,7 +218,7 @@ def read_df(client, hdfs_path, format, use_gzip = False, sep = '\t',
 
 
 def write_df(df, client, hdfs_path, format, use_gzip = False, sep = '\t', 
-  overwrite = False, rows_per_part = -1):
+  overwrite = False, num_parts = 1):
   """Function to write a pandas `DataFrame` to a remote HDFS file.
 
   :param df: `pandas` dataframe object to write.
@@ -229,10 +230,7 @@ def write_df(df, client, hdfs_path, format, use_gzip = False, sep = '\t',
     available for `'csv'` format.
   :param sep: Separator to use for `'csv'` file format.
   :param overwrite: Whether to overwrite files on HDFS if they exist.
-  :param rows_per_part: Indicates how to split dataframe into separate part
-    files on HDFS.  If set to `-1`, then a single part file will be created
-    containing all dataframe rows.  Otherwise, a set of part files will be 
-    created, with each part file containing `rows_per_part` rows.
+  :param num_parts: Indicates into how many part-files to split the dataframe.
 
   E.g.:
 
@@ -324,11 +322,10 @@ def write_df(df, client, hdfs_path, format, use_gzip = False, sep = '\t',
   except HdfsError:
     pass
 
-
-  if rows_per_part == -1:
-    rows_per_part = len(df)
-  for part_num, start_ndx in enumerate(range(0, len(df), rows_per_part)):
-    end_ndx = min(start_ndx + rows_per_part, len(df))
+  num_rows = len(df)
+  rows_per_part = int(math.ceil(num_rows / float(num_parts)))
+  for part_num, start_ndx in enumerate(range(0, num_rows, rows_per_part)):
+    end_ndx = min(start_ndx + rows_per_part, num_rows)
     client.write(
         posixpath.join(hdfs_path, 'part-r-%05d' % part_num), 
         _process_function(df.iloc[start_ndx:end_ndx]), 

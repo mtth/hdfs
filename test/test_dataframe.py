@@ -14,14 +14,16 @@ from helpers import _TestSession
 SKIP = False
 
 try:
-  from hdfs.ext.dataframe import read_df, write_df
+  import numpy
   import pandas as pd
-  from pandas.util.testing import assert_frame_equal
 
 except ImportError:
   SKIP = True
   pass
 
+if not SKIP:
+  from hdfs.ext.dataframe import read_df, write_df
+  from pandas.util.testing import assert_frame_equal
 
 class TestDataframe(_TestSession):
 
@@ -45,7 +47,7 @@ class TestDataframe(_TestSession):
     f = '/tmp/akolchin/dfreader_test/test.' + ext
 
     write_df(df, self.client, f, 'csv', sep=sep, use_gzip=use_gzip, 
-      overwrite=True, rows_per_part=2)
+      overwrite=True, num_parts=2)
 
     returned_df = read_df(self.client, f, 'csv', sep=sep, use_gzip=use_gzip, 
       index_cols=index_cols, local_dir=local_dir, num_threads=num_threads)
