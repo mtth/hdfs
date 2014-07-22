@@ -320,7 +320,6 @@ class TestDownload(_TestSession):
     self.client.write('testdir/part-r-00000', 'this is part 0')
     self.client.write('testdir/part-r-00001', 'this is part 1')
     self.client.write('testdir/part-r-00002', 'this is part 2')
-    time.sleep(1)
     
     tdpath = mkdtemp()
     local_names = []
@@ -356,7 +355,6 @@ class TestDownload(_TestSession):
     try:
       l  = self.client.download(remotepath, localpath)
       mod_time1 = osp.getmtime(l[0])
-      time.sleep(1)
       call_func(remotepath, localpath)
       mod_time2 = osp.getmtime(l[0])
     finally:

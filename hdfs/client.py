@@ -451,7 +451,7 @@ class Client(object):
 
     def _start_download(args):
       hdfs_file, local_part_name = args
-      local_part_partial = local_path + '.partial'
+      local_part_partial = local_part_name + '.partial'
       try:
         with open(local_part_partial, 'w') as writer:
           for chunk in self.read(hdfs_file, **kwargs):
