@@ -345,7 +345,7 @@ class TestDownload(_TestSession):
   def test_download_manyparts_parallel(self):
     self.test_download_manyparts(num_threads = 10)
 
-  def _download_overwrite_core(self, call_func):
+  def _download_core(self, call_func):
     remotepath = 'testfile2'
     localdir   = mkdtemp()
     localpath  = osp.join(localdir, 'localtestfile2')
@@ -364,11 +364,11 @@ class TestDownload(_TestSession):
 
   @raises(HdfsError)
   def test_download_overwrite_error(self):
-    t1, t2 = self._download_overwrite_core(lambda remotepath, localpath: \
+    t1, t2 = self._download_core(lambda remotepath, localpath: \
         self.client.download(remotepath, localpath))
 
   def test_download_overwrite_cached(self):
-    t1, t2 = self._download_overwrite_core(lambda remotepath, localpath: \
+    t1, t2 = self._download_core(lambda remotepath, localpath: \
         self.client.download(remotepath, localpath, overwrite = True))
     ok_(t1 == t2)
 
@@ -376,15 +376,28 @@ class TestDownload(_TestSession):
     def _f(remotepath, localpath):
       self.client.write(remotepath, 'here2', overwrite=True)
       l2 = self.client.download(remotepath, localpath, overwrite = True)
-    t1, t2 = self._download_overwrite_core(_f)
+    t1, t2 = self._download_core(_f)
     ok_(t1 != t2)
 
   def test_download_overwrite_notcached2(self):
     def _f(remotepath, localpath):
       with open(localpath, 'w') as f:
         f.write('new content')
-    t1, t2 = self._download_overwrite_core(_f)
+    t1, t2 = self._download_core(_f)
     ok_(t1 != t2)
+
+  @raises(HdfsError)
+  def test_dir_error(self):
+    def _f(remotepath, localpath):
+      self.client.download(remotepath, '/tmp/verybad/dir/that/shouldnotexist/')
+    self._download_core(_f)
+
+  @raises(HdfsError)
+  def test_dir_error2(self):
+    def _f(remotepath, localpath):
+      self.client.download(remotepath, '/tmp/verybad/dir/that/shouldnotexist')
+    self._download_core(_f)
+
 
 
 class TestStatus(_TestSession):

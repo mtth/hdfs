@@ -404,8 +404,9 @@ class Client(object):
     """
 
     if not osp.exists(local_path):
-      if osp.join(local_path, "") == local_path: # ends in separator
-        raise HdfsError('Local directory %r does not exist.', local_path)
+      local_dir = osp.dirname(local_path)
+      if not osp.exists(local_dir): # ends in separator
+        raise HdfsError('Local directory %r does not exist.', local_dir)
       local_is_dir = False
     else:
       local_is_dir = osp.isdir(local_path)
@@ -434,10 +435,11 @@ class Client(object):
 
       if osp.exists(local_part_name):
         if not overwrite:
-          raise HdfsError('%r already exists. Aborting download.', local_part_name)
+          raise HdfsError('%r already exists. Aborting download.', 
+            local_part_name)
         else:
-          if (1000*osp.getmtime(local_part_name) > part_dict['modificationTime'] and
-            osp.getsize(local_part_name) == part_dict['length']):
+          if (osp.getsize(local_part_name) == part_dict['length'] and
+            1000*osp.getmtime(local_part_name) > part_dict['modificationTime']):
             # Local file is newer and same size as remote file, do not overwrite
             continue
 

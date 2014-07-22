@@ -127,10 +127,13 @@ def main():
   client = Client.from_alias(args['--alias'])
   rpath = args['PATH'] or ''
 
-  try:
-    depth = int(args['--depth'])
-  except ValueError:
-    raise HdfsError('Invalid `--depth` option: %r.', args['--depth'])
+  int_args = {}
+  for p in ('--depth', '--threads'):
+    try:
+      int_args[p] = int(args[p])
+    except ValueError:
+      raise HdfsError('Invalid `%s` option: %r.', p, args[p])
+
   if args['--write']:
     reader = (line for line in sys.stdin) # doesn't work with stdin, why?
     client.write(rpath, reader, overwrite=args['--overwrite'])
@@ -143,9 +146,9 @@ def main():
   elif args['--download']:
     status_dict = client.status(rpath)
     client.download(rpath, args['LOCALPATH'], overwrite=args['--overwrite'], 
-      num_threads=int(args['--threads']))
+      num_threads=int_args['--threads'])
   else:
-    infos(client, rpath, depth, args['--json'])
+    infos(client, rpath, int_args['--depth'], args['--json'])
 
 if __name__ == '__main__':
   main()

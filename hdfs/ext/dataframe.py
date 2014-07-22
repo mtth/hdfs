@@ -20,18 +20,17 @@ import time
 import os
 import posixpath
 import sys
-import itertools
 import operator
 import tempfile
 import io
 import subprocess
 import shutil
+from itertools import chain
 
 import gzip
 import avro
 
 from multiprocessing.pool import ThreadPool
-
 import logging
 logger = logging.getLogger(__name__)
 
@@ -115,7 +114,7 @@ def read_df(client, hdfs_path, format, use_gzip = False, sep = '\t',
 
   """
 
-  IS_TEMP_DIR = False
+  is_temp_dir = False
 
   try:
     if local_dir is None:
@@ -185,7 +184,7 @@ def read_df(client, hdfs_path, format, use_gzip = False, sep = '\t',
             logger.info("Opening %s", f)
             open_files.append( open(f,'rb') )
 
-          reader_chain = itertools.chain(*[fastavro.reader(f) for f in open_files])
+          reader_chain = chain(*[fastavro.reader(f) for f in open_files])
           df = pd.DataFrame.from_records(reader_chain, index=index_cols)
 
         finally:
@@ -195,7 +194,7 @@ def read_df(client, hdfs_path, format, use_gzip = False, sep = '\t',
         return df
 
     else:
-      raise ValueError('Unkown data format %s' % (format,) )
+      raise ValueError('Unknown data format %s' % (format,) )
 
 
     t = time.time()
@@ -211,7 +210,7 @@ def read_df(client, hdfs_path, format, use_gzip = False, sep = '\t',
     logger.info('Done in %0.3f', time.time() - t)
     
   finally:
-    if IS_TEMP_DIR:
+    if is_temp_dir:
       shutil.rmtree(local_dir)
 
   return df

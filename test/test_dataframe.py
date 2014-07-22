@@ -44,14 +44,11 @@ class TestDataframe(_TestSession):
     ext = format + ('.gz' if use_gzip else '')
     f = '/tmp/akolchin/dfreader_test/test.' + ext
 
-    write_df(
-      df, self.client, f, 'csv', 
-      sep=sep, use_gzip=use_gzip, overwrite=True, rows_per_part=2)
+    write_df(df, self.client, f, 'csv', sep=sep, use_gzip=use_gzip, 
+      overwrite=True, rows_per_part=2)
 
-    returned_df = read_df(
-      self.client, f, 'csv', 
-      sep=sep, use_gzip=use_gzip, index_cols=index_cols, 
-      local_dir=local_dir, num_threads=num_threads)
+    returned_df = read_df(self.client, f, 'csv', sep=sep, use_gzip=use_gzip, 
+      index_cols=index_cols, local_dir=local_dir, num_threads=num_threads)
 
     assert_frame_equal(df, returned_df)
     return returned_df
@@ -94,5 +91,3 @@ class TestDataframe(_TestSession):
 
   def test_parallel_download(self):
     self.run_write_read(self.test_df, 'csv', num_threads = -1)
-
-   
