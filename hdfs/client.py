@@ -12,7 +12,8 @@ import os
 import os.path as osp
 import re
 import requests as rq
-
+import posixpath
+from multiprocessing.pool import ThreadPool
 
 def _on_error(response):
   """Callback when an API response has a non 2XX status code.
@@ -243,11 +244,12 @@ class Client(object):
       :class:`~hdfs.util.HdfsError` is raised.
 
     """
-    content = self.content(hdfs_path)
-    if not content['directoryCount']:
+
+    file_dict = self.status(hdfs_path)
+    if file_dict['type'] == 'FILE':
       if parts and parts != 1 and parts != [0]:
         raise HdfsError('%r is not partitioned.', hdfs_path)
-      return {hdfs_path: self.status(hdfs_path)}
+      return {hdfs_path: file_dict}
     else:
       pattern = re.compile(r'^part-(?:(?:m|r)-|)(\d+)[^/]*$')
       matches = (
@@ -288,6 +290,7 @@ class Client(object):
     :param replication: Number of replications of the file.
 
     """
+
     res_1 = self._create_1(
       hdfs_path,
       overwrite=overwrite,
@@ -299,11 +302,15 @@ class Client(object):
     if not res_2:
       _on_error(res_2)
 
-  def upload(self, hdfs_path, local_path, **kwargs):
+  def upload(self, hdfs_path, local_path, overwrite=False, **kwargs):
     """Upload a file or directory to HDFS.
 
     :param hdfs_path: Target HDFS path.
     :param hdfs_path: Local path to file.
+    :param overwrite: Overwrite mode. If equal to `False` and HDFS file exists,
+      an :class:`~hdfs.util.HdfsError` will be raised.  If equal to `True`, 
+      file will be overwritten if it is older than local version or has a 
+      different file size.
     :param kwargs: Keyword arguments forwarded to :meth:`write`.
 
     """
@@ -311,8 +318,25 @@ class Client(object):
       raise HdfsError('No file found at %r.', local_path)
     if osp.isdir(local_path):
       raise HdfsError('%r is a directory, cannot upload.', local_path)
+
+    file_dict=None
+    try:
+      file_dict = self.status(hdfs_path)
+    except HdfsError:
+      # file doesn't exist, we are good to write to it
+      pass
+    else:
+      # file exists, should we overwrite it?
+      if not overwrite:
+        raise HdfsError('Remote file %r already exists.', hdfs_path)
+      else:
+        if (1000*osp.getmtime(local_path) < file_dict['modificationTime'] and
+            osp.getsize(local_path) == file_dict['length']):
+          # No need to do anything
+          return
+
     with open(local_path) as reader:
-      self.write(hdfs_path, reader, **kwargs)
+      self.write(hdfs_path, reader, overwrite=(file_dict is not None), **kwargs)
 
   def read(self, hdfs_path, offset=0, length=None, buffer_size=None,
     chunk_size=1024, buffer_char=None):
@@ -360,22 +384,97 @@ class Client(object):
         res.close()
     return reader()
 
-  def download(self, hdfs_path, local_path, overwrite=False, **kwargs):
-    """Download a file from HDFS.
+  def download(self, hdfs_path, local_path, overwrite=False, 
+    num_threads = None, **kwargs):
+    """Download a file from HDFS and save locally, or all the part-files if
+    HDFS location is a directory.
 
-    :param hdfs_path: Path on HDFS of the file to download.
-    :param local_path: Local path. This must not be a directory.
+    :param hdfs_path: Path on HDFS of the directory or file to download.
+    :param local_path: Local path.
+    :param overwrite: Overwrite mode. If equal to `False` and local file exists,
+      an :class:`~hdfs.util.HdfsError` will be raised.  If equal to `True`, 
+      file will be overwritten if it is older than HDFS version or has a 
+      different file size.
+    :param num_threads: Number of threads to use for parallel downloading of 
+      part-files. A value of `None` or `1` indicates that parallelization won't
+      be used; `-1` uses as many threads as there are part-files.
     :param kwargs: Keyword arguments forwarded to :meth:`read`.
+    :returns: List of local file names corresponding to remote files.
 
     """
-    if osp.isdir(local_path):
-      raise HdfsError('%r is a directory. Cannot download.', local_path)
-    if not osp.exists(local_path) or overwrite:
-      with open(local_path, 'w') as writer:
-        for chunk in self.read(hdfs_path, **kwargs):
-          writer.write(chunk)
+
+    if not osp.exists(local_path):
+      local_dir = osp.dirname(local_path)
+      if not osp.exists(local_dir): # ends in separator
+        raise HdfsError('Local directory %r does not exist.', local_dir)
+      local_is_dir = False
     else:
-      raise HdfsError('%r already exists. Aborting download.', local_path)
+      local_is_dir = osp.isdir(local_path)
+
+    parts = self.parts(hdfs_path)
+
+    file_dict = self.status(hdfs_path)
+    if not local_is_dir:
+      if file_dict['type'] == 'DIRECTORY':
+        # Remote path is a directory
+        raise HdfsError('Local path %r is not a directory.', local_path)
+
+
+    download_parts   = []
+    local_part_names = []
+
+    for hdfs_file in sorted(parts):
+      part_dict = parts[hdfs_file]
+
+      if local_is_dir:
+        local_part_name = osp.join(local_path, posixpath.basename(hdfs_file))
+      else:
+        local_part_name = local_path
+
+      local_part_names.append(local_part_name)
+
+      if osp.exists(local_part_name):
+        if not overwrite:
+          raise HdfsError('%r already exists. Aborting download.', 
+            local_part_name)
+        else:
+          if (osp.getsize(local_part_name) == part_dict['length'] and
+            1000*osp.getmtime(local_part_name) > part_dict['modificationTime']):
+            # Local file is newer and same size as remote file, do not overwrite
+            continue
+
+      download_parts.append( (hdfs_file, local_part_name) )
+
+
+    if num_threads == -1:
+      num_threads = len(download_parts)
+    else:
+      num_threads = min(len(download_parts), num_threads)
+
+    def _start_download(args):
+      hdfs_file, local_part_name = args
+      local_part_partial = local_part_name + '.partial'
+      try:
+        with open(local_part_partial, 'w') as writer:
+          for chunk in self.read(hdfs_file, **kwargs):
+            writer.write(chunk)
+
+        os.rename(local_part_partial, local_part_name)
+
+      finally:
+        if osp.exists(local_part_partial):
+          os.remove(local_part_partial)
+
+    if num_threads is not None and num_threads > 1:
+      p = ThreadPool(num_threads)
+      p.map(_start_download, download_parts)
+
+    else:
+      for args in download_parts:
+        _start_download(args)
+
+    return local_part_names
+
 
   def delete(self, hdfs_path, recursive=False):
     """Remove a file or directory from HDFS.

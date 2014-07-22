@@ -7,7 +7,7 @@ __all__ = [
   'Client', 'InsecureClient', 'KerberosClient', 'TokenClient',
   'AvroReader',
 ]
-__version__ = '0.2.2'
+__version__ = '0.2.3'
 
 try:
   from .client import Client, InsecureClient, KerberosClient, TokenClient

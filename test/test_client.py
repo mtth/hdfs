@@ -4,16 +4,18 @@
 """Test Hdfs client interactions with HDFS."""
 
 from hdfs.util import Config, temppath
-from hdfs.client import *
-from ConfigParser import NoOptionError, NoSectionError
-from getpass import getuser
-from nose.tools import eq_, ok_, raises, nottest
-from nose.plugins.skip import SkipTest
+from hdfs.client import HdfsError, Client
+from hdfs import KerberosClient
+
+import os.path as osp
+from nose.tools import eq_, ok_, raises
 from os import mkdir, rmdir
-from os.path import join
 from shutil import rmtree
+import time
+
 from tempfile import mkdtemp
-from time import sleep
+
+from helpers import _TestSession
 
 
 def status(response):
@@ -53,57 +55,6 @@ class TestLoad(object):
   def test_missing_type(self):
     client = Client._from_options('foo', {})
 
-
-class _TestSession(object):
-
-  """Base class to run tests using remote HDFS.
-
-  These tests are run only if a `test.alias` is defined in the `~/.hdfsrc`
-  configuration file.
-
-  .. warning::
-
-    The test directory is entirely cleaned during tests. Don't put anything
-    important in it!
-
-  Also contains a few helper functions.
-
-  """
-
-  delay = 1 # delay in seconds between tests
-
-  @classmethod
-  def setup_class(cls):
-    try:
-      client = Client.from_alias('test')
-      client._delete('', recursive=True)
-    except (NoOptionError, NoSectionError, HdfsError):
-      cls.client = None
-    else:
-      cls.client = client
-
-  def setup(self):
-    if not self.client:
-      raise SkipTest
-    else:
-      self.client._mkdirs('')
-
-  def teardown(self):
-    if self.client:
-      self.client._delete('', recursive=True)
-    sleep(self.delay)
-
-  def _check_content(self, path, content):
-    eq_(self.client._open(path).content, content)
-
-  def _file_exists(self, path):
-    try:
-      status = self.client.status(path)
-    except HdfsError:
-      # head doesn't exist
-      return False
-    else:
-      return True
 
 
 class TestApi(_TestSession):
@@ -237,6 +188,40 @@ class TestUpload(_TestSession):
     finally:
       rmdir(tdpath)
 
+  def _upload_overwrite_core(self, call_func):
+    remotepath = 'testfile2'
+    local_dir  = mkdtemp()
+    localpath  = osp.join(local_dir, 'testfile2')
+    with open(localpath, 'w') as f:
+      f.write('here')
+    mod_time1 = None
+    mod_time2 = None
+    try:
+      l  = self.client.upload(remotepath, localpath)
+      mod_time1 = self.client.status(remotepath)['modificationTime']
+      call_func(remotepath, localpath)
+      mod_time2 = self.client.status(remotepath)['modificationTime']
+    finally:
+      rmtree(local_dir)
+    return mod_time1, mod_time2
+
+  @raises(HdfsError)
+  def test_upload_overwrite_error(self):
+    t1, t2 = self._upload_overwrite_core(lambda remotepath, localpath: \
+        self.client.upload(remotepath, localpath))
+
+  def test_upload_overwrite_cached(self):
+    t1, t2 = self._upload_overwrite_core(lambda remotepath, localpath: \
+        self.client.upload(remotepath, localpath, overwrite=True))
+    ok_(t1 == t2)
+
+  def test_upload_overwrite_notcached(self):
+    def _f(remotepath, localpath):
+      self.client.write(remotepath, 'here2', overwrite=True)
+      l2 = self.client.upload(remotepath, localpath, overwrite=True)
+    t1, t2 = self._upload_overwrite_core(_f)
+    ok_(t1 != t2)
+
 
 class TestDelete(_TestSession):
 
@@ -328,6 +313,91 @@ class TestRename(_TestSession):
     self.client._mkdirs('bar')
     self.client.rename('foo', 'bar')
     self._check_content('bar/foo', 'hello, world!')
+
+class TestDownload(_TestSession):
+  def test_download_manyparts(self, num_threads = None):
+    self.client._mkdirs('testdir')
+    self.client.write('testdir/part-r-00000', 'this is part 0')
+    self.client.write('testdir/part-r-00001', 'this is part 1')
+    self.client.write('testdir/part-r-00002', 'this is part 2')
+    
+    tdpath = mkdtemp()
+    local_names = []
+    try:
+      local_names = self.client.download('testdir', tdpath, 
+        num_threads=num_threads)
+      for fndx, fname in enumerate(sorted(local_names)):
+        ok_(osp.exists(fname))
+        with open(fname, 'r') as f:
+          ok_(f.read() == 'this is part %d' % fndx)
+    finally:
+      rmtree(tdpath)
+
+  def test_download_single(self):
+    self.client.write('testfile0', 'this is part 0')
+
+    tdpath = mkdtemp()
+    try:
+      self.client.download('testfile0', osp.join(tdpath,'ltestfile'))
+    finally:
+      rmtree(tdpath)      
+
+  def test_download_manyparts_parallel(self):
+    self.test_download_manyparts(num_threads = 10)
+
+  def _download_core(self, call_func):
+    remotepath = 'testfile2'
+    localdir   = mkdtemp()
+    localpath  = osp.join(localdir, 'localtestfile2')
+    self.client.write(remotepath, 'here')
+    mod_time1 = None
+    mod_time2 = None
+    try:
+      l  = self.client.download(remotepath, localpath)
+      mod_time1 = osp.getmtime(l[0])
+      time.sleep(1)
+      call_func(remotepath, localpath)
+      mod_time2 = osp.getmtime(l[0])
+    finally:
+      rmtree(localdir)
+    return mod_time1, mod_time2
+
+  @raises(HdfsError)
+  def test_download_overwrite_error(self):
+    t1, t2 = self._download_core(lambda remotepath, localpath: \
+        self.client.download(remotepath, localpath))
+
+  def test_download_overwrite_cached(self):
+    t1, t2 = self._download_core(lambda remotepath, localpath: \
+        self.client.download(remotepath, localpath, overwrite = True))
+    ok_(t1 == t2)
+
+  def test_download_overwrite_notcached(self):
+    def _f(remotepath, localpath):
+      self.client.write(remotepath, 'here2', overwrite=True)
+      l2 = self.client.download(remotepath, localpath, overwrite = True)
+    t1, t2 = self._download_core(_f)
+    ok_(t1 != t2)
+
+  def test_download_overwrite_notcached2(self):
+    def _f(remotepath, localpath):
+      with open(localpath, 'w') as f:
+        f.write('new content')
+    t1, t2 = self._download_core(_f)
+    ok_(t1 != t2)
+
+  @raises(HdfsError)
+  def test_dir_error(self):
+    def _f(remotepath, localpath):
+      self.client.download(remotepath, '/tmp/verybad/dir/that/shouldnotexist/')
+    self._download_core(_f)
+
+  @raises(HdfsError)
+  def test_dir_error2(self):
+    def _f(remotepath, localpath):
+      self.client.download(remotepath, '/tmp/verybad/dir/that/shouldnotexist')
+    self._download_core(_f)
+
 
 
 class TestStatus(_TestSession):

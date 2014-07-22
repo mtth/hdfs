@@ -4,9 +4,10 @@
 """HdfsCLI: a command line interface for WebHDFS.
 
 Usage:
-  hdfs [-a ALIAS] [--info] [-jd DEPTH] [PATH]
-  hdfs [-a ALIAS] --read [-p PARTS] PATH
+  hdfs [-a ALIAS] [--info] [-j] [-d DEPTH] [PATH]
+  hdfs [-a ALIAS] --read PATH
   hdfs [-a ALIAS] --write [-o] PATH
+  hdfs [-a ALIAS] --download [-o] [-t THREADS] PATH LOCALPATH
   hdfs -h | --help | -v | --version
 
 Commands:
@@ -16,26 +17,34 @@ Commands:
                                 `PATH` is a directory, this command will
                                 attempt to read (in order) any part-files found
                                 directly under it.
+  --download                    Download a file from HDFS into `LOCALPATH`. If 
+                                `PATH` is a directory, attempt to download all 
+                                part-files found in it into `LOCALPATH`.
   --write                       Write from standard in to HDFS.
 
 Arguments:
   PATH                          Remote HDFS path.
+  LOCALPATH                     Local file or directory for downloading. 
 
 Options:
-  -a ALIAS --alias=ALIAS        Alias.
+  -a ALIAS --alias=ALIAS        Alias, defaults to alias pointed to by 
+                                `default.alias` in ~/.hdfsrc.
   -d DEPTH --depth=DEPTH        Maximum depth to explore directories. Specify
-                                `-1` for no limit.
-  -o --overwrite                Overwrite any existing file.
+                                `-1` for no limit [default: 0].
+  -o --overwrite                'Smart' mode overwrite: Overwrite existing files
+                                at target location whose timestamps are newer 
+                                than source files or if file sizes do not match.
   -h --help                     Show this message and exit.
   -j --json                     Output JSON instead of tab delimited data.
-  -p PARTS --parts=PARTS        Comma separated list of part-file numbers. Only
-                                those will be read if `PATH` is partitioned.
+  -t THREADS --threads=THREADS  Number of threads to use for downloading part-
+                                files. `-1` allocates a thread per part-file
+                                while `1` disables parallelization [default: 1].
   -v --version                  Show version and exit.
 
 Examples:
   hdfs -a prod /user/foo
   hdfs --read logs/1987-03-23 >>logs
-  hdfs --write -f data/weights.tsv <weights.tsv
+  hdfs --write -o data/weights.tsv <weights.tsv
 
 HdfsCLI exits with return status 1 if an error occurred and 0 otherwise.
 
@@ -48,6 +57,7 @@ from hdfs.util import catch, HdfsError, hsize, htime
 from json import dumps
 from time import time
 import sys
+import os
 
 
 def infos(client, hdfs_path, depth, json):
@@ -116,10 +126,14 @@ def main():
   args = docopt(__doc__, version=__version__)
   client = Client.from_alias(args['--alias'])
   rpath = args['PATH'] or ''
-  try:
-    depth = int(args['--depth'] or '0')
-  except ValueError:
-    raise HdfsError('Invalid `--depth` option: %r.', args['--depth'])
+
+  int_args = {}
+  for p in ('--depth', '--threads'):
+    try:
+      int_args[p] = int(args[p])
+    except ValueError:
+      raise HdfsError('Invalid `%s` option: %r.', p, args[p])
+
   if args['--write']:
     reader = (line for line in sys.stdin) # doesn't work with stdin, why?
     client.write(rpath, reader, overwrite=args['--overwrite'])
@@ -129,8 +143,12 @@ def main():
       size = client.status(path)['length']
       message = '%s\t%s\t[%s/%s]' % (hsize(size), path, index + 1, len(parts))
       read(client.read(path), size, message)
+  elif args['--download']:
+    status_dict = client.status(rpath)
+    client.download(rpath, args['LOCALPATH'], overwrite=args['--overwrite'], 
+      num_threads=int_args['--threads'])
   else:
-    infos(client, rpath, depth, args['--json'])
+    infos(client, rpath, int_args['--depth'], args['--json'])
 
 if __name__ == '__main__':
   main()

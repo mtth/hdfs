@@ -4,9 +4,7 @@
 """Test Hdfs client interactions with HDFS."""
 
 from hdfs.util import *
-from nose.tools import eq_, ok_, raises, nottest
-from nose.plugins.skip import SkipTest
-
+from nose.tools import eq_, raises
 
 class TestConfig(object):
 
