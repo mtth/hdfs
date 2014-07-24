@@ -168,7 +168,6 @@ def read_df(client, hdfs_path, format, use_gzip = False, sep = '\t',
       logger.info('Loading Avro formatted data from %r', hdfs_path)
       if use_gzip:
         raise HdfsError('Cannot use gzip compression with Avro format.')
-      process_function  = _process_avro
 
       def _process_function(data_files):
         # Loads downloaded avro files and returns a pandas dataframe

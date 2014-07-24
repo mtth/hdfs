@@ -46,10 +46,10 @@ class TestDataframe(_TestSession):
     ext = format + ('.gz' if use_gzip else '')
     f = '/tmp/akolchin/dfreader_test/test.' + ext
 
-    write_df(df, self.client, f, 'csv', sep=sep, use_gzip=use_gzip, 
+    write_df(df, self.client, f, format, sep=sep, use_gzip=use_gzip, 
       overwrite=True, num_parts=2)
 
-    returned_df = read_df(self.client, f, 'csv', sep=sep, use_gzip=use_gzip, 
+    returned_df = read_df(self.client, f, format, sep=sep, use_gzip=use_gzip, 
       index_cols=index_cols, local_dir=local_dir, num_threads=num_threads)
 
     assert_frame_equal(df, returned_df)
