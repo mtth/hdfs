@@ -168,7 +168,6 @@ def read_df(client, hdfs_path, format, use_gzip = False, sep = '\t',
       logger.info('Loading Avro formatted data from %r', hdfs_path)
       if use_gzip:
         raise HdfsError('Cannot use gzip compression with Avro format.')
-      process_function  = _process_avro
 
       def _process_function(data_files):
         # Loads downloaded avro files and returns a pandas dataframe
@@ -244,21 +243,22 @@ def write_df(df, client, hdfs_path, format, use_gzip = False, sep = '\t',
   """
 
 
+  # Include index columns in output if they do not seem to be a
+  # row-id automatically added by `pandas` (resulting in a single,
+  # unnamed index column)
+  if len(df.index.names) > 1 or df.index.names[0] is not None:
+    df = df.reset_index()
+
   if format == 'csv':
 
-    # Only include index columns in the CSV output if they do not seem to be a
-    # row-id automatically added by `pandas` (resulting in a single,
-    # unnamed index column)
-    csv_use_index = len(df.index.names) > 1 or df.index.names[0] is not None
-
     def _process_function(df):
-      r = df.to_csv(sep=sep, header=False, index=csv_use_index)
+      r = df.to_csv(sep=sep, header=False, index=False)
       if use_gzip:
         r = gzip_compress(r)
       return r
 
     def _finish_function(df):
-      header = df[0:0].to_csv(sep=sep, header=True, index=csv_use_index).strip()
+      header = df[0:0].to_csv(sep=sep, header=True, index=False).strip()
       header_hdfs_filename = posixpath.join(hdfs_path, '.pig_header')
       client.write(header_hdfs_filename, header + "\n", overwrite=True)
 
