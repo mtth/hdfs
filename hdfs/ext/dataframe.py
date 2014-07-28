@@ -32,11 +32,6 @@ import subprocess
 import sys
 import tempfile
 import time
-try:
-  import pandas as pd
-  import numpy as np
-except ImportError:
-  raise ImportError('pandas and numpy libraries needed for dataframe extension')
 
 
 logger = logging.getLogger(__name__)
@@ -72,18 +67,22 @@ def convert_dtype(dtype):
   """Utility function to convert `numpy` datatypes to their Avro equivalents.
 
   """
-
-  if np.issubdtype(dtype, np.floating):
-    return 'float'
-  elif np.issubdtype(dtype, np.integer) \
-      or np.issubdtype(dtype, np.unsignedinteger):
-    return 'int'
-  elif np.issubdtype(dtype, np.character):
-    return 'string'
-  elif np.issubdtype(dtype, np.bool_):
-    return 'boolean'
+  try:
+    import numpy as np
+  except ImportError:
+    raise HdfsError('numpy required for dataframe extention.')
   else:
-    raise HdfsError('Dont know Avro equivalent of type %r.', dtype)
+    if np.issubdtype(dtype, np.floating):
+      return 'float'
+    elif np.issubdtype(dtype, np.integer) \
+        or np.issubdtype(dtype, np.unsignedinteger):
+      return 'int'
+    elif np.issubdtype(dtype, np.character):
+      return 'string'
+    elif np.issubdtype(dtype, np.bool_):
+      return 'boolean'
+    else:
+      raise HdfsError('Dont know Avro equivalent of type %r.', dtype)
 
 
 def read_df(client, hdfs_path, format, use_gzip = False, sep = '\t',
@@ -115,6 +114,10 @@ def read_df(client, hdfs_path, format, use_gzip = False, sep = '\t',
     df = read_df(client, '/tmp/data.tsv', 'csv', num_threads=-1)
 
   """
+  try:
+    import pandas as pd
+  except ImportError:
+    raise HdfsError('pandas library needed for dataframe extension.')
 
   is_temp_dir = False
 
@@ -244,7 +247,10 @@ def write_df(df, client, hdfs_path, format, use_gzip = False, sep = '\t',
     write_df(df, client, '/tmp/data.tsv', 'csv')
 
   """
-
+  try:
+    import pandas as pd
+  except ImportError:
+    raise HdfsError('pandas library needed for dataframe extension.')
 
   # Include index columns in output if they do not seem to be a
   # row-id automatically added by `pandas` (resulting in a single,

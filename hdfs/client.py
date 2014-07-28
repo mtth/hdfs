@@ -15,14 +15,6 @@ import os.path as osp
 import posixpath
 import re
 import requests as rq
-try:
-  from requests_kerberos import HTTPKerberosAuth, OPTIONAL
-except ImportError: # readthedocs doesn't support kerberos
-
-  def HTTPKerberosAuth(auth):
-    pass
-
-  OPTIONAL = None
 
 
 _logger = lg.getLogger(__name__)
@@ -622,26 +614,6 @@ class InsecureClient(Client):
       params={'user.name': user},
       proxy=proxy,
       root=root or '/user/%s/' % (user, ),
-    )
-
-
-class KerberosClient(Client):
-
-  """HDFS web client using Kerberos authentication.
-
-  :param url: Hostname or IP address of HDFS namenode, prefixed with protocol,
-    followed by WebHDFS port on namenode
-  :param proxy: User to proxy as.
-  :param root: Root path. Used to allow relative path parameters.
-
-  """
-
-  def __init__(self, url, proxy=None, root=None):
-    super(KerberosClient, self).__init__(
-      url,
-      auth=HTTPKerberosAuth(OPTIONAL),
-      proxy=proxy,
-      root=root,
     )
 
 

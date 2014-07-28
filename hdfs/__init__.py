@@ -3,22 +3,18 @@
 
 """HdfsCLI."""
 
-__all__ = [
-  'Client', 'InsecureClient', 'KerberosClient', 'TokenClient',
-  'AvroReader',
-]
 __version__ = '0.2.4'
 
 import logging as lg
 try:
-  from .client import Client, InsecureClient, KerberosClient, TokenClient
-  from .ext.avro import AvroReader
+  from .client import Client, InsecureClient, TokenClient
+  from .ext import * # import all exported extensions, nothin' on you
   from .util import Config
 except ImportError:
   pass # in setup.py
 
 
-class NullHandler(lg.Handler):
+class _NullHandler(lg.Handler):
 
   """For python <2.7."""
 
@@ -26,4 +22,4 @@ class NullHandler(lg.Handler):
     pass
 
 
-lg.getLogger(__name__).addHandler(NullHandler())
+lg.getLogger(__name__).addHandler(_NullHandler())

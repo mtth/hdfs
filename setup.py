@@ -27,9 +27,12 @@ setup(
     install_requires=[
       'docopt',
       'requests>=2.0.1',
-      'requests-kerberos',
-      'avro',
     ],
+    extra_requires={
+      'avro': ['avro'],
+      'kerberos': ['requests-kerberos'],
+      'dataframe': ['pandas>=0.14.1', 'fastavro'],
+    },
     entry_points={'console_scripts': [
       'hdfs = hdfs.__main__:main',
       'hdfsavro = hdfs.ext.avro:main',
