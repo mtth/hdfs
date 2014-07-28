@@ -8,6 +8,7 @@ from nose.tools import *
 try:
   from hdfs.ext.avro import *
 except ImportError:
+  AvroTypeException = Exception
   SKIP = True
 else:
   from avro.io import AvroTypeException

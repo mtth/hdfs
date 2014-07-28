@@ -4,7 +4,7 @@
 """Test Hdfs client interactions with HDFS."""
 
 from hdfs.client import *
-from hdfs.util import Config, HdfsError, temppath
+from hdfs.util import HdfsError, temppath
 from helpers import _TestSession
 from nose.tools import eq_, ok_, raises
 from shutil import rmtree
