@@ -3,7 +3,6 @@
 
 """Test Hdfs client interactions with HDFS."""
 
-from hdfs import * # load all the clients
 from hdfs.client import *
 from hdfs.util import Config, HdfsError, temppath
 from helpers import _TestSession
@@ -27,10 +26,6 @@ class TestLoad(object):
   def test_bare(self):
     client = Client._from_options(None, {'url': 'foo'})
     ok_(isinstance(client, Client))
-
-  def test_kerberos(self):
-    client = Client._from_options('KerberosClient', {'url': 'foo'})
-    ok_(isinstance(client, KerberosClient))
 
   def test_new_type(self):
     class NewClient(Client):

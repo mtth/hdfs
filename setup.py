@@ -28,7 +28,7 @@ setup(
       'docopt',
       'requests>=2.0.1',
     ],
-    extra_requires={
+    extras_require={
       'avro': ['avro'],
       'kerberos': ['requests-kerberos'],
       'dataframe': ['numpy', 'pandas>=0.14.1', 'fastavro'],
