@@ -34,7 +34,7 @@ class _TestSession(object):
     try:
       client = Client.from_alias('test')
       client._delete('', recursive=True)
-    except (NoOptionError, NoSectionError, HdfsError):
+    except (ImportError, NoOptionError, NoSectionError, HdfsError):
       cls.client = None
     else:
       cls.client = client
