@@ -3,17 +3,23 @@
 
 """HDFS clients."""
 
-from .util import Config, HdfsError
+from .util import Config, HdfsError, InstanceLogger, temppath
 from getpass import getuser
 from itertools import repeat
+from multiprocessing.pool import ThreadPool
 from random import sample
 from requests_kerberos import HTTPKerberosAuth, OPTIONAL
+from shutil import move
+import logging as lg
 import os
 import os.path as osp
+import posixpath
 import re
 import requests as rq
-import posixpath
-from multiprocessing.pool import ThreadPool
+
+
+_logger = lg.getLogger(__name__)
+
 
 def _on_error(response):
   """Callback when an API response has a non 2XX status code.
@@ -81,8 +87,15 @@ class _Request(object):
         **self.kwargs
       )
       if not response: # non 2XX status code
+        client._logger.warning(
+          '[%s] %s:\n%s', response.status_code,
+          response.request.path_url, response.text
+        )
         return _on_error(response)
       else:
+        client._logger.debug(
+          '[%s] %s', response.status_code, response.request.path_url
+        )
         return response
     api_handler.__name__ = '%s_handler' % (operation.lower(), )
     api_handler.__doc__ = 'Cf. %s#%s' % (self.doc_url, operation)
@@ -134,12 +147,17 @@ class Client(object):
   __registry__ = {}
 
   def __init__(self, url, root=None, auth=None, params=None, proxy=None):
+    self._logger = InstanceLogger(self, _logger)
+    self._class_name = self.__class__.__name__ # cache this
     self.url = url
     self.root = root
     self._auth = auth
     self._params = params or {}
     if proxy:
       self._params['doas'] = proxy
+
+  def __repr__(self):
+    return '<%s(url=%s, root=%s)>' % (self._class_name, self.url, self.root)
 
   # Raw API endpoints
 
@@ -201,6 +219,7 @@ class Client(object):
     # #LATEST expansion (could cache the pattern, but not worth it)
     path = re.sub(r'/?#LATEST(?:{(\d+)})?(?=/|$)', expand_latest, path)
 
+    self._logger.debug('Resolved path %s to %s.', hdfs_path, path)
     return path
 
   def content(self, hdfs_path):
@@ -215,6 +234,7 @@ class Client(object):
     .. _CS: http://hadoop.apache.org/docs/r1.0.4/webhdfs.html#ContentSummary
 
     """
+    self._logger.info('Fetching content summary for %s.', hdfs_path)
     return self._get_content_summary(hdfs_path).json()['ContentSummary']
 
   def status(self, hdfs_path):
@@ -229,6 +249,7 @@ class Client(object):
     .. _FS: http://hadoop.apache.org/docs/r1.0.4/webhdfs.html#FileStatus
 
     """
+    self._logger.info('Fetching status for %s.', hdfs_path)
     return self._get_file_status(hdfs_path).json()['FileStatus']
 
   def parts(self, hdfs_path, parts=None):
@@ -244,12 +265,12 @@ class Client(object):
       :class:`~hdfs.util.HdfsError` is raised.
 
     """
-
-    file_dict = self.status(hdfs_path)
-    if file_dict['type'] == 'FILE':
+    self._logger.debug('Fetching parts for %s.', hdfs_path)
+    status = self.status(hdfs_path)
+    if status['type'] == 'FILE':
       if parts and parts != 1 and parts != [0]:
         raise HdfsError('%r is not partitioned.', hdfs_path)
-      return {hdfs_path: file_dict}
+      return {hdfs_path: status}
     else:
       pattern = re.compile(r'^part-(?:(?:m|r)-|)(\d+)[^/]*$')
       matches = (
@@ -261,8 +282,13 @@ class Client(object):
         for path, match, status in matches
         if match
       )
+      self._logger.debug(
+        'Found %s parts for %s: %s.', len(part_files), hdfs_path,
+        ', '.join(t[0] for t in sorted(part_files.values()))
+      )
       if parts:
         if isinstance(parts, int):
+          self._logger.debug('Choosing %s parts randomly.', parts)
           if parts > len(part_files):
             raise HdfsError('Not enough part-files in %r.', hdfs_path)
           parts = sample(part_files, parts)
@@ -270,8 +296,16 @@ class Client(object):
           paths = dict(part_files[p] for p in parts)
         except KeyError as err:
           raise HdfsError('No part-file %r in %r.', err.args[0], hdfs_path)
+        self._logger.info(
+          'Returning %s of %s parts for %s: %s.', len(paths), len(part_files),
+          hdfs_path, ', '.join(sorted(paths))
+        )
       else:
         paths = dict(part_files.values())
+        self._logger.info(
+          'Returning all %s parts for %s: %s.', len(paths), hdfs_path,
+          ', '.join(sorted(paths))
+        )
       return paths
 
   def write(self, hdfs_path, data, overwrite=False, permission=None,
@@ -290,7 +324,7 @@ class Client(object):
     :param replication: Number of replications of the file.
 
     """
-
+    self._logger.info('Writing to %s.', hdfs_path)
     res_1 = self._create_1(
       hdfs_path,
       overwrite=overwrite,
@@ -305,38 +339,21 @@ class Client(object):
   def upload(self, hdfs_path, local_path, overwrite=False, **kwargs):
     """Upload a file or directory to HDFS.
 
-    :param hdfs_path: Target HDFS path.
+    :param hdfs_path: Target HDFS path. Note that unlike the :meth:`download`
+      method, this cannot point to an existing directory.
     :param hdfs_path: Local path to file.
     :param overwrite: Overwrite mode. If equal to `False` and HDFS file exists,
-      an :class:`~hdfs.util.HdfsError` will be raised.  If equal to `True`, 
-      file will be overwritten if it is older than local version or has a 
-      different file size.
+      an :class:`~hdfs.util.HdfsError` will be raised.
     :param kwargs: Keyword arguments forwarded to :meth:`write`.
 
     """
+    self._logger.info('Uploading %s to %s.', local_path, hdfs_path)
     if not osp.exists(local_path):
       raise HdfsError('No file found at %r.', local_path)
-    if osp.isdir(local_path):
+    elif osp.isdir(local_path):
       raise HdfsError('%r is a directory, cannot upload.', local_path)
-
-    file_dict=None
-    try:
-      file_dict = self.status(hdfs_path)
-    except HdfsError:
-      # file doesn't exist, we are good to write to it
-      pass
-    else:
-      # file exists, should we overwrite it?
-      if not overwrite:
-        raise HdfsError('Remote file %r already exists.', hdfs_path)
-      else:
-        if (1000*osp.getmtime(local_path) < file_dict['modificationTime'] and
-            osp.getsize(local_path) == file_dict['length']):
-          # No need to do anything
-          return
-
-    with open(local_path) as reader:
-      self.write(hdfs_path, reader, overwrite=(file_dict is not None), **kwargs)
+    with open(local_path, 'rb') as reader:
+      self.write(hdfs_path, reader, overwrite=overwrite, **kwargs)
 
   def read(self, hdfs_path, offset=0, length=None, buffer_size=None,
     chunk_size=1024, buffer_char=None):
@@ -357,6 +374,7 @@ class Client(object):
     terminating the generator by using its `close` method.
 
     """
+    self._logger.info('Reading file %s.', hdfs_path)
     res = self._open(
       hdfs_path,
       offset=offset,
@@ -384,97 +402,86 @@ class Client(object):
         res.close()
     return reader()
 
-  def download(self, hdfs_path, local_path, overwrite=False, 
-    num_threads = None, **kwargs):
-    """Download a file from HDFS and save locally, or all the part-files if
-    HDFS location is a directory.
+  def download(self, hdfs_path, local_path, overwrite=False, n_threads=-1,
+    **kwargs):
+    """Download a (potentially distributed) file from HDFS and save it locally.
 
-    :param hdfs_path: Path on HDFS of the directory or file to download.
+    :param hdfs_path: Path on HDFS of the file to download.
     :param local_path: Local path.
     :param overwrite: Overwrite mode. If equal to `False` and local file exists,
-      an :class:`~hdfs.util.HdfsError` will be raised.  If equal to `True`, 
-      file will be overwritten if it is older than HDFS version or has a 
+      an :class:`~hdfs.util.HdfsError` will be raised.  If equal to `True`,
+      file will be overwritten if it is older than HDFS version or has a
       different file size.
-    :param num_threads: Number of threads to use for parallel downloading of 
+    :param n_threads: Number of threads to use for parallel downloading of
       part-files. A value of `None` or `1` indicates that parallelization won't
       be used; `-1` uses as many threads as there are part-files.
-    :param kwargs: Keyword arguments forwarded to :meth:`read`.
-    :returns: List of local file names corresponding to remote files.
+    :param \*\*kwargs: Keyword arguments forwarded to :meth:`read`.
 
     """
-
     if not osp.exists(local_path):
       local_dir = osp.dirname(local_path)
-      if not osp.exists(local_dir): # ends in separator
+      if not osp.exists(local_dir):
         raise HdfsError('Local directory %r does not exist.', local_dir)
-      local_is_dir = False
-    else:
-      local_is_dir = osp.isdir(local_path)
 
-    parts = self.parts(hdfs_path)
-
-    file_dict = self.status(hdfs_path)
-    if not local_is_dir:
-      if file_dict['type'] == 'DIRECTORY':
-        # Remote path is a directory
-        raise HdfsError('Local path %r is not a directory.', local_path)
-
-
-    download_parts   = []
-    local_part_names = []
-
-    for hdfs_file in sorted(parts):
-      part_dict = parts[hdfs_file]
-
-      if local_is_dir:
-        local_part_name = osp.join(local_path, posixpath.basename(hdfs_file))
+    def _download(paths):
+      """Download and atomic swap."""
+      _hdfs_path, _local_path = paths
+      if osp.isfile(_local_path) and not overwrite:
+        raise HdfsError('A local file already exists at %s.', _local_path)
       else:
-        local_part_name = local_path
+        with temppath() as tpath:
+          os.mkdir(tpath)
+          _temp_path = osp.join(tpath, posixpath.basename(_hdfs_path))
+          # ensure temp filename is the same as the source name to ensure
+          # consistency with the `mv` behavior below (hence creating the
+          # seemingly superfluous temp directory)
+          self._logger.debug('Downloading %s to %s.', _hdfs_path, _temp_path)
+          with open(_temp_path, 'wb') as writer:
+            for chunk in self.read(_hdfs_path, **kwargs):
+              writer.write(chunk)
+          self._logger.debug(
+            'Download of %s to %s complete. Moving result to %s.',
+            _hdfs_path, _temp_path, _local_path
+          )
+          move(_temp_path, _local_path) # consistent with `mv` behavior
+        self._logger.info('Downloaded %s to %s.', _hdfs_path, _local_path)
 
-      local_part_names.append(local_part_name)
-
-      if osp.exists(local_part_name):
-        if not overwrite:
-          raise HdfsError('%r already exists. Aborting download.', 
-            local_part_name)
+    parts = sorted(self.parts(hdfs_path))
+    if len(parts) == 1:
+      self._logger.debug(
+        '%s is a normal (or singly-partitioned) file.', hdfs_path
+      )
+      # we can now handle both cases similarly
+      _download((parts[0], local_path))
+    elif osp.exists(local_path) and not osp.isdir(local_path):
+      # remote path is a distributed file but we are writing to a single file
+      raise HdfsError('Local path %r is not a directory.', local_path)
+      # fail now instead of after the download
+    else:
+      # remote path is a distributed file and we are writing to a directory
+      with temppath() as tpath:
+        _temp_dir_path = osp.join(tpath, posixpath.basename(hdfs_path))
+        os.makedirs(_temp_dir_path)
+        # similarly to above, we add an extra directory to ensure that the
+        # final name is consistent with the source (guaranteeing expected
+        # behavior of the `move` function below)
+        part_paths = [(_hdfs_path, _temp_dir_path) for _hdfs_path in parts]
+        if n_threads == -1:
+          n_threads = len(part_paths)
         else:
-          if (osp.getsize(local_part_name) == part_dict['length'] and
-            1000*osp.getmtime(local_part_name) > part_dict['modificationTime']):
-            # Local file is newer and same size as remote file, do not overwrite
-            continue
-
-      download_parts.append( (hdfs_file, local_part_name) )
-
-
-    if num_threads == -1:
-      num_threads = len(download_parts)
-    else:
-      num_threads = min(len(download_parts), num_threads)
-
-    def _start_download(args):
-      hdfs_file, local_part_name = args
-      local_part_partial = local_part_name + '.partial'
-      try:
-        with open(local_part_partial, 'w') as writer:
-          for chunk in self.read(hdfs_file, **kwargs):
-            writer.write(chunk)
-
-        os.rename(local_part_partial, local_part_name)
-
-      finally:
-        if osp.exists(local_part_partial):
-          os.remove(local_part_partial)
-
-    if num_threads is not None and num_threads > 1:
-      p = ThreadPool(num_threads)
-      p.map(_start_download, download_parts)
-
-    else:
-      for args in download_parts:
-        _start_download(args)
-
-    return local_part_names
-
+          n_threads = min(len(part_paths), n_threads or 0)
+          # min(None, ...) returns None
+        if n_threads > 1:
+          self._logger.debug(
+            'Starting parallel download using %s threads.', n_threads
+          )
+          p = ThreadPool(n_threads)
+          p.map(_download, part_paths)
+        else:
+          self._logger.debug('Starting synchronous download.')
+          map(_download, part_paths)
+          # maps, comprehensions, nothin' on you
+        move(_temp_dir_path, local_path) # consistent with `mv` behavior
 
   def delete(self, hdfs_path, recursive=False):
     """Remove a file or directory from HDFS.
@@ -485,6 +492,7 @@ class Client(object):
       a non-empty directory.
 
     """
+    self._logger.info('Deleting %s%s.', hdfs_path, ' [R]' if recursive else '')
     res = self._delete(hdfs_path, recursive=recursive)
     if not res.json()['boolean']:
       raise HdfsError('Remote path %r not found.', hdfs_path)
@@ -498,6 +506,7 @@ class Client(object):
       a file, this method will raise :class:`~hdfs.util.HdfsError`.
 
     """
+    self._logger.info('Renaming %s to %s.', hdfs_src_path, hdfs_dst_path)
     hdfs_dst_path = self.resolve(hdfs_dst_path)
     res = self._rename(hdfs_src_path, destination=hdfs_dst_path)
     if not res.json()['boolean']:

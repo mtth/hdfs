@@ -1,15 +1,14 @@
 #!/usr/bin/env python
 # encoding: utf-8
 
-"""Base classes used for testing modules that use Hdfs connections.
-"""
+"""Test helpers."""
 
 from ConfigParser import NoOptionError, NoSectionError
 from hdfs.client import Client, HdfsError
 from nose.plugins.skip import SkipTest
 from nose.tools import eq_
-
 from time import sleep
+
 
 class _TestSession(object):
 

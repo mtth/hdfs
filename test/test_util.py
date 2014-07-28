@@ -6,6 +6,7 @@
 from hdfs.util import *
 from nose.tools import eq_, raises
 
+
 class TestConfig(object):
 
   def test_get_alias(self):

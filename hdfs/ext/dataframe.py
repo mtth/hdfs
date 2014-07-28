@@ -2,11 +2,12 @@
 # encoding: utf-8
 
 """Dataframe: an HdfsCLI extension for reading and writing `pandas` dataframes.
-Dataframes can be read and written into HDFS files stored in one of two formats:
-either Avro or CSV (comma separated values, though other separators such as TAB
-also commonly used).
 
-This extension requires the presence of `pandas` and `numpy` libraries.  For 
+Dataframes can be read and written into HDFS files stored in one of two
+formats: either Avro or CSV (comma separated values, though other separators
+such as TAB also commonly used).
+
+This extension requires the presence of `pandas` and `numpy` libraries.  For
 reading Avro files, the `fastavro` library is necessary.  This extension
 supports downloading multiple HDFS part files in parallel.
 
@@ -15,31 +16,31 @@ supports downloading multiple HDFS part files in parallel.
 from __future__ import absolute_import
 from ..client import Client
 from ..util import HdfsError
-
-import time
-import os
-import posixpath
-import sys
-import operator
-import tempfile
-import io
-import subprocess
-import shutil
 from itertools import chain
-import math
-
-import gzip
-import avro
-
 from multiprocessing.pool import ThreadPool
+import avro
+import gzip
+import io
 import logging
-logger = logging.getLogger(__name__)
-
+import math
+import operator
+import os
+import os.path as osp
+import posixpath
+import shutil
+import subprocess
+import sys
+import tempfile
+import time
 try:
   import pandas as pd
   import numpy as np
 except ImportError:
   raise ImportError('pandas and numpy libraries needed for dataframe extension')
+
+
+logger = logging.getLogger(__name__)
+
 
 def gzip_compress(uncompressed):
   """Utility function that compresses its input using gzip.
@@ -85,24 +86,24 @@ def convert_dtype(dtype):
     raise HdfsError('Dont know Avro equivalent of type %r.', dtype)
 
 
-def read_df(client, hdfs_path, format, use_gzip = False, sep = '\t', 
+def read_df(client, hdfs_path, format, use_gzip = False, sep = '\t',
   index_cols = None, num_threads = None, local_dir = None, overwrite=False):
   """Function to read in pandas `DataFrame` from a remote HDFS file.
 
   :param client: :class:`hdfs.client.Client` instance.
   :param hdfs_path: Remote path.
-  :param format: Indicates format of remote file, currently either `'avro'` 
+  :param format: Indicates format of remote file, currently either `'avro'`
     or `'csv'`.
-  :param use_gzip: Whether remote file is gzip-compressed or not.  Only 
+  :param use_gzip: Whether remote file is gzip-compressed or not.  Only
     available for `'csv'` format.
   :param sep: Separator to use for `'csv'` file format.
   :param index_cols: Which columns of remote file should be made index columns
     of `pandas` dataframe.  If set to `None`, `pandas` will create a row
     number index.
-  :param num_threads: Number of threads to use for parallel downloading of 
+  :param num_threads: Number of threads to use for parallel downloading of
     part-files. A value of `None` or `1` indicates that parallelization won't
     be used; `-1` uses as many threads as there are part-files.
-  :param local_dir: Local directory in which to save downloaded files. If 
+  :param local_dir: Local directory in which to save downloaded files. If
     set to `None`, a temporary directory will be used.  Otherwise, if remote
     files already exist in the local directory and are older than downloaded
     version, they will not be downloaded again.
@@ -123,7 +124,7 @@ def read_df(client, hdfs_path, format, use_gzip = False, sep = '\t',
       logger.info('local_dir not specified, using %r.', local_dir)
 
     if format == 'csv':
-      logger.info('Loading %r CSV formatted data from %r', 
+      logger.info('Loading %r CSV formatted data from %r',
         'compressed' if use_gzip else 'uncompressed',
         hdfs_path)
 
@@ -135,11 +136,9 @@ def read_df(client, hdfs_path, format, use_gzip = False, sep = '\t',
 
           PIG_CSV_HEADER = '.pig_header'
           hdfs_header_file = posixpath.join(hdfs_path, PIG_CSV_HEADER)
-          header_file = client.download(hdfs_header_file, local_dir,
-            overwrite=overwrite)[0]
-          
+          client.download(hdfs_header_file, local_dir, overwrite=overwrite)
           merged_files = io.BytesIO()
-          with open(header_file, 'r') as f:
+          with open(osp.join(local_dir, PIG_CSV_HEADER), 'r') as f:
             merged_files.write(f.read())
 
           for filename in data_files:
@@ -175,7 +174,7 @@ def read_df(client, hdfs_path, format, use_gzip = False, sep = '\t',
         try:
           import fastavro
         except ImportError:
-          raise HdfsError('Need to have fastavro library installed ' + 
+          raise HdfsError('Need to have fastavro library installed ' +
                           'in order to dataframes from Avro files.')
 
         open_files = []
@@ -188,7 +187,7 @@ def read_df(client, hdfs_path, format, use_gzip = False, sep = '\t',
           df = pd.DataFrame.from_records(reader_chain, index=index_cols)
 
         finally:
-          for f in open_files: 
+          for f in open_files:
             f.close()
 
         return df
@@ -199,16 +198,20 @@ def read_df(client, hdfs_path, format, use_gzip = False, sep = '\t',
 
     t = time.time()
 
-    data_files = client.download(hdfs_path, local_dir, num_threads=num_threads, 
-      overwrite=overwrite)
+    client.download(
+      hdfs_path, local_dir, n_threads=num_threads, overwrite=overwrite
+    )
 
-    if not data_files:
-      raise HdfsError('No data files found')
+    local_path = osp.join(local_dir, posixpath.basename(hdfs_path))
+    if osp.isdir(local_path):
+      data = [osp.join(local_path, fname) for fname in os.listdir(local_path)]
+    else:
+      data = [local_path]
 
-    df = _process_function(data_files)
+    df = _process_function(data)
 
     logger.info('Done in %0.3f', time.time() - t)
-    
+
   finally:
     if is_temp_dir:
       shutil.rmtree(local_dir)
@@ -216,16 +219,16 @@ def read_df(client, hdfs_path, format, use_gzip = False, sep = '\t',
   return df
 
 
-def write_df(df, client, hdfs_path, format, use_gzip = False, sep = '\t', 
+def write_df(df, client, hdfs_path, format, use_gzip = False, sep = '\t',
   overwrite = False, num_parts = 1):
   """Function to write a pandas `DataFrame` to a remote HDFS file.
 
   :param df: `pandas` dataframe object to write.
   :param client: :class:`hdfs.client.Client` instance.
   :param hdfs_path: Remote path.
-  :param format: Indicates format of remote file, currently either `'avro'` 
+  :param format: Indicates format of remote file, currently either `'avro'`
     or `'csv'`.
-  :param use_gzip: Whether remote file is gzip-compressed or not.  Only 
+  :param use_gzip: Whether remote file is gzip-compressed or not.  Only
     available for `'csv'` format.
   :param sep: Separator to use for `'csv'` file format.
   :param overwrite: Whether to overwrite files on HDFS if they exist.
@@ -273,7 +276,7 @@ def write_df(df, client, hdfs_path, format, use_gzip = False, sep = '\t',
     def _process_function(df):
 
       fields_str = [
-          '{"name": "%s", "type": "%s"}' % (fldname, convert_dtype(dtype)) 
+          '{"name": "%s", "type": "%s"}' % (fldname, convert_dtype(dtype))
           for fldname, dtype in zip(df.columns, df.dtypes)]
       schema_str = """\
     { "type": "record",
@@ -298,9 +301,9 @@ def write_df(df, client, hdfs_path, format, use_gzip = False, sep = '\t',
       for r in df.to_dict(outtype='records'):
         avro_writer.append(r)
 
-      avro_writer.flush() 
+      avro_writer.flush()
       r = out_buffer.getvalue()
-      avro_writer.close() 
+      avro_writer.close()
       return r
 
     def _finish_function(df):
@@ -327,13 +330,13 @@ def write_df(df, client, hdfs_path, format, use_gzip = False, sep = '\t',
   for part_num, start_ndx in enumerate(range(0, num_rows, rows_per_part)):
     end_ndx = min(start_ndx + rows_per_part, num_rows)
     client.write(
-        posixpath.join(hdfs_path, 'part-r-%05d' % part_num), 
-        _process_function(df.iloc[start_ndx:end_ndx]), 
+        posixpath.join(hdfs_path, 'part-r-%05d' % part_num),
+        _process_function(df.iloc[start_ndx:end_ndx]),
         overwrite=False)
 
   _finish_function(df)
 
   logger.info('Done in %0.3f', time.time() - t)
-  
+
   return df
 

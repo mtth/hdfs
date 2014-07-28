@@ -3,36 +3,28 @@
 
 """Test Hdfs Dataframe extension."""
 
-import shutil
-import os
-import tempfile
-
-
-from nose.plugins.skip import SkipTest
 from helpers import _TestSession
-
-SKIP = False
-
+from nose.plugins.skip import SkipTest
+import os
+import shutil
+import tempfile
 try:
   import numpy
   import pandas as pd
-
 except ImportError:
   SKIP = True
-  pass
-
-if not SKIP:
+else:
+  SKIP = False
   from hdfs.ext.dataframe import read_df, write_df
   from pandas.util.testing import assert_frame_equal
+
 
 class TestDataframe(_TestSession):
 
   def setup(self):
     if SKIP:
       raise SkipTest
-
     super(TestDataframe, self).setup()
-
     self.test_df = pd.DataFrame.from_records(
         [{'A' :  1, 'B' :  2},
          {'A' : 11, 'B' : 23},
@@ -40,17 +32,17 @@ class TestDataframe(_TestSession):
          {'A' : 23, 'B' :  1}])
 
   def run_write_read(self, df, format, use_gzip = False, sep = '\t', 
-      index_cols = None, local_dir = None, num_threads = None):
+      index_cols = None, local_dir = None, n_threads = None):
 
     # Location on HDFS
     ext = format + ('.gz' if use_gzip else '')
-    f = '/tmp/akolchin/dfreader_test/test.' + ext
+    f = '/tmp/akolchin/dfreader_test/test.' + ext # TODO: fix this
 
     write_df(df, self.client, f, format, sep=sep, use_gzip=use_gzip, 
       overwrite=True, num_parts=2)
 
     returned_df = read_df(self.client, f, format, sep=sep, use_gzip=use_gzip, 
-      index_cols=index_cols, local_dir=local_dir, num_threads=num_threads)
+      index_cols=index_cols, local_dir=local_dir, num_threads=n_threads)
 
     assert_frame_equal(df, returned_df)
     return returned_df
@@ -92,4 +84,4 @@ class TestDataframe(_TestSession):
       shutil.rmtree(temp1)
 
   def test_parallel_download(self):
-    self.run_write_read(self.test_df, 'csv', num_threads = -1)
+    self.run_write_read(self.test_df, 'csv', n_threads = -1)

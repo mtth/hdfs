@@ -7,23 +7,55 @@ from ConfigParser import (NoOptionError, NoSectionError, ParsingError,
   RawConfigParser)
 from contextlib import contextmanager
 from functools import wraps
+from logging.handlers import TimedRotatingFileHandler
 from os import close, remove
-from os.path import exists
-from tempfile import mkstemp
+from shutil import rmtree
+from tempfile import gettempdir, mkstemp
+import logging as lg
+import os.path as osp
 import sys
+import warnings as wr
+
+
+_logger = lg.getLogger(__name__)
 
 
 class HdfsError(Exception):
 
   """Base error class.
 
-  :param message: error message
-  :param args: optional message formatting arguments
+  :param message: Error message.
+  :param args: optional Message formatting arguments.
 
   """
 
   def __init__(self, message, *args):
-    super(HdfsError, self).__init__(message % args or ())
+    super(HdfsError, self).__init__(message % args if args else message)
+
+
+class InstanceLogger(lg.LoggerAdapter):
+
+  """Logger adapter that preprends the instance's `repr` to messages.
+
+  :param instance: Instance to prepend messages with.
+  :param logger: Logger instance where messages will be logged.
+  :param extra: Dictionary of contextual information, passed to the formatter.
+
+  """
+
+  def __init__(self, instance, logger, extra=None):
+    # not using super since `LoggerAdapter` is an old-style class in python 2.6
+    lg.LoggerAdapter.__init__(self, logger, extra)
+    self.instance = instance
+
+  def process(self, msg, kwargs):
+    """Transform message.
+
+    :param msg: Original message.
+    :param kwargs: Dictionary of kwargs eventually passed to the formatter.
+
+    """
+    return '%r :: %s' % (self.instance, msg), kwargs
 
 
 class Config(object):
@@ -35,19 +67,24 @@ class Config(object):
 
   """
 
-  def __init__(self, path):
+  def __init__(self, path=osp.expanduser('~/.hdfsrc')):
+    self._logger = InstanceLogger(self, _logger)
     self.parser = RawConfigParser()
     self.path = path
-    if exists(path):
+    if osp.exists(path):
       try:
         self.parser.read(self.path)
       except ParsingError:
         raise HdfsError('Invalid configuration file %r.', path)
 
+  def __repr__(self):
+    return '<Config(path=%r)>' % (self.path, )
+
   def save(self):
     """Save configuration parser back to file."""
     with open(self.path, 'w') as writer:
       self.parser.write(writer)
+    self._logger.info('Saved.')
 
   def get_alias(self, alias=None):
     """Retrieve alias information from configuration file.
@@ -70,27 +107,61 @@ class Config(object):
     else:
       return options
 
+  def get_file_handler(self):
+    """Create and configure logging file handler.
+
+    The default path can be configured via the `default.log` option in the
+    `hdfs` section.
+
+    """
+    try:
+      handler_path = self.parser.get('hdfs', 'log')
+    except (NoOptionError, NoSectionError):
+      handler_path = osp.join(gettempdir(), 'hdfs.log')
+    try:
+      handler = TimedRotatingFileHandler(
+        handler_path,
+        when='midnight', # daily backups
+        backupCount=1,
+        encoding='utf-8',
+      )
+    except IOError:
+      wr.warn('Unable to write to log file at %s.' % (handler_path, ))
+    else:
+      handler_format = '[%(levelname)s] %(asctime)s :: %(name)s :: %(message)s'
+      handler.setFormatter(lg.Formatter(handler_format))
+      return handler
+
 
 @contextmanager
 def temppath():
-  """Create a temporary filepath.
+  """Create a temporary path.
 
   Usage::
 
     with temppath() as path:
       # do stuff
 
-  Any file corresponding to the path will be automatically deleted afterwards.
+  Any file or directory corresponding to the path will be automatically deleted
+  afterwards.
 
   """
   (desc, path) = mkstemp()
   close(desc)
   remove(path)
   try:
+    _logger.debug('Created temporary path at %s.', path)
     yield path
   finally:
-    if exists(path):
-      remove(path)
+    if osp.exists(path):
+      if osp.isdir(path):
+        rmtree(path)
+        _logger.debug('Deleted temporary directory at %s.', path)
+      else:
+        remove(path)
+        _logger.debug('Deleted temporary file at %s.', path)
+    else:
+      _logger.debug('No temporary file or directory to delete at %s.', path)
 
 def hsize(size):
   """Transform size from bytes to human readable format (kB, MB, ...).
@@ -138,7 +209,11 @@ def catch(*error_classes):
       try:
         return func(*args, **kwargs)
       except error_classes as err:
+        _logger.error(err)
         sys.stderr.write('%s\n' % (err, ))
         sys.exit(1)
+      # except Exception as err: # catch all
+      #   _logger.exception('Unexpected exception.')
+      #   raise RuntimeError('View log for details.')
     return wrapper
   return decorator

@@ -237,19 +237,23 @@ class AvroReader(object):
 
   """
 
-  #:  Avro record generator. For convenience, you can also iterate directly
-  #:  on the :class:`AvroReader` object. E.g.
-  #:
-  #:  .. code-block:: python
-  #:
-  #:    reader = AvroReader(client, 'foo.avro')
-  #:    for record in reader:
-  #:      print record.to_json()
-  #:
   records = None
+  """Avro record generator.
 
-  #:  Avro schema.
+  For convenience, you can also iterate directly on the :class:`AvroReader`
+  object. E.g.
+
+  .. code-block:: python
+
+    reader = AvroReader(client, 'foo.avro')
+    for record in reader:
+      print record.to_json()
+
+  """
+
+
   schema = None
+  """Avro schema."""
 
   def __init__(self, client, hdfs_path, parts=None):
     self._client = client
@@ -277,6 +281,44 @@ class AvroReader(object):
   def length(self):
     """Total reader length in bytes."""
     return sum(s['length'] for s in self._parts.values())
+
+
+class AvroWriter(object):
+
+  """Lazy remote Avro file writer."""
+
+  def __init__(self):
+    fields_str = [
+      '{"name": "%s", "type": "%s"}' % (fldname, convert_dtype(dtype)) 
+      for fldname, dtype in zip(df.columns, df.dtypes)
+    ]
+    schema_str = """
+      {
+        "type": "record",
+        "name": "dfrecord",
+        "fields": [%s]
+      }
+    """ % (','.join(fields_str), )
+
+    schema = avro.schema.parse(schema_str)
+
+    # Create a 'record' (datum) writer
+    rec_writer  = avro.io.DatumWriter(schema)
+
+    out_buffer  = io.BytesIO()
+    # Create a 'data file' (avro file) writer
+    avro_writer = avro.datafile.DataFileWriter(
+        out_buffer,
+        rec_writer,
+        writers_schema = schema)
+
+    for r in df.to_dict(outtype='records'):
+      avro_writer.append(r)
+
+    avro_writer.flush() 
+    r = out_buffer.getvalue()
+    avro_writer.close() 
+    return r
 
 
 @catch(HdfsError)
