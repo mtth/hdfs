@@ -216,8 +216,8 @@ class Client(object):
         suffix = osp.join(suffix, candidates[0][1])
       return os.sep + suffix
 
-    # #LATEST expansion (could cache the pattern, but not worth it)
     path = re.sub(r'/?#LATEST(?:{(\d+)})?(?=/|$)', expand_latest, path)
+    # #LATEST expansion (could cache the pattern, but not worth it)
 
     self._logger.debug('Resolved path %s to %s.', hdfs_path, path)
     return path
@@ -309,7 +309,7 @@ class Client(object):
       return paths
 
   def write(self, hdfs_path, data, overwrite=False, permission=None,
-    blocksize=None, replication=None):
+    blocksize=None, replication=None, buffersize=None):
     """Create a file on HDFS.
 
     :param hdfs_path: Path where to create file. The necessary directories will
@@ -322,6 +322,7 @@ class Client(object):
       Leading zeros may be omitted.
     :param blocksize: Block size of the file.
     :param replication: Number of replications of the file.
+    :param buffersize: Size of upload buffer.
 
     """
     self._logger.info('Writing to %s.', hdfs_path)
@@ -331,8 +332,26 @@ class Client(object):
       permission=permission,
       blocksize=blocksize,
       replication=replication,
+      buffersize=buffersize,
     )
     res_2 = rq.put(res_1.headers['location'], data=data)
+    if not res_2:
+      _on_error(res_2)
+
+  def append(self, hdfs_path, data, buffersize=None):
+    """Append to an existing file on HDFS.
+
+    :param hdfs_path: Path to file on HDFS. This file must exist.
+    :param data: Contents to be appended. See :meth:`write` for more details.
+    :param buffersize: Size of upload buffer.
+
+    """
+    self._logger.info('Appending to %s.', hdfs_path)
+    res_1 = self._append_1(
+      hdfs_path,
+      buffersize=buffersize,
+    )
+    res_2 = rq.post(res_1.headers['location'], data=data)
     if not res_2:
       _on_error(res_2)
 
@@ -342,8 +361,7 @@ class Client(object):
     :param hdfs_path: Target HDFS path. Note that unlike the :meth:`download`
       method, this cannot point to an existing directory.
     :param hdfs_path: Local path to file.
-    :param overwrite: Overwrite mode. If equal to `False` and HDFS file exists,
-      an :class:`~hdfs.util.HdfsError` will be raised.
+    :param overwrite: Overwrite any existing file or directory.
     :param kwargs: Keyword arguments forwarded to :meth:`write`.
 
     """
@@ -408,10 +426,7 @@ class Client(object):
 
     :param hdfs_path: Path on HDFS of the file to download.
     :param local_path: Local path.
-    :param overwrite: Overwrite mode. If equal to `False` and local file exists,
-      an :class:`~hdfs.util.HdfsError` will be raised.  If equal to `True`,
-      file will be overwritten if it is older than HDFS version or has a
-      different file size.
+    :param overwrite: Overwrite any existing file or directory.
     :param n_threads: Number of threads to use for parallel downloading of
       part-files. A value of `None` or `1` indicates that parallelization won't
       be used; `-1` uses as many threads as there are part-files.

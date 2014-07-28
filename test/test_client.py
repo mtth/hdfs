@@ -167,6 +167,29 @@ class TestWrite(_TestSession):
     self.client.write('up/up', 'hello again, world!')
 
 
+class TestAppend(_TestSession):
+
+  @classmethod
+  def setup_class(cls):
+    super(TestAppend, cls).setup_class()
+    try:
+      cls.client.write('ap', '')
+      cls.client.append('ap', '')
+    except HdfsError as err:
+      if 'Append is not supported.' in err.message:
+        cls.client = None
+        # skip these tests if HDFS isn't configured to support appends
+
+  def test_simple(self):
+    self.client.write('ap', 'hello,')
+    self.client.append('ap', ' world!')
+    self._check_content('ap', 'hello, world!')
+
+  @raises(HdfsError)
+  def test_missing_file(self):
+    self.client.append('ap', 'hello,')
+
+
 class TestUpload(_TestSession):
 
   def test_upload_file(self):
