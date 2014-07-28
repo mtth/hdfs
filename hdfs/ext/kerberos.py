@@ -8,17 +8,7 @@ Adds :class:`KerberosClient` for HDFS clusters using Kerberos authentication.
 """
 
 from ..client import Client
-try:
-  from requests_kerberos import HTTPKerberosAuth, OPTIONAL
-except ImportError:
-  # probably in readthedocs.org, which doesn't seem to support the Kerberos
-  # package, we will therefore mock the two values used
-
-  def HTTPKerberosAuth(auth):
-    """Mock mock."""
-    pass
-
-  OPTIONAL = None
+from requests_kerberos import HTTPKerberosAuth, OPTIONAL
 
 
 class KerberosClient(Client):

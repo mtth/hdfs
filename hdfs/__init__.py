@@ -3,13 +3,12 @@
 
 """HdfsCLI."""
 
-__version__ = '0.2.5'
+__version__ = '0.2.6'
 
 import logging as lg
 try:
   from .client import Client, InsecureClient, TokenClient
   from .ext import * # import all exported extensions, nothin' on you
-  from .util import Config
 except ImportError:
   pass # in setup.py
 
