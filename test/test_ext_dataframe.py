@@ -4,32 +4,31 @@
 """Test Hdfs Dataframe extension."""
 
 from helpers import _TestSession
-from nose.plugins.skip import SkipTest
 import os
 import shutil
 import tempfile
 try:
-  import numpy
-  import pandas as pd
+  from hdfs.ext.dataframe import *
 except ImportError:
   SKIP = True
 else:
-  SKIP = False
-  from hdfs.ext.dataframe import read_df, write_df
   from pandas.util.testing import assert_frame_equal
+  import pandas as pd
+  import numpy
+  SKIP = False
 
 
 class TestDataframe(_TestSession):
 
   def setup(self):
     if SKIP:
-      raise SkipTest
+      self.client = None
     super(TestDataframe, self).setup()
     self.test_df = pd.DataFrame.from_records(
         [{'A' :  1, 'B' :  2},
-         {'A' : 11, 'B' : 23},
-         {'A' :100, 'B' :211},
-         {'A' : 23, 'B' :  1}])
+        {'A' : 11, 'B' : 23},
+        {'A' :100, 'B' :211},
+        {'A' : 23, 'B' :  1}])
 
   def run_write_read(self, df, format, use_gzip = False, sep = '\t', 
       index_cols = None, local_dir = None, n_threads = None):

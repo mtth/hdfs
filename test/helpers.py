@@ -4,7 +4,7 @@
 """Test helpers."""
 
 from ConfigParser import NoOptionError, NoSectionError
-from hdfs.client import Client, HdfsError
+from hdfs import * # import all clients
 from nose.plugins.skip import SkipTest
 from nose.tools import eq_
 from time import sleep

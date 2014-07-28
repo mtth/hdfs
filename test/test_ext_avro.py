@@ -3,15 +3,22 @@
 
 """Test HdfsAvro extension."""
 
-from avro.io import AvroTypeException
-from hdfs.ext.avro import *
 from helpers import _TestSession
 from nose.tools import *
+try:
+  from hdfs.ext.avro import *
+except ImportError:
+  SKIP = True
+else:
+  from avro.io import AvroTypeException
+  SKIP = False
 
 
 class TestWriter(_TestSession):
 
   def setup(self):
+    if SKIP:
+      self.client = None
     super(TestWriter, self).setup()
     # if we reach here, self.client is defined
     self.writer = AvroWriter(self.client, 'aw.avro')

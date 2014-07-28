@@ -3,9 +3,9 @@
 
 """Test Hdfs client interactions with HDFS."""
 
-from hdfs import KerberosClient
-from hdfs.client import HdfsError, Client
-from hdfs.util import Config, temppath
+from hdfs import * # load all the clients
+from hdfs.client import *
+from hdfs.util import Config, HdfsError, temppath
 from helpers import _TestSession
 from nose.tools import eq_, ok_, raises
 from shutil import rmtree
