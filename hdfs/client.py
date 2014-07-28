@@ -8,7 +8,6 @@ from getpass import getuser
 from itertools import repeat
 from multiprocessing.pool import ThreadPool
 from random import sample
-from requests_kerberos import HTTPKerberosAuth, OPTIONAL
 from shutil import move
 import logging as lg
 import os
@@ -16,6 +15,14 @@ import os.path as osp
 import posixpath
 import re
 import requests as rq
+try:
+  from requests_kerberos import HTTPKerberosAuth, OPTIONAL
+except ImportError: # readthedocs doesn't support kerberos
+
+  def HTTPKerberosAuth(auth):
+    pass
+
+  OPTIONAL = None
 
 
 _logger = lg.getLogger(__name__)

@@ -175,11 +175,15 @@ class TestAppend(_TestSession):
     if cls.client:
       try:
         cls.client.write('ap', '')
+        # can't append to an empty file
         cls.client.append('ap', '')
+        # try a simple append
       except HdfsError as err:
         if 'Append is not supported.' in err.message:
           cls.client = None
           # skip these tests if HDFS isn't configured to support appends
+        else:
+          raise err
 
   def test_simple(self):
     self.client.write('ap', 'hello,')

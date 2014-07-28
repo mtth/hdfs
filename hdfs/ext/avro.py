@@ -280,19 +280,29 @@ class AvroReader(object):
   :param hdfs_path: Remote path.
   :param parts: Cf. :meth:`hdfs.client.Client.parts`.
 
+  Usage:
+
+  .. code-block:: python
+
+    with AvroReader(client, 'foo.avro') as reader:
+      schema = reader.schema # the remote file's Avro schema
+      for record in reader.records:
+        pass # and its records
+
   """
 
   records = None
   """Avro record generator.
 
-  For convenience, you can also iterate directly on the :class:`AvroReader`
-  object. E.g.
+  This generator will yield a dictionary for each record in the remote Avro
+  file. For convenience, you can also iterate directly on the
+  :class:`AvroReader` object. E.g.
 
   .. code-block:: python
 
-    reader = AvroReader(client, 'foo.avro')
-    for record in reader:
-      print record.to_json()
+    with AvroReader(client, 'foo.avro') as reader:
+      for record in reader:
+        print record.to_json()
 
   """
 
@@ -305,19 +315,33 @@ class AvroReader(object):
     self._parts = client.parts(hdfs_path, parts)
     if not self._parts:
       raise HdfsError('No Avro file found at %r.', hdfs_path)
+
     def _reader():
       """Record generator over all part-files."""
-      paths = self._parts.keys()
-      if not parts:
-        shuffle(paths)
-      for index, path in enumerate(paths):
-        with _DataFileReader(client.read(path)) as reader:
-          if not index:
-            yield reader.schema # avoids having to expose the readers directly
-          for record in reader:
-            yield record
+      hdfs_reader = None
+      paths = sorted(self._parts)
+      try:
+        for index, path in enumerate(paths):
+          hdfs_reader = client.read(path)
+          with _DataFileReader(hdfs_reader) as reader:
+            if not index:
+              yield reader.schema
+              # avoids having to expose the readers directly
+            for record in reader:
+              yield record
+      except GeneratorExit:
+        if hdfs_reader:
+          hdfs_reader.close()
+          # close connection if the reader gets killed early
+
     self.records = _reader()
     self.schema = self.records.next()
+
+  def __enter__(self):
+    return self
+
+  def __exit__(self, exc_type, exc_value, traceback):
+    self.records.close()
 
   def __iter__(self):
     return self.records
@@ -330,7 +354,7 @@ class AvroReader(object):
 
 class AvroWriter(object):
 
-  """Lazy remote Avro file writer.
+  """Remote Avro file writer.
 
   :param client: :class:`hdfs.client.Client` instance.
   :param hdfs_path: Remote path.
@@ -338,13 +362,23 @@ class AvroWriter(object):
   :param schema: Avro schema. If not passed, will be inferred from the first
     record emitted.
 
+  Usage:
+
+  .. code-block:: python
+
+    with AwroWriter(client, 'data.avro') as writer:
+      for elem in elems:
+        writer.records.send(elem)
+
   """
 
   records = None
   """Avro records coroutine.
 
-  Any dictionaries sent to it will be written to HDFS. They must conform to the
-  writer's schema.
+  This coroutine can be sent dictionaries. These will then be written to HDFS
+  when the coroutine closes. Note that dictionaries passed must conform to the
+  writer's schema (if no schema was passed to the constructor, it will be
+  inferred from the first dictionary passed).
 
   """
 
@@ -361,27 +395,30 @@ class AvroWriter(object):
         while True:
           obj = (yield)
           if not writer:
-            if not _schema:
-              # no schema implies no writer
+            if not _schema: # no schema implies no writer
               _schema = _get_schema(obj)
               self._schema = _schema
             datum_writer = avi.DatumWriter(_schema)
             buf = BytesIO()
             writer = avd.DataFileWriter(buf, datum_writer, _schema)
           writer.append(obj)
-      except GeneratorExit:
-        # we are ready to send the data to HDFS
-        writer.flush()
-        # make sure everything has been written to the buffer
-        buf.seek(0)
-        # go back to the beginning
-        self._client.write(hdfs_path, buf, overwrite=overwrite)
+      except GeneratorExit: # we are ready to send the data to HDFS
+        if writer:
+          writer.flush() # make sure everything has been written to the buffer
+          buf.seek(0)
+          self._client.write(hdfs_path, buf, overwrite=overwrite)
       finally:
         if writer:
           writer.close()
 
     self.records = _writer()
     self.records.send(None) # prime coroutine
+
+  def __enter__(self):
+    return self
+
+  def __exit__(self, exc_type, exc_value, traceback):
+    self.records.close()
 
   @property
   def schema(self):

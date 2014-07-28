@@ -13,13 +13,13 @@ class TestWriter(_TestSession):
 
   def setup(self):
     super(TestWriter, self).setup()
-    if self.client:
-      self.writer = AvroWriter(self.client, 'aw.avro')
+    # if we reach here, self.client is defined
+    self.writer = AvroWriter(self.client, 'aw.avro')
 
   def test_write_inferring_schema(self):
-    self.writer.records.send({'foo': 'value1'})
-    self.writer.records.send({'foo': 'value2', 'bar': 'that'})
-    self.writer.records.close()
+    with self.writer as writer:
+      self.writer.records.send({'foo': 'value1'})
+      self.writer.records.send({'foo': 'value2', 'bar': 'that'})
     data = self.client._open('aw.avro').content
     ok_('foo' in data)
     ok_('value1' in data)
@@ -28,5 +28,6 @@ class TestWriter(_TestSession):
 
   @raises(AvroTypeException)
   def test_invalid_schema(self):
-    self.writer.records.send({'foo': 'value1'})
-    self.writer.records.send({'bar': 'value2'})
+    with self.writer as writer:
+      self.writer.records.send({'foo': 'value1'})
+      self.writer.records.send({'bar': 'value2'})
