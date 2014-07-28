@@ -23,9 +23,11 @@ import gzip
 import io
 import logging
 import math
+import numpy as np
 import operator
 import os
 import os.path as osp
+import pandas as pd
 import posixpath
 import shutil
 import subprocess
@@ -67,22 +69,17 @@ def convert_dtype(dtype):
   """Utility function to convert `numpy` datatypes to their Avro equivalents.
 
   """
-  try:
-    import numpy as np
-  except ImportError:
-    raise HdfsError('numpy required for dataframe extention.')
+  if np.issubdtype(dtype, np.floating):
+    return 'float'
+  elif np.issubdtype(dtype, np.integer) \
+      or np.issubdtype(dtype, np.unsignedinteger):
+    return 'int'
+  elif np.issubdtype(dtype, np.character):
+    return 'string'
+  elif np.issubdtype(dtype, np.bool_):
+    return 'boolean'
   else:
-    if np.issubdtype(dtype, np.floating):
-      return 'float'
-    elif np.issubdtype(dtype, np.integer) \
-        or np.issubdtype(dtype, np.unsignedinteger):
-      return 'int'
-    elif np.issubdtype(dtype, np.character):
-      return 'string'
-    elif np.issubdtype(dtype, np.bool_):
-      return 'boolean'
-    else:
-      raise HdfsError('Dont know Avro equivalent of type %r.', dtype)
+    raise HdfsError('Dont know Avro equivalent of type %r.', dtype)
 
 
 def read_df(client, hdfs_path, format, use_gzip = False, sep = '\t',
@@ -114,11 +111,6 @@ def read_df(client, hdfs_path, format, use_gzip = False, sep = '\t',
     df = read_df(client, '/tmp/data.tsv', 'csv', num_threads=-1)
 
   """
-  try:
-    import pandas as pd
-  except ImportError:
-    raise HdfsError('pandas library needed for dataframe extension.')
-
   is_temp_dir = False
 
   try:
