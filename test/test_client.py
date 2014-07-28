@@ -172,13 +172,14 @@ class TestAppend(_TestSession):
   @classmethod
   def setup_class(cls):
     super(TestAppend, cls).setup_class()
-    try:
-      cls.client.write('ap', '')
-      cls.client.append('ap', '')
-    except HdfsError as err:
-      if 'Append is not supported.' in err.message:
-        cls.client = None
-        # skip these tests if HDFS isn't configured to support appends
+    if cls.client:
+      try:
+        cls.client.write('ap', '')
+        cls.client.append('ap', '')
+      except HdfsError as err:
+        if 'Append is not supported.' in err.message:
+          cls.client = None
+          # skip these tests if HDFS isn't configured to support appends
 
   def test_simple(self):
     self.client.write('ap', 'hello,')
