@@ -30,6 +30,7 @@ from __future__ import absolute_import
 from ..client import Client
 from ..util import HdfsError, catch
 from docopt import docopt
+from io import BytesIO
 from itertools import islice
 from json import dumps
 from random import random, shuffle
@@ -47,6 +48,50 @@ try:
   import snappy
 except ImportError:
   pass
+
+
+def _get_type(obj, allow_null=False):
+  """Infer Avro type corresponding to a python object.
+
+  :param obj: Python primitive.
+  :param allow_null: Allow null values.
+
+  """
+  if allow_null:
+    raise NotImplementedError('TODO')
+  if isinstance(obj, bool):
+    schema_type = 'boolean'
+  elif isinstance(obj, basestring):
+    schema_type = 'string'
+  elif isinstance(obj, int):
+    schema_type = 'int'
+  elif isinstance(obj, long):
+    schema_type = 'long'
+  elif isinstance(obj, float):
+    schema_type = 'float'
+  return schema_type
+
+
+def _get_schema(dct, allow_null=False):
+  """Infer schema from dictionary.
+
+  :param dct: Dictionary.
+  :param allow_null: Allow null values.
+
+  """
+  fields = [
+    '{"name": "%s", "type": "%s"}' % (k, _get_type(v, allow_null=allow_null))
+    for k, v in dct.items()
+  ]
+  return av.schema.parse(
+    """
+      {
+        "type": "record",
+        "name": "element",
+        "fields": [%s]
+      }
+    """ % (','.join(fields), )
+  )
 
 
 class _LazyBinaryDecoder(avi.BinaryDecoder):
@@ -285,40 +330,65 @@ class AvroReader(object):
 
 class AvroWriter(object):
 
-  """Lazy remote Avro file writer."""
+  """Lazy remote Avro file writer.
 
-  def __init__(self):
-    fields_str = [
-      '{"name": "%s", "type": "%s"}' % (fldname, convert_dtype(dtype)) 
-      for fldname, dtype in zip(df.columns, df.dtypes)
-    ]
-    schema_str = """
-      {
-        "type": "record",
-        "name": "dfrecord",
-        "fields": [%s]
-      }
-    """ % (','.join(fields_str), )
+  :param client: :class:`hdfs.client.Client` instance.
+  :param hdfs_path: Remote path.
+  :param overwrite: Overwrite any existing file.
+  :param schema: Avro schema. If not passed, will be inferred from the first
+    record emitted.
 
-    schema = avro.schema.parse(schema_str)
+  """
 
-    # Create a 'record' (datum) writer
-    rec_writer  = avro.io.DatumWriter(schema)
+  records = None
+  """Avro records coroutine.
 
-    out_buffer  = io.BytesIO()
-    # Create a 'data file' (avro file) writer
-    avro_writer = avro.datafile.DataFileWriter(
-        out_buffer,
-        rec_writer,
-        writers_schema = schema)
+  Any dictionaries sent to it will be written to HDFS. They must conform to the
+  writer's schema.
 
-    for r in df.to_dict(outtype='records'):
-      avro_writer.append(r)
+  """
 
-    avro_writer.flush() 
-    r = out_buffer.getvalue()
-    avro_writer.close() 
-    return r
+  def __init__(self, client, hdfs_path, overwrite=False, schema=None):
+    if schema and not isinstance(schema, av.schema.Schema):
+        raise HdfsError('Invalid schema: %r.', schema)
+    self._client = client
+    self._schema = schema
+
+    def _writer(_schema=self._schema):
+      """Records coroutine."""
+      writer = None
+      try:
+        while True:
+          obj = (yield)
+          if not writer:
+            if not _schema:
+              # no schema implies no writer
+              _schema = _get_schema(obj)
+              self._schema = _schema
+            datum_writer = avi.DatumWriter(_schema)
+            buf = BytesIO()
+            writer = avd.DataFileWriter(buf, datum_writer, _schema)
+          writer.append(obj)
+      except GeneratorExit:
+        # we are ready to send the data to HDFS
+        writer.flush()
+        # make sure everything has been written to the buffer
+        buf.seek(0)
+        # go back to the beginning
+        self._client.write(hdfs_path, buf, overwrite=overwrite)
+      finally:
+        if writer:
+          writer.close()
+
+    self.records = _writer()
+    self.records.send(None) # prime coroutine
+
+  @property
+  def schema(self):
+    """Avro schema."""
+    if not self._schema:
+      raise HdfsError('Schema not yet inferred.')
+    return self._schema
 
 
 @catch(HdfsError)

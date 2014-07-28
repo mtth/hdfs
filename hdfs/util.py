@@ -140,7 +140,7 @@ def temppath():
   Usage::
 
     with temppath() as path:
-      # do stuff
+      pass # do stuff
 
   Any file or directory corresponding to the path will be automatically deleted
   afterwards.
@@ -212,8 +212,8 @@ def catch(*error_classes):
         _logger.error(err)
         sys.stderr.write('%s\n' % (err, ))
         sys.exit(1)
-      # except Exception as err: # catch all
-      #   _logger.exception('Unexpected exception.')
-      #   raise RuntimeError('View log for details.')
+      except Exception as err: # catch all
+        _logger.exception('Unexpected exception.')
+        raise RuntimeError('View log for details.')
     return wrapper
   return decorator
