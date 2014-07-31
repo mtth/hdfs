@@ -113,6 +113,10 @@ def read_df(client, hdfs_path, format, use_gzip = False, sep = '\t',
   """
   is_temp_dir = False
 
+  if posixpath.join(hdfs_path,"") == hdfs_path:
+    # remove separator on end if necessary
+    hdfs_path = hdfs_path[:-len(posixpath.sep)] 
+
   try:
     if local_dir is None:
       local_dir = tempfile.mkdtemp()
@@ -199,11 +203,11 @@ def read_df(client, hdfs_path, format, use_gzip = False, sep = '\t',
 
     local_path = osp.join(local_dir, posixpath.basename(hdfs_path))
     if osp.isdir(local_path):
-      data = [osp.join(local_path, fname) for fname in os.listdir(local_path)]
+      files = [osp.join(local_path, fname) for fname in os.listdir(local_path)]
     else:
-      data = [local_path]
+      files = [local_path]
 
-    df = _process_function(data)
+    df = _process_function(files)
 
     logger.info('Done in %0.3f', time.time() - t)
 

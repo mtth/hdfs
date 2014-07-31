@@ -31,23 +31,28 @@ class TestDataframe(_TestSession):
         {'A' : 23, 'B' :  1}])
 
   def run_write_read(self, df, format, use_gzip = False, sep = '\t', 
-      index_cols = None, local_dir = None, n_threads = None):
+      index_cols = None, local_dir = None, n_threads = None,
+      hdfs_filename = 'tmp/dfreader_test/test'):
 
     # Location on HDFS
     ext = format + ('.gz' if use_gzip else '')
-    f = '/tmp/akolchin/dfreader_test/test.' + ext # TODO: fix this
 
-    write_df(df, self.client, f, format, sep=sep, use_gzip=use_gzip, 
+    write_df(df, self.client, hdfs_filename, format, sep=sep, use_gzip=use_gzip, 
       overwrite=True, num_parts=2)
 
-    returned_df = read_df(self.client, f, format, sep=sep, use_gzip=use_gzip, 
-      index_cols=index_cols, local_dir=local_dir, num_threads=n_threads)
+    returned_df = read_df(self.client, hdfs_filename, format, sep=sep, 
+      use_gzip=use_gzip, index_cols=index_cols, local_dir=local_dir, 
+      num_threads=n_threads)
 
     assert_frame_equal(df, returned_df)
     return returned_df
 
   def test_csv(self):
     self.run_write_read(self.test_df, format='csv')
+
+  def test_sep_suffix(self):
+    self.run_write_read(self.test_df, format='csv', 
+      hdfs_filename='tmp/dfreader_test/test/')
 
   def test_csv_gz(self):
     self.run_write_read(self.test_df, format='csv', use_gzip=True)
