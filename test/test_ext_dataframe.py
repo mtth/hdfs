@@ -32,7 +32,7 @@ class TestDataframe(_TestSession):
 
   def run_write_read(self, df, format, use_gzip = False, sep = '\t', 
       index_cols = None, local_dir = None, n_threads = None,
-      hdfs_filename = 'tmp/dfreader_test/test'):
+      hdfs_filename = 'dfreader_test'):
 
     # Location on HDFS
     ext = format + ('.gz' if use_gzip else '')
@@ -42,7 +42,7 @@ class TestDataframe(_TestSession):
 
     returned_df = read_df(self.client, hdfs_filename, format, sep=sep, 
       use_gzip=use_gzip, index_cols=index_cols, local_dir=local_dir, 
-      num_threads=n_threads)
+      n_threads=n_threads)
 
     assert_frame_equal(df, returned_df)
     return returned_df
