@@ -463,42 +463,45 @@ class Client(object):
         self._logger.info('Downloaded %s to %s.', _hdfs_path, dst)
         return dst
 
-    parts = sorted(self.parts(hdfs_path))
-    if len(parts) == 1 and parts[0] == hdfs_path:
+    status = self.status(hdfs_path)
+    if status['type'] == 'FILE':
       self._logger.debug(
-        '%s is a normal file.', hdfs_path
+        '%s is a non-partitioned file.', hdfs_path
       )
       # we can now handle both cases similarly
-      dst = _download((parts[0], local_path))
-    elif osp.exists(local_path) and not osp.isdir(local_path):
-      # remote path is a distributed file but we are writing to a single file
-      raise HdfsError('Local path %r is not a directory.', local_path)
-      # fail now instead of after the download
+      dst = _download((hdfs_path, local_path))
     else:
-      # remote path is a distributed file and we are writing to a directory
-      with temppath() as tpath:
-        _temp_dir_path = osp.join(tpath, posixpath.basename(hdfs_path))
-        os.makedirs(_temp_dir_path)
-        # similarly to above, we add an extra directory to ensure that the
-        # final name is consistent with the source (guaranteeing expected
-        # behavior of the `move` function below)
-        part_paths = [(_hdfs_path, _temp_dir_path) for _hdfs_path in parts]
-        if n_threads == -1:
-          n_threads = len(part_paths)
-        else:
-          n_threads = min(len(part_paths), n_threads or 0)
-          # min(None, ...) returns None
-        if n_threads > 1:
-          self._logger.debug(
-            'Starting parallel download using %s threads.', n_threads
-          )
-          p = ThreadPool(n_threads)
-          p.map(_download, part_paths)
-        else:
-          self._logger.debug('Starting synchronous download.')
-          map(_download, part_paths)
-          # maps, comprehensions, nothin' on you
-        dst = move(_temp_dir_path, local_path) # consistent with `mv` behavior
+      parts = sorted(self.parts(hdfs_path))
+
+      if osp.exists(local_path) and not osp.isdir(local_path):
+        # remote path is a distributed file but we are writing to a single file
+        raise HdfsError('Local path %r is not a directory.', local_path)
+        # fail now instead of after the download
+      else:
+        # remote path is a distributed file and we are writing to a directory
+        with temppath() as tpath:
+          _temp_dir_path = osp.join(tpath, posixpath.basename(hdfs_path))
+          os.makedirs(_temp_dir_path)
+          # similarly to above, we add an extra directory to ensure that the
+          # final name is consistent with the source (guaranteeing expected
+          # behavior of the `move` function below)
+          part_paths = [(_hdfs_path, _temp_dir_path) for _hdfs_path in parts]
+          if n_threads == -1:
+            n_threads = len(part_paths)
+          else:
+            n_threads = min(len(part_paths), n_threads or 0)
+            # min(None, ...) returns None
+          if n_threads > 1:
+            self._logger.debug(
+              'Starting parallel download using %s threads.', n_threads
+            )
+            p = ThreadPool(n_threads)
+            p.map(_download, part_paths)
+          else:
+            self._logger.debug('Starting synchronous download.')
+            map(_download, part_paths)
+            # maps, comprehensions, nothin' on you
+          dst = move(_temp_dir_path, local_path) # consistent with `mv` behavior
     return dst
 
   def delete(self, hdfs_path, recursive=False):
