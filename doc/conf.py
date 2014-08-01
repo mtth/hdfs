@@ -12,10 +12,10 @@
 # All configuration values have a default; values that are commented out
 # serve to show the default.
 
-import sys
 import os
-
+import sys
 import mock
+
 MOCK_MODULES = ['numpy', 'pandas']
 for mod_name in MOCK_MODULES:
   sys.modules[mod_name] = mock.Mock()

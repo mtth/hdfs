@@ -9,9 +9,10 @@ from contextlib import contextmanager
 from functools import wraps
 from logging.handlers import TimedRotatingFileHandler
 from os import close, remove
-from shutil import rmtree
+from shutil import copy2, copytree, rmtree, _samefile, _basename
 from tempfile import gettempdir, mkstemp
 import logging as lg
+import os
 import os.path as osp
 import sys
 import warnings as wr
@@ -132,6 +133,34 @@ class Config(object):
       handler.setFormatter(lg.Formatter(handler_format))
       return handler
 
+
+def move(src, dst):
+  """A copy of the `shutil.move` function that also returns the actual 
+  destination filename"""
+
+  real_dst = dst
+  if osp.isdir(dst):
+      if _samefile(src, dst):
+          # We might be on a case insensitive filesystem,
+          # perform the rename anyway.
+          os.rename(src, dst)
+          return dst
+
+      real_dst = os.path.join(dst, _basename(src))
+      if os.path.exists(real_dst):
+          raise Error, "Destination path '%s' already exists" % real_dst
+  try:
+      os.rename(src, real_dst)
+  except OSError:
+      if os.path.isdir(src):
+          if _destinsrc(src, dst):
+              raise Error, "Cannot move a directory '%s' into itself '%s'." % (src, dst)
+          copytree(src, real_dst, symlinks=True)
+          rmtree(src)
+      else:
+          copy2(src, real_dst)
+          os.unlink(src)
+  return real_dst
 
 @contextmanager
 def temppath():

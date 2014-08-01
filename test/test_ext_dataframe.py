@@ -7,6 +7,7 @@ from helpers import _TestSession
 import os
 import shutil
 import tempfile
+from nose.tools import raises
 try:
   from hdfs.ext.dataframe import *
 except ImportError:
@@ -32,15 +33,19 @@ class TestDataframe(_TestSession):
 
   def run_write_read(self, df, format, use_gzip = False, sep = '\t', 
       index_cols = None, local_dir = None, n_threads = None,
-      hdfs_filename = 'dfreader_test'):
+      hdfs_filename = 'dfreader_test', read_hdfs_filename=None, n_parts = 2):
 
     # Location on HDFS
     ext = format + ('.gz' if use_gzip else '')
 
     write_df(df, self.client, hdfs_filename, format, sep=sep, use_gzip=use_gzip, 
-      overwrite=True, n_parts=2)
+      overwrite=True, n_parts=n_parts)
 
-    returned_df = read_df(self.client, hdfs_filename, format, sep=sep, 
+    if read_hdfs_filename is not None:
+      r_filename = read_hdfs_filename
+    else:
+      r_filename = hdfs_filename
+    returned_df = read_df(self.client, r_filename, format, sep=sep, 
       use_gzip=use_gzip, index_cols=index_cols, local_dir=local_dir, 
       n_threads=n_threads)
 
@@ -52,7 +57,20 @@ class TestDataframe(_TestSession):
 
   def test_sep_suffix(self):
     self.run_write_read(self.test_df, format='csv', 
-      hdfs_filename='tmp/dfreader_test/test/')
+      hdfs_filename='dfreader_test/test/')
+
+  def test_sep_suffix(self):
+    self.run_write_read(self.test_df, format='csv', 
+      hdfs_filename='dfreader_test/test')
+
+  def test_dir_with_single_part(self):
+    self.run_write_read(self.test_df, format='csv', n_parts=1)
+
+  @raises(HdfsError)
+  def test_single_file(self):
+    self.run_write_read(self.test_df, format='csv', 
+      hdfs_filename='dfreader_test/test',
+      read_hdfs_filename='dfreader_test/test/part-r-00000')
 
   def test_csv_gz(self):
     self.run_write_read(self.test_df, format='csv', use_gzip=True)

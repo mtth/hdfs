@@ -3,12 +3,11 @@
 
 """HDFS clients."""
 
-from .util import Config, HdfsError, InstanceLogger, temppath
+from .util import Config, HdfsError, InstanceLogger, temppath, move
 from getpass import getuser
 from itertools import repeat
 from multiprocessing.pool import ThreadPool
 from random import sample
-from shutil import move
 import logging as lg
 import os
 import os.path as osp
@@ -422,6 +421,8 @@ class Client(object):
   def download(self, hdfs_path, local_path, overwrite=False, n_threads=-1,
     **kwargs):
     """Download a (potentially distributed) file from HDFS and save it locally.
+    This method returns the local path corresponding to the downloaded file or
+    directory.
 
     :param hdfs_path: Path on HDFS of the file to download.
     :param local_path: Local path.
@@ -457,16 +458,18 @@ class Client(object):
             'Download of %s to %s complete. Moving result to %s.',
             _hdfs_path, _temp_path, _local_path
           )
-          move(_temp_path, _local_path) # consistent with `mv` behavior
-        self._logger.info('Downloaded %s to %s.', _hdfs_path, _local_path)
+          
+          dst = move(_temp_path, _local_path) # consistent with `mv` behavior
+        self._logger.info('Downloaded %s to %s.', _hdfs_path, dst)
+        return dst
 
     parts = sorted(self.parts(hdfs_path))
-    if len(parts) == 1:
+    if len(parts) == 1 and parts[0] == hdfs_path:
       self._logger.debug(
-        '%s is a normal (or singly-partitioned) file.', hdfs_path
+        '%s is a normal file.', hdfs_path
       )
       # we can now handle both cases similarly
-      _download((parts[0], local_path))
+      dst = _download((parts[0], local_path))
     elif osp.exists(local_path) and not osp.isdir(local_path):
       # remote path is a distributed file but we are writing to a single file
       raise HdfsError('Local path %r is not a directory.', local_path)
@@ -495,7 +498,8 @@ class Client(object):
           self._logger.debug('Starting synchronous download.')
           map(_download, part_paths)
           # maps, comprehensions, nothin' on you
-        move(_temp_dir_path, local_path) # consistent with `mv` behavior
+        dst = move(_temp_dir_path, local_path) # consistent with `mv` behavior
+    return dst
 
   def delete(self, hdfs_path, recursive=False):
     """Remove a file or directory from HDFS.

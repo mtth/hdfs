@@ -87,7 +87,7 @@ def read_df(client, hdfs_path, format, use_gzip = False, sep = '\t',
   """Function to read in pandas `DataFrame` from a remote HDFS file.
 
   :param client: :class:`hdfs.client.Client` instance.
-  :param hdfs_path: Remote path.
+  :param hdfs_path: Remote path, must be a partitioned file.
   :param format: Indicates format of remote file, currently either `'avro'`
     or `'csv'`.
   :param use_gzip: Whether remote file is gzip-compressed or not.  Only
@@ -113,9 +113,10 @@ def read_df(client, hdfs_path, format, use_gzip = False, sep = '\t',
   """
   is_temp_dir = False
 
-  if posixpath.join(hdfs_path,"") == hdfs_path:
-    # remove separator on end if necessary
-    hdfs_path = hdfs_path[:-len(posixpath.sep)] 
+  remote_status = client.status(hdfs_path)
+  if remote_status['type'] == 'FILE':
+    raise HdfsError('Remote location %r must be a directory containing ' +
+      'part-files', hdfs_path)
 
   try:
     if local_dir is None:
@@ -197,17 +198,12 @@ def read_df(client, hdfs_path, format, use_gzip = False, sep = '\t',
 
     t = time.time()
 
-    client.download(
+    local_path = client.download(
       hdfs_path, local_dir, n_threads=n_threads, overwrite=overwrite
     )
 
-    local_path = osp.join(local_dir, posixpath.basename(hdfs_path))
-    if osp.isdir(local_path):
-      files = [osp.join(local_path, fname) for fname in os.listdir(local_path)]
-    else:
-      files = [local_path]
-
-    df = _process_function(files)
+    data_files = [osp.join(local_path, fname) for fname in os.listdir(local_path)]
+    df = _process_function(data_files)
 
     logger.info('Done in %0.3f', time.time() - t)
 
