@@ -38,7 +38,7 @@ class TestDataframe(_TestSession):
     ext = format + ('.gz' if use_gzip else '')
 
     write_df(df, self.client, hdfs_filename, format, sep=sep, use_gzip=use_gzip, 
-      overwrite=True, num_parts=2)
+      overwrite=True, n_parts=2)
 
     returned_df = read_df(self.client, hdfs_filename, format, sep=sep, 
       use_gzip=use_gzip, index_cols=index_cols, local_dir=local_dir, 

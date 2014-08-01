@@ -328,7 +328,7 @@ def write_df(df, client, hdfs_path, format, use_gzip = False, sep = '\t',
     pass
 
   num_rows = len(df)
-  rows_per_part = int(math.ceil(num_rows / float(num_parts)))
+  rows_per_part = int(math.ceil(num_rows / float(n_parts)))
   for part_num, start_ndx in enumerate(range(0, num_rows, rows_per_part)):
     end_ndx = min(start_ndx + rows_per_part, num_rows)
     client.write(
