@@ -83,11 +83,11 @@ def convert_dtype(dtype):
 
 
 def read_df(client, hdfs_path, format, use_gzip = False, sep = '\t',
-  index_cols = None, num_threads = None, local_dir = None, overwrite=False):
+  index_cols = None, n_threads = None, local_dir = None, overwrite=False):
   """Function to read in pandas `DataFrame` from a remote HDFS file.
 
   :param client: :class:`hdfs.client.Client` instance.
-  :param hdfs_path: Remote path.
+  :param hdfs_path: Remote path, must be a partitioned file.
   :param format: Indicates format of remote file, currently either `'avro'`
     or `'csv'`.
   :param use_gzip: Whether remote file is gzip-compressed or not.  Only
@@ -96,7 +96,7 @@ def read_df(client, hdfs_path, format, use_gzip = False, sep = '\t',
   :param index_cols: Which columns of remote file should be made index columns
     of `pandas` dataframe.  If set to `None`, `pandas` will create a row
     number index.
-  :param num_threads: Number of threads to use for parallel downloading of
+  :param n_threads: Number of threads to use for parallel downloading of
     part-files. A value of `None` or `1` indicates that parallelization won't
     be used; `-1` uses as many threads as there are part-files.
   :param local_dir: Local directory in which to save downloaded files. If
@@ -108,10 +108,15 @@ def read_df(client, hdfs_path, format, use_gzip = False, sep = '\t',
 
   .. code-block:: python
 
-    df = read_df(client, '/tmp/data.tsv', 'csv', num_threads=-1)
+    df = read_df(client, '/tmp/data.tsv', 'csv', n_threads=-1)
 
   """
   is_temp_dir = False
+
+  remote_status = client.status(hdfs_path)
+  if remote_status['type'] == 'FILE':
+    raise HdfsError('Remote location %r must be a directory containing ' +
+      'part-files', hdfs_path)
 
   try:
     if local_dir is None:
@@ -193,17 +198,12 @@ def read_df(client, hdfs_path, format, use_gzip = False, sep = '\t',
 
     t = time.time()
 
-    client.download(
-      hdfs_path, local_dir, n_threads=num_threads, overwrite=overwrite
+    lpath = client.download(
+      hdfs_path, local_dir, n_threads=n_threads, overwrite=overwrite
     )
 
-    local_path = osp.join(local_dir, posixpath.basename(hdfs_path))
-    if osp.isdir(local_path):
-      data = [osp.join(local_path, fname) for fname in os.listdir(local_path)]
-    else:
-      data = [local_path]
-
-    df = _process_function(data)
+    data_files = [osp.join(lpath, fname) for fname in os.listdir(lpath)]
+    df = _process_function(data_files)
 
     logger.info('Done in %0.3f', time.time() - t)
 
@@ -215,7 +215,7 @@ def read_df(client, hdfs_path, format, use_gzip = False, sep = '\t',
 
 
 def write_df(df, client, hdfs_path, format, use_gzip = False, sep = '\t',
-  overwrite = False, num_parts = 1):
+  overwrite = False, n_parts = 1):
   """Function to write a pandas `DataFrame` to a remote HDFS file.
 
   :param df: `pandas` dataframe object to write.
@@ -227,7 +227,7 @@ def write_df(df, client, hdfs_path, format, use_gzip = False, sep = '\t',
     available for `'csv'` format.
   :param sep: Separator to use for `'csv'` file format.
   :param overwrite: Whether to overwrite files on HDFS if they exist.
-  :param num_parts: Indicates into how many part-files to split the dataframe.
+  :param n_parts: Indicates into how many part-files to split the dataframe.
 
   E.g.:
 
@@ -324,7 +324,7 @@ def write_df(df, client, hdfs_path, format, use_gzip = False, sep = '\t',
     pass
 
   num_rows = len(df)
-  rows_per_part = int(math.ceil(num_rows / float(num_parts)))
+  rows_per_part = int(math.ceil(num_rows / float(n_parts)))
   for part_num, start_ndx in enumerate(range(0, num_rows, rows_per_part)):
     end_ndx = min(start_ndx + rows_per_part, num_rows)
     client.write(

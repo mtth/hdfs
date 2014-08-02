@@ -355,15 +355,25 @@ class TestDownload(_TestSession):
   def test_normal_file(self):
     self.client.write('dl', 'hello')
     with temppath() as tpath:
-      self.client.download('dl', tpath)
-      with open(tpath) as reader:
+      fname = self.client.download('dl', tpath)
+      with open(fname) as reader:
         eq_(reader.read(), 'hello')
 
-  def test_singly_partitioned_file(self):
-    self.client.write('dl/part-r-00000', 'world')
+  def test_nonpartitioned_file(self):
+    partname = 'part-r-00000'
+    self.client.write('dl/' + partname, 'world')
     with temppath() as tpath:
-      self.client.download('dl', tpath)
-      with open(tpath) as reader:
+      fname = self.client.download('dl/' + partname, tpath)
+      with open(fname) as reader:
+        eq_(reader.read(), 'world')
+
+  def test_singly_partitioned_file(self):
+    partname = 'part-r-00000'
+    self.client.write('dl/' + partname, 'world')
+    with temppath() as tpath:
+      os.mkdir(tpath)
+      fname = self.client.download('dl', tpath)
+      with open(osp.join(fname, partname)) as reader:
         eq_(reader.read(), 'world')
 
   def test_partitioned_file_sync(self):
@@ -392,8 +402,8 @@ class TestDownload(_TestSession):
       self.client.write('dl', 'hello')
       self.client.download('dl', tpath)
       self.client.write('dl', 'there', overwrite=True)
-      self.client.download('dl', tpath, overwrite=True)
-      with open(tpath) as reader:
+      fname = self.client.download('dl', tpath, overwrite=True)
+      with open(fname) as reader:
         eq_(reader.read(), 'there')
 
   @raises(HdfsError)

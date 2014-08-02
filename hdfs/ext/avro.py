@@ -366,7 +366,7 @@ class AvroWriter(object):
 
   .. code-block:: python
 
-    with AwroWriter(client, 'data.avro') as writer:
+    with AvroWriter(client, 'data.avro') as writer:
       for elem in elems:
         writer.records.send(elem)
 
