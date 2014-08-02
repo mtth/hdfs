@@ -3,7 +3,7 @@
 
 """HDFS clients."""
 
-from .util import Config, HdfsError, InstanceLogger, temppath, move
+from .util import Config, HdfsError, InstanceLogger, temppath
 from getpass import getuser
 from itertools import repeat
 from multiprocessing.pool import ThreadPool
@@ -14,6 +14,7 @@ import os.path as osp
 import posixpath
 import re
 import requests as rq
+from shutil import move
 
 
 _logger = lg.getLogger(__name__)
@@ -433,6 +434,7 @@ class Client(object):
     :param \*\*kwargs: Keyword arguments forwarded to :meth:`read`.
 
     """
+
     if not osp.exists(local_path):
       local_dir = osp.dirname(local_path)
       if not osp.exists(local_dir):
@@ -455,24 +457,28 @@ class Client(object):
             for chunk in self.read(_hdfs_path, **kwargs):
               writer.write(chunk)
           self._logger.debug(
-            'Download of %s to %s complete. Moving result to %s.',
-            _hdfs_path, _temp_path, _local_path
+            'Download of %s to %s complete. Moving %s to %s.',
+            _hdfs_path, _temp_path, _temp_path, _local_path
           )
-          
-          dst = move(_temp_path, _local_path) # consistent with `mv` behavior
-        self._logger.info('Downloaded %s to %s.', _hdfs_path, dst)
-        return dst
+          move(_temp_path, _local_path) # consistent with `mv` behavior
+        self._logger.info('Downloaded %s to %s.', _hdfs_path, _local_path)
 
     status = self.status(hdfs_path)
     if status['type'] == 'FILE':
       self._logger.debug(
         '%s is a non-partitioned file.', hdfs_path
       )
-      # we can now handle both cases similarly
-      dst = _download((hdfs_path, local_path))
-    else:
-      parts = sorted(self.parts(hdfs_path))
+      if osp.isdir(local_path):
+        local_path = osp.join(local_path, posixpath.basename(hdfs_path))
+      _download((hdfs_path, local_path))
+      dst = local_path
 
+    else:
+      hdfs_path = hdfs_path.rstrip(posixpath.sep)
+      self._logger.debug(
+        '%s is a directory.', hdfs_path
+      )
+      parts = sorted(self.parts(hdfs_path))
       if osp.exists(local_path) and not osp.isdir(local_path):
         # remote path is a distributed file but we are writing to a single file
         raise HdfsError('Local path %r is not a directory.', local_path)
@@ -485,7 +491,7 @@ class Client(object):
           # similarly to above, we add an extra directory to ensure that the
           # final name is consistent with the source (guaranteeing expected
           # behavior of the `move` function below)
-          part_paths = [(_hdfs_path, _temp_dir_path) for _hdfs_path in parts]
+          part_paths = [(_hdfs_path, osp.join(_temp_dir_path, posixpath.basename(_hdfs_path)) ) for _hdfs_path in parts]
           if n_threads == -1:
             n_threads = len(part_paths)
           else:
@@ -501,7 +507,11 @@ class Client(object):
             self._logger.debug('Starting synchronous download.')
             map(_download, part_paths)
             # maps, comprehensions, nothin' on you
-          dst = move(_temp_dir_path, local_path) # consistent with `mv` behavior
+          move(_temp_dir_path, local_path + '/') # consistent with `mv` behavior
+          self._logger.debug(
+            'Moved %s to %s.', _temp_dir_path, local_path
+          )
+        dst = osp.join(local_path, posixpath.basename(hdfs_path))
     return dst
 
   def delete(self, hdfs_path, recursive=False):

@@ -198,11 +198,11 @@ def read_df(client, hdfs_path, format, use_gzip = False, sep = '\t',
 
     t = time.time()
 
-    local_path = client.download(
+    lpath = client.download(
       hdfs_path, local_dir, n_threads=n_threads, overwrite=overwrite
     )
 
-    data_files = [osp.join(local_path, fname) for fname in os.listdir(local_path)]
+    data_files = [osp.join(lpath, fname) for fname in os.listdir(lpath)]
     df = _process_function(data_files)
 
     logger.info('Done in %0.3f', time.time() - t)

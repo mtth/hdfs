@@ -59,10 +59,6 @@ class TestDataframe(_TestSession):
     self.run_write_read(self.test_df, format='csv', 
       hdfs_filename='dfreader_test/test/')
 
-  def test_sep_suffix(self):
-    self.run_write_read(self.test_df, format='csv', 
-      hdfs_filename='dfreader_test/test')
-
   def test_dir_with_single_part(self):
     self.run_write_read(self.test_df, format='csv', n_parts=1)
 
