@@ -12,7 +12,6 @@ from os import close, remove
 from shutil import rmtree
 from tempfile import gettempdir, mkstemp
 import logging as lg
-import os
 import os.path as osp
 import sys
 import warnings as wr
@@ -132,6 +131,7 @@ class Config(object):
       handler_format = '[%(levelname)s] %(asctime)s :: %(name)s :: %(message)s'
       handler.setFormatter(lg.Formatter(handler_format))
       return handler
+
 
 @contextmanager
 def temppath():

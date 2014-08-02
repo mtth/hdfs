@@ -7,6 +7,7 @@ from helpers import _TestSession
 import os
 import shutil
 import tempfile
+from hdfs.util import HdfsError
 from nose.tools import raises
 try:
   from hdfs.ext.dataframe import *
