@@ -8,13 +8,13 @@ from getpass import getuser
 from itertools import repeat
 from multiprocessing.pool import ThreadPool
 from random import sample
+from shutil import move
 import logging as lg
 import os
 import os.path as osp
 import posixpath
 import re
 import requests as rq
-from shutil import move
 
 
 _logger = lg.getLogger(__name__)
