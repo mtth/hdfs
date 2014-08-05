@@ -336,5 +336,3 @@ def write_df(df, client, hdfs_path, format, use_gzip = False, sep = '\t',
 
   logger.info('Done in %0.3f', time.time() - t)
 
-  return df
-
