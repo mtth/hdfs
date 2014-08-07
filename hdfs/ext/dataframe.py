@@ -83,7 +83,7 @@ def convert_dtype(dtype):
 
 
 def read_df(client, hdfs_path, format, use_gzip = False, sep = '\t',
-  index_cols = None, n_threads = None, local_dir = None, overwrite=False):
+  index_cols = None, n_threads = -1, local_dir = None, overwrite=False):
   """Function to read in pandas `DataFrame` from a remote HDFS file.
 
   :param client: :class:`hdfs.client.Client` instance.
@@ -98,7 +98,7 @@ def read_df(client, hdfs_path, format, use_gzip = False, sep = '\t',
     number index.
   :param n_threads: Number of threads to use for parallel downloading of
     part-files. A value of `None` or `1` indicates that parallelization won't
-    be used; `-1` uses as many threads as there are part-files.
+    be used; `-1` (default) uses as many threads as there are part-files.
   :param local_dir: Local directory in which to save downloaded files. If
     set to `None`, a temporary directory will be used.  Otherwise, if remote
     files already exist in the local directory and are older than downloaded
