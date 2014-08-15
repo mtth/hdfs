@@ -250,6 +250,7 @@ def write_df(df, client, hdfs_path, format, use_gzip = False, sep = '\t',
   if len(df.index.names) > 1 or df.index.names[0] is not None:
     df = df.reset_index()
 
+  parts_ext = ''
   if format == 'csv':
 
     def _process_function(df):
@@ -263,16 +264,13 @@ def write_df(df, client, hdfs_path, format, use_gzip = False, sep = '\t',
       header_hdfs_filename = posixpath.join(hdfs_path, '.pig_header')
       client.write(header_hdfs_filename, header + "\n", overwrite=True)
 
+    if use_gzip:
+      parts_ext = '.gz'
     logger.info('Writing CSV formatted data to %s', hdfs_path)
-
 
   elif format == 'avro':
 
-    if use_gzip:
-      raise HdfsError('Cannot use gzip compression with Avro format.')
-
     def _process_function(df):
-
       fields_str = [
           '{"name": "%s", "type": "%s"}' % (fldname, convert_dtype(dtype))
           for fldname, dtype in zip(df.columns, df.dtypes)]
@@ -283,22 +281,17 @@ def write_df(df, client, hdfs_path, format, use_gzip = False, sep = '\t',
       """ + ",\n".join(fields_str) + """
       ]
     }"""
-
       schema = avro.schema.parse(schema_str)
-
       # Create a 'record' (datum) writer
       rec_writer  = avro.io.DatumWriter(schema)
-
       out_buffer  = io.BytesIO()
       # Create a 'data file' (avro file) writer
       avro_writer = avro.datafile.DataFileWriter(
           out_buffer,
           rec_writer,
           writers_schema = schema)
-
       for r in df.to_dict(outtype='records'):
         avro_writer.append(r)
-
       avro_writer.flush()
       r = out_buffer.getvalue()
       avro_writer.close()
@@ -307,6 +300,9 @@ def write_df(df, client, hdfs_path, format, use_gzip = False, sep = '\t',
     def _finish_function(df):
       pass
 
+    if use_gzip:
+      raise HdfsError('Cannot use gzip compression with Avro format.')
+    parts_ext = '.avro'
     logger.info('Writing Avro formatted data to %r', hdfs_path)
 
   else:
@@ -328,7 +324,7 @@ def write_df(df, client, hdfs_path, format, use_gzip = False, sep = '\t',
   for part_num, start_ndx in enumerate(range(0, num_rows, rows_per_part)):
     end_ndx = min(start_ndx + rows_per_part, num_rows)
     client.write(
-        posixpath.join(hdfs_path, 'part-r-%05d' % part_num),
+        posixpath.join(hdfs_path, ('part-r-%05d' % part_num) + parts_ext),
         _process_function(df.iloc[start_ndx:end_ndx]),
         overwrite=False)
 
