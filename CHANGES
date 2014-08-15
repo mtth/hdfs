@@ -1,7 +1,13 @@
 HdfsCLI
 =======
 
+Version 0.2.6 (2014/08/04)
+--------------------------
 
+* Added parallelized downloading.
+* Added Avro-format reading and writing.
+* Added `hdfs.ext.dataframe` extension.
+ 
 Version 0.2.0 (2014/04/26)
 --------------------------
 

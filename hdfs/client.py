@@ -3,18 +3,19 @@
 
 """HDFS clients."""
 
-from .util import Config, HdfsError, InstanceLogger, temppath, move
+from .util import Config, HdfsError, InstanceLogger, temppath
 from getpass import getuser
 from itertools import repeat
 from multiprocessing.pool import ThreadPool
 from random import sample
+from shutil import move
 import logging as lg
 import os
 import os.path as osp
 import posixpath
 import re
 import requests as rq
-
+import time
 
 _logger = lg.getLogger(__name__)
 
@@ -433,14 +434,20 @@ class Client(object):
     :param \*\*kwargs: Keyword arguments forwarded to :meth:`read`.
 
     """
-    if not osp.exists(local_path):
-      local_dir = osp.dirname(local_path)
-      if not osp.exists(local_dir):
-        raise HdfsError('Local directory %r does not exist.', local_dir)
+    hdfs_path = hdfs_path.rstrip(posixpath.sep)
+    if osp.isdir(local_path):
+      dst = osp.join(local_path, posixpath.basename(hdfs_path))
+    else:
+      local_dir = osp.dirname(local_path) or '.'
+      if osp.isdir(local_dir):
+        dst = local_path
+      else:
+        # fail early
+        raise HdfsError('Parent directory %s does not exist', local_dir)
 
     def _download(paths):
       """Download and atomic swap."""
-      _hdfs_path, _local_path = paths
+      _, _hdfs_path, _local_path = paths
       if osp.isfile(_local_path) and not overwrite:
         raise HdfsError('A local file already exists at %s.', _local_path)
       else:
@@ -455,24 +462,32 @@ class Client(object):
             for chunk in self.read(_hdfs_path, **kwargs):
               writer.write(chunk)
           self._logger.debug(
-            'Download of %s to %s complete. Moving result to %s.',
+            'Download of %s to %s complete. Moving it to %s.',
             _hdfs_path, _temp_path, _local_path
           )
-          
-          dst = move(_temp_path, _local_path) # consistent with `mv` behavior
-        self._logger.info('Downloaded %s to %s.', _hdfs_path, dst)
-        return dst
+          move(_temp_path, _local_path) # consistent with `mv` behavior
+        self._logger.info('Downloaded %s to %s.', _hdfs_path, _local_path)
+
+    def _download_delay(paths):
+      """Download and atomic swap, with delay to avoid replay errors."""
+      file_ndx, _, _ = paths
+      # Sleep some milliseconds so that authentication time stamps are not same
+      time.sleep(0.01 * file_ndx)
+      _download(paths)
 
     status = self.status(hdfs_path)
     if status['type'] == 'FILE':
       self._logger.debug(
         '%s is a non-partitioned file.', hdfs_path
       )
-      # we can now handle both cases similarly
-      dst = _download((hdfs_path, local_path))
+      if osp.isdir(local_path):
+        local_path = osp.join(local_path, posixpath.basename(hdfs_path))
+      _download((0, hdfs_path, local_path))
     else:
+      self._logger.debug(
+        '%s is a directory.', hdfs_path
+      )
       parts = sorted(self.parts(hdfs_path))
-
       if osp.exists(local_path) and not osp.isdir(local_path):
         # remote path is a distributed file but we are writing to a single file
         raise HdfsError('Local path %r is not a directory.', local_path)
@@ -485,7 +500,8 @@ class Client(object):
           # similarly to above, we add an extra directory to ensure that the
           # final name is consistent with the source (guaranteeing expected
           # behavior of the `move` function below)
-          part_paths = [(_hdfs_path, _temp_dir_path) for _hdfs_path in parts]
+          part_paths = [(ndx, _hdfs_path, _temp_dir_path) 
+                        for ndx, _hdfs_path in enumerate(parts)]
           if n_threads == -1:
             n_threads = len(part_paths)
           else:
@@ -496,12 +512,15 @@ class Client(object):
               'Starting parallel download using %s threads.', n_threads
             )
             p = ThreadPool(n_threads)
-            p.map(_download, part_paths)
+            p.map(_download_delay, part_paths)
           else:
             self._logger.debug('Starting synchronous download.')
             map(_download, part_paths)
             # maps, comprehensions, nothin' on you
-          dst = move(_temp_dir_path, local_path) # consistent with `mv` behavior
+          move(_temp_dir_path, local_path) # consistent with `mv` behavior
+          self._logger.debug(
+            'Moved %s to %s.', _temp_dir_path, local_path
+          )
     return dst
 
   def delete(self, hdfs_path, recursive=False):

@@ -359,10 +359,19 @@ class TestDownload(_TestSession):
       with open(fname) as reader:
         eq_(reader.read(), 'hello')
 
+  def test_nonpartitioned_file(self):
+    partname = 'part-r-00000'
+    self.client.write('dl/' + partname, 'world')
+    with temppath() as tpath:
+      fname = self.client.download('dl/' + partname, tpath)
+      with open(fname) as reader:
+        eq_(reader.read(), 'world')
+
   def test_singly_partitioned_file(self):
     partname = 'part-r-00000'
     self.client.write('dl/' + partname, 'world')
     with temppath() as tpath:
+      os.mkdir(tpath)
       fname = self.client.download('dl', tpath)
       with open(osp.join(fname, partname)) as reader:
         eq_(reader.read(), 'world')

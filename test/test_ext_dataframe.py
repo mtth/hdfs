@@ -7,6 +7,7 @@ from helpers import _TestSession
 import os
 import shutil
 import tempfile
+from hdfs.util import HdfsError
 from nose.tools import raises
 try:
   from hdfs.ext.dataframe import *
@@ -58,10 +59,6 @@ class TestDataframe(_TestSession):
   def test_sep_suffix(self):
     self.run_write_read(self.test_df, format='csv', 
       hdfs_filename='dfreader_test/test/')
-
-  def test_sep_suffix(self):
-    self.run_write_read(self.test_df, format='csv', 
-      hdfs_filename='dfreader_test/test')
 
   def test_dir_with_single_part(self):
     self.run_write_read(self.test_df, format='csv', n_parts=1)
