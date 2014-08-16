@@ -15,7 +15,7 @@ import os.path as osp
 import posixpath
 import re
 import requests as rq
-
+import time
 
 _logger = lg.getLogger(__name__)
 
@@ -447,7 +447,7 @@ class Client(object):
 
     def _download(paths):
       """Download and atomic swap."""
-      _hdfs_path, _local_path = paths
+      _, _hdfs_path, _local_path = paths
       if osp.isfile(_local_path) and not overwrite:
         raise HdfsError('A local file already exists at %s.', _local_path)
       else:
@@ -468,6 +468,13 @@ class Client(object):
           move(_temp_path, _local_path) # consistent with `mv` behavior
         self._logger.info('Downloaded %s to %s.', _hdfs_path, _local_path)
 
+    def _download_delay(paths):
+      """Download and atomic swap, with delay to avoid replay errors."""
+      file_ndx, _, _ = paths
+      # Sleep some milliseconds so that authentication time stamps are not same
+      time.sleep(0.01 * file_ndx)
+      _download(paths)
+
     status = self.status(hdfs_path)
     if status['type'] == 'FILE':
       self._logger.debug(
@@ -475,7 +482,7 @@ class Client(object):
       )
       if osp.isdir(local_path):
         local_path = osp.join(local_path, posixpath.basename(hdfs_path))
-      _download((hdfs_path, local_path))
+      _download((0, hdfs_path, local_path))
     else:
       self._logger.debug(
         '%s is a directory.', hdfs_path
@@ -493,7 +500,8 @@ class Client(object):
           # similarly to above, we add an extra directory to ensure that the
           # final name is consistent with the source (guaranteeing expected
           # behavior of the `move` function below)
-          part_paths = [(_hdfs_path, _temp_dir_path) for _hdfs_path in parts]
+          part_paths = [(ndx, _hdfs_path, _temp_dir_path) 
+                        for ndx, _hdfs_path in enumerate(parts)]
           if n_threads == -1:
             n_threads = len(part_paths)
           else:
@@ -504,7 +512,7 @@ class Client(object):
               'Starting parallel download using %s threads.', n_threads
             )
             p = ThreadPool(n_threads)
-            p.map(_download, part_paths)
+            p.map(_download_delay, part_paths)
           else:
             self._logger.debug('Starting synchronous download.')
             map(_download, part_paths)
