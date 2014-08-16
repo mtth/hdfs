@@ -128,7 +128,9 @@ class Config(object):
     except IOError:
       wr.warn('Unable to write to log file at %s.' % (handler_path, ))
     else:
-      handler_format = '[%(levelname)s] %(asctime)s :: %(name)s :: %(message)s'
+      handler_format = (
+        '%(asctime)s | %(levelname)4.4s | %(name)s > %(message)s'
+      )
       handler.setFormatter(lg.Formatter(handler_format))
       return handler
 
