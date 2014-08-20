@@ -83,8 +83,7 @@ def convert_dtype(dtype):
 
 
 def read_df(client, hdfs_path, format, use_gzip = False, sep = '\t',
-  csv_kwargs = {}, index_cols = None, n_threads = -1, local_dir = None, 
-  overwrite=False):
+  index_cols = None, n_threads = -1, local_dir = None, overwrite=False):
   """Function to read in pandas `DataFrame` from a remote HDFS file.
 
   :param client: :class:`hdfs.client.Client` instance.
@@ -94,8 +93,6 @@ def read_df(client, hdfs_path, format, use_gzip = False, sep = '\t',
   :param use_gzip: Whether remote file is gzip-compressed or not.  Only
     available for `'csv'` format.
   :param sep: Separator to use for `'csv'` file format.
-  :param csv_kwargs: Extra keyword arguments to pass into 
-    `pd.io.parsers.read_csv` function.
   :param index_cols: Which columns of remote file should be made index columns
     of `pandas` dataframe.  If set to `None`, `pandas` will create a row
     number index.
@@ -158,7 +155,7 @@ def read_df(client, hdfs_path, format, use_gzip = False, sep = '\t',
 
           logger.info("Loading dataframe")
 
-          df = pd.io.parsers.read_csv(merged_files, sep=sep, **csv_kwargs)
+          df = pd.io.parsers.read_csv(merged_files, sep=sep)
           if index_cols is not None:
             df = df.set_index(index_cols)
 
