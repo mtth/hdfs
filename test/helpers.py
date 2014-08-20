@@ -39,7 +39,6 @@ class _TestSession(object):
       cls.client = None
     else:
       cls.client = client
-
   def setup(self):
     if not self.client:
       raise SkipTest

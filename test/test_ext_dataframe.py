@@ -49,7 +49,6 @@ class TestDataframe(_TestSession):
     returned_df = read_df(self.client, r_filename, format, sep=sep, 
       use_gzip=use_gzip, index_cols=index_cols, local_dir=local_dir, 
       n_threads=n_threads)
-
     assert_frame_equal(df, returned_df)
     return returned_df
 
@@ -102,5 +101,9 @@ class TestDataframe(_TestSession):
     finally:
       shutil.rmtree(temp1)
 
+  def test_nonparallel_download(self):
+    self.run_write_read(self.test_df, 'csv', n_threads = 1)
+
   def test_parallel_download(self):
     self.run_write_read(self.test_df, 'csv', n_threads = -1)
+
