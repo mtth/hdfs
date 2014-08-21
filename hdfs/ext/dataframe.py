@@ -203,6 +203,7 @@ def read_df(client, hdfs_path, format, use_gzip = False, sep = '\t',
     )
 
     data_files = [osp.join(lpath, fname) for fname in os.listdir(lpath)]
+    data_files = sorted(data_files)
     df = _process_function(data_files)
 
     logger.info('Done in %0.3f', time.time() - t)
@@ -309,16 +310,17 @@ def write_df(df, client, hdfs_path, format, use_gzip = False, sep = '\t',
     raise ValueError('Unkown data format %r.' % (format,) )
 
   t = time.time()
-
+  already_exists_error = False
   try:
     client.status(hdfs_path)
     if overwrite:
       client.delete(hdfs_path, recursive=True)
     else:
-      raise HdfsError('%r already exists.', hdfs_path)
+      already_exists_error = True
   except HdfsError:
     pass
-
+  if already_exists_error:
+    raise HdfsError('%r already exists.', hdfs_path)
   num_rows = len(df)
   rows_per_part = int(math.ceil(num_rows / float(n_parts)))
   for part_num, start_ndx in enumerate(range(0, num_rows, rows_per_part)):
@@ -327,8 +329,6 @@ def write_df(df, client, hdfs_path, format, use_gzip = False, sep = '\t',
         posixpath.join(hdfs_path, ('part-r-%05d' % part_num) + parts_ext),
         _process_function(df.iloc[start_ndx:end_ndx]),
         overwrite=False)
-
   _finish_function(df)
-
   logger.info('Done in %0.3f', time.time() - t)
 

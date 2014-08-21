@@ -473,7 +473,7 @@ class Client(object):
       """Download and atomic swap, with delay to avoid replay errors."""
       file_n, paths = indexed_paths
       # Sleep some milliseconds so that authentication time stamps are not same
-      time.sleep(0.01 * file_n)
+      time.sleep(0.05 * file_n)
       _download(paths)
 
     status = self.status(hdfs_path)
