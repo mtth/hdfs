@@ -13,30 +13,32 @@ API and command line interface for HDFS.
 Features
 --------
 
-* Works with secure and insecure clusters (including Kerberos authentication).
-* Comprehensive python bindings for the `WebHDFS API`_.
+* Comprehensive python bindings for the `WebHDFS API`_, supporting both secure 
+  and insecure clusters.
 * Lightweight CLI.
+* Additional functionality through optional extensions:
+
+  + `'avro'`, allowing reading/writing Avro files directly from JSON.
+  + `'dataframe'`, enabling fast loading/saving of pandas_ dataframes from/to 
+    HDFS.
+  + `'kerberos'`, adding support for Kerberos authenticated clusters.
 
 
-CLI
----
+Installation
+------------
+
+Using pip_:
 
 .. code-block:: bash
 
-  $ hdfs --info --depth=1
-     0 B    3d  D  /user/alice
+  $ pip install hdfs
 
-  $ echo 'Hello, world!' | hdfs hello.rst --write
+By default none of the extensions are installed. To do so simply suffix the 
+package name with the desired extensions:
 
-  $ hdfs --info --depth=1
-    14 B    1m  D  /user/alice
-    14 B    1m  F  /user/alice/hello.rst
+.. code-block:: bash
 
-  $ hdfs hello.rst --read
-  Hello, world!
-
-Other options include support for merging part-files, progress meters. Cf.
-`hdfs --help` for more.
+  $ pip install hdfs[avro,dataframe,kerberos]
 
 
 API
@@ -64,6 +66,27 @@ Sample usage of the python bindings:
   client.delete('hello.rst')
 
 
+CLI
+---
+
+.. code-block:: bash
+
+  $ hdfs --info --depth=1
+     0 B    3d  D  /user/alice
+
+  $ echo 'Hello, world!' | hdfs hello.rst --write
+
+  $ hdfs --info --depth=1
+    14 B    1m  D  /user/alice
+    14 B    1m  F  /user/alice/hello.rst
+
+  $ hdfs hello.rst --read
+  Hello, world!
+
+Other options include support for merging part-files, progress meters. Cf.
+`hdfs --help` for more.
+
+
 Documentation
 -------------
 
@@ -71,4 +94,6 @@ The full documentation can be found here_.
 
 
 .. _here: http://hdfscli.readthedocs.org/
+.. _pip: http://www.pip-installer.org/en/latest/
+.. _pandas: http://pandas.pydata.org/
 .. _WebHDFS API: http://hadoop.apache.org/docs/r1.0.4/webhdfs.html
