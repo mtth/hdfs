@@ -33,8 +33,8 @@ Using pip_:
 
   $ pip install hdfs
 
-By default none of the extensions are installed. To do so simply suffix the 
-package name with the desired extensions:
+By default none of the package requirements for extensions are installed. To do 
+so simply suffix the package name with the desired extensions:
 
 .. code-block:: bash
 
@@ -44,25 +44,19 @@ package name with the desired extensions:
 API
 ---
 
-Sample usage of the python bindings:
+Sample usage of using a python client to create a file on HDFS, rename it, 
+download it, and finally deleting the remote copy.
 
 .. code-block:: python
 
   from hdfs import KerberosClient
 
-  # Instantiate the client
+  # Instantiate the client (`root` is an optional argument enabling the use of 
+  # relative paths for all client commands requiring a path).
   client = KerberosClient('http://namenode:port', root='/user/alice')
-
-  # Write a file '/user/alice/hello.md' on HDFS with contents 'Hello, world!'
   client.write('hello.md', 'Hello, world!')
-
-  # Rename it
   client.rename('hello.md', 'hello.rst')
-
-  # Download it locally
   client.download('hello.rst', 'hello.rst')
-
-  # Remove it from HDFS
   client.delete('hello.rst')
 
 
