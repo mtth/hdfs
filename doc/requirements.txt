@@ -1,3 +1,5 @@
+avro
 docopt
 requests>=2.0.1
+requests-kerberos
 mock
