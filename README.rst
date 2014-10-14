@@ -13,15 +13,15 @@ API and command line interface for HDFS.
 Features
 --------
 
-* Comprehensive python bindings for the `WebHDFS API`_, supporting both secure 
-  and insecure clusters.
+* Python bindings for the `WebHDFS API`_, supporting both secure and insecure 
+  clusters.
 * Lightweight CLI.
 * Additional functionality through optional extensions:
 
-  + `'avro'`, allowing reading/writing Avro files directly from JSON.
-  + `'dataframe'`, enabling fast loading/saving of pandas_ dataframes from/to 
+  + `avro`, allowing reading/writing Avro files directly from JSON.
+  + `dataframe`, enabling fast loading/saving of pandas_ dataframes from/to 
     HDFS.
-  + `'kerberos'`, adding support for Kerberos authenticated clusters.
+  + `kerberos`, adding support for Kerberos authenticated clusters.
 
 
 Installation
@@ -83,8 +83,7 @@ CLI
   $ hdfs hello.rst --read
   Hello, world!
 
-Other options include support for merging part-files, progress meters. Cf.
-`hdfs --help` for more.
+Cf. `hdfs --help` for the full list of commands and options.
 
 
 Documentation
