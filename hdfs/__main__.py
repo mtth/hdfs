@@ -128,7 +128,7 @@ def main():
   # set up logging
   logger = lg.getLogger('hdfs')
   logger.setLevel(lg.DEBUG)
-  handler = Config().get_file_handler()
+  handler = Config().get_file_handler('hdfs')
   if handler:
     logger.addHandler(handler)
   # set up client and fix arguments

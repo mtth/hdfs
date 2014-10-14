@@ -107,17 +107,21 @@ class Config(object):
     else:
       return options
 
-  def get_file_handler(self):
+  def get_file_handler(self, name):
     """Create and configure logging file handler.
+
+    :param name: Section name used to find the path to the log file. If no
+      `log` option exists in this section, the path will default to
+      `<name>.log`.
 
     The default path can be configured via the `default.log` option in the
     `hdfs` section.
 
     """
     try:
-      handler_path = self.parser.get('hdfs', 'log')
+      handler_path = self.parser.get(name, 'log')
     except (NoOptionError, NoSectionError):
-      handler_path = osp.join(gettempdir(), 'hdfs.log')
+      handler_path = osp.join(gettempdir(), '%s.log' % (name, ))
     try:
       handler = TimedRotatingFileHandler(
         handler_path,

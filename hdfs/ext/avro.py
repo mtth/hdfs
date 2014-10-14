@@ -7,6 +7,7 @@ Usage:
   hdfsavro [-a ALIAS] --schema PATH
   hdfsavro [-a ALIAS] --head [-n NUM] [-p PARTS] PATH
   hdfsavro [-a ALIAS] --sample (-f FREQ | -n NUM) PATH
+  hdfsavro -h | --help | -l | --log
 
 Commands:
   --schema                      Pretty print schema.
@@ -20,6 +21,7 @@ Options:
   -a ALIAS --alias=ALIAS        Alias.
   -h --help                     Show this message and exit.
   -f FREQ --freq=FREQ           Probability of sampling a record.
+  -l --log                      Show path to current log file and exit.
   -n NUM --num=NUM              Number of records to output [default: 5].
   -p PARTS --parts=PARTS        Part-files. `1,` to get a unique part-file. By
                                 default, use all part-files.
@@ -433,6 +435,12 @@ def main():
   """Entry point."""
   args = docopt(__doc__)
   client = Client.from_alias(args['--alias'])
+  # set up logging
+  logger = lg.getLogger('hdfs')
+  logger.setLevel(lg.DEBUG)
+  handler = Config().get_file_handler('hdfsavro')
+  if handler:
+    logger.addHandler(handler)
   try:
     parts = args['--parts'] or '0'
     if ',' in parts:
@@ -442,7 +450,12 @@ def main():
   except ValueError:
     raise HdfsError('Invalid `--parts` option: %r.', args['--parts'])
   avro_file = AvroReader(client, args['PATH'] or '', parts)
-  if args['--schema']:
+  if args['--log']:
+    if handler:
+      sys.stdout.write('%s\n' % (handler.baseFilename, ))
+    else:
+      raise HdfsError('No log file active.')
+  elif args['--schema']:
     print dumps(avro_file.schema.to_json(), indent=2)
   elif args['--head']:
     try:
