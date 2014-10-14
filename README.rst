@@ -15,7 +15,7 @@ Features
 
 * Python bindings for the `WebHDFS API`_, supporting both secure and insecure 
   clusters.
-* Lightweight CLI.
+* Lightweight CLI with aliases for convenient namenode URL caching.
 * Additional functionality through optional extensions:
 
   + `avro`, allowing reading/writing Avro files directly from JSON.
@@ -45,7 +45,7 @@ API
 ---
 
 Sample usage of using a python client to create a file on HDFS, rename it, 
-download it, and finally deleting the remote copy.
+download it locally, and finally delete the remote copy.
 
 .. code-block:: python
 
@@ -54,10 +54,10 @@ download it, and finally deleting the remote copy.
   # Instantiate the client (`root` is an optional argument enabling the use of 
   # relative paths for all client commands requiring a path).
   client = KerberosClient('http://namenode:port', root='/user/alice')
-  client.write('hello.md', 'Hello, world!')
-  client.rename('hello.md', 'hello.rst')
-  client.download('hello.rst', 'hello.rst')
-  client.delete('hello.rst')
+  client.write('hello.md', 'Hello, world!') # create the file on HDFS
+  client.rename('hello.md', 'hello.rst') # rename the file
+  client.download('hello.rst', 'hello.rst') # download the file as `hello.rst`
+  client.delete('hello.rst') # delete the remote file
 
 
 CLI
