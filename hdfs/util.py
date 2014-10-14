@@ -220,6 +220,10 @@ def catch(*error_classes):
         sys.exit(1)
       except Exception as err: # catch all
         _logger.exception('Unexpected exception.')
-        raise RuntimeError('View log for details.')
+        sys.stderr.write(
+          'Unexpected error: %s\n'
+          'View log for more details.\n' % (err, )
+        )
+        sys.exit(1)
     return wrapper
   return decorator

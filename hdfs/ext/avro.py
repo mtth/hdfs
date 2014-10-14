@@ -30,7 +30,7 @@ Options:
 
 from __future__ import absolute_import
 from ..client import Client
-from ..util import HdfsError, catch
+from ..util import Config, HdfsError, catch
 from docopt import docopt
 from io import BytesIO
 from itertools import islice
@@ -40,7 +40,9 @@ from tempfile import mkstemp
 import avro as av
 import avro.datafile as avd
 import avro.io as avi
+import logging as lg
 import os
+import sys
 import zlib
 try:
   from cStringIO import StringIO
@@ -449,39 +451,40 @@ def main():
       parts = int(parts)
   except ValueError:
     raise HdfsError('Invalid `--parts` option: %r.', args['--parts'])
-  avro_file = AvroReader(client, args['PATH'] or '', parts)
   if args['--log']:
     if handler:
       sys.stdout.write('%s\n' % (handler.baseFilename, ))
     else:
       raise HdfsError('No log file active.')
-  elif args['--schema']:
-    print dumps(avro_file.schema.to_json(), indent=2)
-  elif args['--head']:
-    try:
-      n_records = int(args['--num'])
-    except ValueError:
-      raise HdfsError('Invalid `--num` option: %r.', args['--num'])
-    for record in islice(avro_file, n_records):
-      print dumps(record, indent=2)
-  elif args['--sample']:
-    num = args['--num']
-    frq = args['--freq']
-    if frq:
+  else:
+    avro_file = AvroReader(client, args['PATH'] or '', parts)
+    if args['--schema']:
+      print dumps(avro_file.schema.to_json(), indent=2)
+    elif args['--head']:
       try:
-        freq = float(frq)
+        n_records = int(args['--num'])
       except ValueError:
-        raise HdfsError('Invalid `--freq` option: %r.', args['--freq'])
-      for record in avro_file:
-        if random() <= freq:
-          print dumps(record)
-    else:
-      try:
-        n_records = int(num)
-      except ValueError:
-        raise HdfsError('Invalid `--num` option: %r.', num)
+        raise HdfsError('Invalid `--num` option: %r.', args['--num'])
       for record in islice(avro_file, n_records):
-        print dumps(record)
+        print dumps(record, indent=2)
+    elif args['--sample']:
+      num = args['--num']
+      frq = args['--freq']
+      if frq:
+        try:
+          freq = float(frq)
+        except ValueError:
+          raise HdfsError('Invalid `--freq` option: %r.', args['--freq'])
+        for record in avro_file:
+          if random() <= freq:
+            print dumps(record)
+      else:
+        try:
+          n_records = int(num)
+        except ValueError:
+          raise HdfsError('Invalid `--num` option: %r.', num)
+        for record in islice(avro_file, n_records):
+          print dumps(record)
 
 if __name__ == '__main__':
   main()
