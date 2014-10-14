@@ -7,9 +7,8 @@ Extensions
 Kerberos
 --------
 
-.. autoclass:: hdfs.ext.kerberos.KerberosClient
+.. automodule:: hdfs.ext.kerberos
     :members:
-    :show-inheritance:
 
 
 Avro

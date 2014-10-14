@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # encoding: utf-8
 
-"""Dataframe: an HdfsCLI extension for reading and writing `pandas` dataframes.
+"""This extension provides helpers for reading and writing `pandas` dataframes.
 
 Dataframes can be read and written into HDFS files stored in one of two
 formats: either Avro or CSV (comma separated values, though other separators
@@ -39,7 +39,7 @@ import time
 logger = logging.getLogger(__name__)
 
 
-def gzip_compress(uncompressed):
+def _gzip_compress(uncompressed):
   """Utility function that compresses its input using gzip.
 
   :param uncompressed: String to compress.
@@ -51,7 +51,7 @@ def gzip_compress(uncompressed):
     f.write(uncompressed)
   return compressed.getvalue()
 
-def gzip_decompress(compressed):
+def _gzip_decompress(compressed):
   """Utility function that decompresses its gzipped-input.
 
   :param compressed: Bytes to uncompress.
@@ -65,7 +65,7 @@ def gzip_decompress(compressed):
 
   return out
 
-def convert_dtype(dtype):
+def _convert_dtype(dtype):
   """Utility function to convert `numpy` datatypes to their Avro equivalents.
 
   """
@@ -146,7 +146,7 @@ def read_df(client, hdfs_path, format, use_gzip = False, sep = '\t',
             with open(filename, 'rb') as f:
               contents = f.read()
               if use_gzip:
-                contents = gzip_decompress(contents)
+                contents = _gzip_decompress(contents)
               merged_files.write(contents)
             delay = time.time() - s
             logger.info('Loaded %s in %0.3fs', filename, delay)
@@ -257,7 +257,7 @@ def write_df(df, client, hdfs_path, format, use_gzip = False, sep = '\t',
     def _process_function(df):
       r = df.to_csv(sep=sep, header=False, index=False)
       if use_gzip:
-        r = gzip_compress(r)
+        r = _gzip_compress(r)
       return r
 
     def _finish_function(df):
@@ -273,7 +273,7 @@ def write_df(df, client, hdfs_path, format, use_gzip = False, sep = '\t',
 
     def _process_function(df):
       fields_str = [
-          '{"name": "%s", "type": "%s"}' % (fldname, convert_dtype(dtype))
+          '{"name": "%s", "type": "%s"}' % (fldname, _convert_dtype(dtype))
           for fldname, dtype in zip(df.columns, df.dtypes)]
       schema_str = """\
     { "type": "record",

@@ -1,9 +1,10 @@
 #!/usr/bin/env python
 # encoding: utf-8
 
-"""Kerberos extensions.
+"""This extension provides support for clusters using Kerberos authentication.
 
-Adds :class:`KerberosClient` for HDFS clusters using Kerberos authentication.
+Namely, it adds a new :class:`~hdfs.client.Client` subclass,
+:class:`KerberosClient`, which handles authentication appropriately.
 
 """
 

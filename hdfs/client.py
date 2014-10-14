@@ -138,8 +138,8 @@ class Client(object):
   :param root: Root path. Used to allow relative path parameters.
 
   In general, this client should only be used when its subclasses (e.g.
-  :class:`InsecureClient`, :class:`~TokenClient`, :class:`~KerberosClient`) do
-  not provide enough flexibility.
+  :class:`InsecureClient`, :class:`TokenClient`, and others provided by
+  extensions) do not provide enough flexibility.
 
   """
 
