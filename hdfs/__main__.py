@@ -64,7 +64,8 @@ def infos(client, hdfs_path, depth, json, path):
   :param client: :class:`~hdfs.client.Client` instance.
   :param hdfs_path: Remote path.
   :param depth: Maximum exploration depth.
-  :param json: Return JSON output.
+  :param json: Return JSON output. Takes precedence over `path`.
+  :param path: Return paths only.
 
   """
   def _infos():
@@ -84,6 +85,7 @@ def infos(client, hdfs_path, depth, json, path):
     paths = (
       '%s/' % (fpath, ) if status['type'] == 'DIRECTORY' else fpath
       for fpath, status, _ in _infos()
+      if not hdfs_path.rstrip('/') == fpath
     )
     sys.stdout.write('%s\n' % (' '.join(paths)))
   else:
