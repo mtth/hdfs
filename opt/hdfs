@@ -1,0 +1,18 @@
+#!/usr/bin/env bash
+
+# Bash Autocompletion
+
+_hdfs() {
+  local cur dir opts
+  COMPREPLY=()
+  cur="${COMP_WORDS[COMP_CWORD]}"
+  if [[ $cur == */  || -z $cur ]]; then
+    dir=$cur
+  else
+    dir="${cur%/?*}/" # trim to directory
+  fi
+  opts="$(hdfs -pd 1 $dir 2>/dev/null)" # silence any errors
+  COMPREPLY=( $(compgen -W "$opts" -- $cur) )
+}
+complete -o nospace -F _hdfs hdfs
+complete -o nospace -F _hdfs hdfsavro

@@ -4,7 +4,7 @@
 """HdfsCLI: a command line interface for WebHDFS.
 
 Usage:
-  hdfs [-a ALIAS] [--info] [-j] [-d DEPTH] [RPATH]
+  hdfs [-a ALIAS] [--info] [-j | -p] [-d DEPTH] [RPATH]
   hdfs [-a ALIAS] --read RPATH
   hdfs [-a ALIAS] --write [-o] RPATH
   hdfs [-a ALIAS] --download [-o] [-t THREADS] RPATH LPATH
@@ -31,6 +31,7 @@ Options:
   -h --help                     Show this message and exit.
   -j --json                     Output JSON instead of tab delimited data.
   -o --overwrite                Allow overwriting any existing files.
+  -p --path                     Only include paths in output.
   -t THREADS --threads=THREADS  Number of threads to use for downloading
                                 distributed files. `-1` allocates a thread per
                                 part-file while `1` disables parallelization
@@ -57,7 +58,7 @@ import logging as lg
 import sys
 
 
-def infos(client, hdfs_path, depth, json):
+def infos(client, hdfs_path, depth, json, path):
   """Get informations about files and directories.
 
   :param client: :class:`~hdfs.client.Client` instance.
@@ -69,7 +70,7 @@ def infos(client, hdfs_path, depth, json):
   def _infos():
     """Helper generator."""
     for path, status in client.walk(hdfs_path, depth=depth):
-      if status['type'] == 'DIRECTORY':
+      if status['type'] == 'DIRECTORY' and not path:
         yield path, status, client.content(path)
       else:
         yield path, status, None
@@ -79,6 +80,12 @@ def infos(client, hdfs_path, depth, json):
       for path, status, content in _infos()
     ]
     sys.stdout.write('%s\n' % (dumps(info), ))
+  elif path:
+    paths = (
+      '%s/' % (fpath, ) if status['type'] == 'DIRECTORY' else fpath
+      for fpath, status, _ in _infos()
+    )
+    sys.stdout.write('%s\n' % (' '.join(paths)))
   else:
     for fpath, status, content in _infos():
       type_ = status['type']
@@ -159,7 +166,7 @@ def main():
       n_threads=args['--threads']
     )
   else:
-    infos(client, rpath, args['--depth'], args['--json'])
+    infos(client, rpath, args['--depth'], args['--json'], args['--path'])
 
 if __name__ == '__main__':
   main()
