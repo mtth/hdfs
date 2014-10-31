@@ -291,7 +291,7 @@ def write_df(df, client, hdfs_path, format, use_gzip = False, sep = '\t',
           out_buffer,
           rec_writer,
           writers_schema = schema)
-      for r in df.to_dict(outtype='records'):
+      for r in df.to_dict(orient='records'):
         avro_writer.append(r)
       avro_writer.flush()
       r = out_buffer.getvalue()

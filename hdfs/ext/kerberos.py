@@ -9,7 +9,9 @@ Namely, it adds a new :class:`~hdfs.client.Client` subclass,
 """
 
 from ..client import Client
-from requests_kerberos import HTTPKerberosAuth, OPTIONAL
+from ..util import HdfsError
+from requests_kerberos import HTTPKerberosAuth
+import requests_kerberos # For mutual authentication globals.
 
 
 class KerberosClient(Client):
@@ -20,13 +22,19 @@ class KerberosClient(Client):
     followed by WebHDFS port on namenode
   :param proxy: User to proxy as.
   :param root: Root path. Used to allow relative path parameters.
+  :param mutual_auth: Whether to enforce mutual authentication or not (possible
+    values: `'REQUIRED'`, `'OPTIONAL'`, `'DISABLED'`).
 
   """
 
-  def __init__(self, url, proxy=None, root=None):
+  def __init__(self, url, proxy=None, root=None, mutual_auth='OPTIONAL'):
+    try:
+      _mutual_auth = getattr(requests_kerberos, mutual_auth)
+    except AttributeError:
+      raise HdfsError('Invalid mutual authentication type: %r', mutual_auth)
     super(KerberosClient, self).__init__(
       url,
-      auth=HTTPKerberosAuth(OPTIONAL),
+      auth=HTTPKerberosAuth(_mutual_auth),
       proxy=proxy,
       root=root,
     )
