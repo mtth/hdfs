@@ -143,7 +143,8 @@ class Config(object):
 def temppath(dir=None):
   """Create a temporary path.
 
-  :param dir: Explicit dir name to create the temp file in
+  :param dir: Explicit directory name where to create the temporary path. A
+    system dependent default will be used otherwise (cf. `tempfile.mkstemp`).
 
   Usage::
 

@@ -421,10 +421,8 @@ class Client(object):
     return reader()
 
   def download(self, hdfs_path, local_path, overwrite=False, n_threads=-1,
-               temp_dir=None, **kwargs):
+    temp_dir=None, **kwargs):
     """Download a (potentially distributed) file from HDFS and save it locally.
-    This method returns the local path corresponding to the downloaded file or
-    directory.
 
     :param hdfs_path: Path on HDFS of the file to download.
     :param local_path: Local path.
@@ -432,8 +430,12 @@ class Client(object):
     :param n_threads: Number of threads to use for parallel downloading of
       part-files. A value of `None` or `1` indicates that parallelization won't
       be used; `-1` uses as many threads as there are part-files.
-    :param temp_dir: Used to explicitly set a temp directory used
+    :param temp_dir: Directory used for storing partially downloaded files
+      (transparently passed to `mkstemp`).
     :param \*\*kwargs: Keyword arguments forwarded to :meth:`read`.
+
+    This method returns the local path corresponding to the downloaded file or
+    directory.
 
     """
     hdfs_path = hdfs_path.rstrip(posixpath.sep)
