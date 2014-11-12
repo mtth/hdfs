@@ -140,8 +140,10 @@ class Config(object):
 
 
 @contextmanager
-def temppath():
+def temppath(dir=None):
   """Create a temporary path.
+
+  :param dir: Explicit dir name to create the temp file in
 
   Usage::
 
@@ -152,7 +154,7 @@ def temppath():
   afterwards.
 
   """
-  (desc, path) = mkstemp()
+  (desc, path) = mkstemp(dir=dir)
   close(desc)
   remove(path)
   try:

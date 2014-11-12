@@ -421,7 +421,7 @@ class Client(object):
     return reader()
 
   def download(self, hdfs_path, local_path, overwrite=False, n_threads=-1,
-    **kwargs):
+               temp_dir=None, **kwargs):
     """Download a (potentially distributed) file from HDFS and save it locally.
     This method returns the local path corresponding to the downloaded file or
     directory.
@@ -432,6 +432,7 @@ class Client(object):
     :param n_threads: Number of threads to use for parallel downloading of
       part-files. A value of `None` or `1` indicates that parallelization won't
       be used; `-1` uses as many threads as there are part-files.
+    :param temp_dir: Used to explicitly set a temp directory used
     :param \*\*kwargs: Keyword arguments forwarded to :meth:`read`.
 
     """
@@ -452,7 +453,7 @@ class Client(object):
       if osp.isfile(_local_path) and not overwrite:
         raise HdfsError('A local file already exists at %s.', _local_path)
       else:
-        with temppath() as tpath:
+        with temppath(dir=temp_dir) as tpath:
           os.mkdir(tpath)
           _temp_path = osp.join(tpath, posixpath.basename(_hdfs_path))
           # ensure temp filename is the same as the source name to ensure
@@ -495,7 +496,7 @@ class Client(object):
         # fail now instead of after the download
       else:
         # remote path is a distributed file and we are writing to a directory
-        with temppath() as tpath:
+        with temppath(dir=temp_dir) as tpath:
           _temp_dir_path = osp.join(tpath, posixpath.basename(hdfs_path))
           os.makedirs(_temp_dir_path)
           # similarly to above, we add an extra directory to ensure that the
