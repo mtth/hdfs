@@ -11,7 +11,7 @@ _hdfs() {
   else
     dir="${cur%/?*}/" # trim to directory
   fi
-  opts="$(hdfs -pd 1 $dir 2>/dev/null)" # silence any errors
+  opts="$(hdfs --list -pd 1 $dir 2>/dev/null)" # silence any errors
   COMPREPLY=( $(compgen -W "$opts" -- $cur) )
 }
 complete -o nospace -F _hdfs hdfs
