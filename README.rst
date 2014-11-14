@@ -65,12 +65,12 @@ CLI
 
 .. code-block:: bash
 
-  $ hdfs --info --depth=1
+  $ hdfs --list --depth=1
      0 B    3d  D  /user/alice
 
   $ echo 'Hello, world!' | hdfs hello.rst --write
 
-  $ hdfs --info --depth=1
+  $ hdfs --list --depth=1
     14 B    1m  D  /user/alice
     14 B    1m  F  /user/alice/hello.rst
 
