@@ -1,6 +1,16 @@
 HdfsCLI
 =======
 
+Version 0.3.0 (2014/11/14)
+--------------------------
+
+* Added `--interactive` command.
+
+Breaking changes:
+
+* Renamed `--info` command to `--list`.
+* Made `--interactive` the new default command.
+
 Version 0.2.6 (2014/08/04)
 --------------------------
 

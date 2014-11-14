@@ -4,7 +4,8 @@
 """HdfsCLI: a command line interface for WebHDFS.
 
 Usage:
-  hdfs [-a ALIAS] [--info] [-j | -p] [-d DEPTH] [RPATH]
+  hdfs [-a ALIAS] [--interactive]
+  hdfs [-a ALIAS] --list [-j | -p] [-d DEPTH] [RPATH]
   hdfs [-a ALIAS] --read RPATH
   hdfs [-a ALIAS] --write [-o] RPATH
   hdfs [-a ALIAS] --download [-o] [-t THREADS] RPATH LPATH
@@ -13,7 +14,9 @@ Usage:
 Commands:
   --download                    Download a (potentially distributed) file from
                                 HDFS into `LPATH`.
-  --info                        View information about files and directories.
+  --interactive                 Start the client and expose it via the python
+                                interpreter (using iPython if available).
+  --list                        View information about files and directories.
   --read                        Read a file from HDFS to standard out. Note
                                 that this only works for normal files.
   --write                       Write from standard in to a path on HDFS.
@@ -58,7 +61,7 @@ import logging as lg
 import sys
 
 
-def infos(client, hdfs_path, depth, json, path):
+def list_infos(client, hdfs_path, depth, json):
   """Get informations about files and directories.
 
   :param client: :class:`~hdfs.client.Client` instance.
@@ -167,8 +170,22 @@ def main():
       overwrite=args['--overwrite'],
       n_threads=args['--threads']
     )
+  elif args['--list']:
+    list_infos(client, rpath, args['--depth'], args['--json'], args['--path'])
   else:
-    infos(client, rpath, args['--depth'], args['--json'], args['--path'])
+    banner = (
+      'Interactive HDFS python shell.\n'
+      'Client for %r is available as `CLIENT`.'
+      % (client.url, )
+    )
+    namespace = {'CLIENT': client}
+    try:
+      from IPython import embed
+    except ImportError:
+      from code import interact
+      interact(banner=banner, local=namespace)
+    else:
+      embed(banner1=banner, user_ns=namespace)
 
 if __name__ == '__main__':
   main()
