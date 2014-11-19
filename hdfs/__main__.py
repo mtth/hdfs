@@ -61,7 +61,7 @@ import logging as lg
 import sys
 
 
-def list_infos(client, hdfs_path, depth, json):
+def list_infos(client, hdfs_path, depth, json, path):
   """Get informations about files and directories.
 
   :param client: :class:`~hdfs.client.Client` instance.
@@ -86,9 +86,8 @@ def list_infos(client, hdfs_path, depth, json):
     sys.stdout.write('%s\n' % (dumps(info), ))
   elif path:
     paths = (
-      '%s/' % (fpath, ) if status['type'] == 'DIRECTORY' else fpath
-      for fpath, status, _ in _infos()
-      if not hdfs_path.rstrip('/') == fpath
+      '%s/' % (p.rstrip('/'), ) if s['type'] == 'DIRECTORY' else p
+      for p, s, _ in _infos()
     )
     sys.stdout.write('%s\n' % (' '.join(paths)))
   else:
