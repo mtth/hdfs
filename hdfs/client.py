@@ -9,6 +9,7 @@ from itertools import repeat
 from multiprocessing.pool import ThreadPool
 from random import sample
 from shutil import move
+from urllib import quote
 import logging as lg
 import os
 import os.path as osp
@@ -219,8 +220,8 @@ class Client(object):
     path = re.sub(r'/?#LATEST(?:{(\d+)})?(?=/|$)', expand_latest, path)
     # #LATEST expansion (could cache the pattern, but not worth it)
 
-    self._logger.debug('Resolved path %s to %s.', hdfs_path, path)
-    return path
+    self._logger.debug('Resolved path %r to %r.', hdfs_path, path)
+    return quote(path)
 
   def content(self, hdfs_path):
     """Get content summary for a file or folder on HDFS.
@@ -553,7 +554,10 @@ class Client(object):
     hdfs_dst_path = self.resolve(hdfs_dst_path)
     res = self._rename(hdfs_src_path, destination=hdfs_dst_path)
     if not res.json()['boolean']:
-      raise HdfsError('Remote path %r not found.', hdfs_src_path)
+      raise HdfsError(
+        'Unable to rename %r to %r.',
+        self.resolve(hdfs_src_path), hdfs_dst_path
+      )
 
   def walk(self, hdfs_path, depth=0):
     """Depth-first walk of remote folder statuses.

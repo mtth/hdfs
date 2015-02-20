@@ -117,6 +117,30 @@ class TestApi(_TestSession):
     self.client._get_file_checksum('')
 
 
+class TestResolve(_TestSession):
+
+  def test_resolve_filename(self):
+    path = 'fo&o/a?%a'
+    encoded = self.client.resolve(path)
+    eq_(encoded.split('/')[-2:], ['fo%26o', 'a%3F%25a'])
+
+  def test_create_file_with_reserved_characters(self):
+    path = 'fo&o/a?a'
+    self.client.write(path, data='hello')
+    eq_(''.join(self.client.read(path)), 'hello')
+
+  def test_create_file_with_percent(self):
+    # `%` (`0x25`) is a special case because it seems to cause errors (even
+    # though the action still goes through). Typical error message will be
+    # `"Unknown exception in doAs"`.
+    path = 'fo&o/a%a'
+    try:
+      self.client.write(path, data='hello')
+    except HdfsError:
+      pass
+    eq_(''.join(self.client.read(path)), 'hello')
+
+
 class TestWrite(_TestSession):
 
   def test_create_from_string(self):
