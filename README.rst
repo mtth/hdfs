@@ -40,42 +40,41 @@ so simply suffix the package name with the desired extensions:
 
   $ pip install hdfs[avro,dataframe,kerberos]
 
+By default the command line entry point will be named `hdfs`. If this conflicts 
+with another utility, you can choose another name by specifying the 
+`HDFS_ENTRY_POINT` environment variable:
+
+.. code-block:: bash
+
+  $ HDFS_ENTRY_POINT=hdfscli pip install hdfs
+
 
 API
 ---
 
-Sample usage of using a python client to create a file on HDFS, rename it, 
+Sample snippet using a python client to create a file on HDFS, rename it, 
 download it locally, and finally delete the remote copy.
 
 .. code-block:: python
 
   from hdfs import KerberosClient
 
-  # Instantiate the client (`root` is an optional argument enabling the use of 
-  # relative paths for all client commands requiring a path).
   client = KerberosClient('http://namenode:port', root='/user/alice')
-  client.write('hello.md', 'Hello, world!') # create the file on HDFS
-  client.rename('hello.md', 'hello.rst') # rename the file
-  client.download('hello.rst', 'hello.rst') # download the file as `hello.rst`
-  client.delete('hello.rst') # delete the remote file
+  client.write('hello.md', 'Hello, world!')
+  client.rename('hello.md', 'hello.rst')
+  client.download('hello.rst', 'hello.rst')
+  client.delete('hello.rst')
 
 
 CLI
 ---
 
+Sample commands:
+
 .. code-block:: bash
 
-  $ hdfs --list --depth=1
-     0 B    3d  D  /user/alice
-
-  $ echo 'Hello, world!' | hdfs hello.rst --write
-
-  $ hdfs --list --depth=1
-    14 B    1m  D  /user/alice
-    14 B    1m  F  /user/alice/hello.rst
-
-  $ hdfs hello.rst --read
-  Hello, world!
+  $ hdfs --read logs/1987-03-23 >>logs
+  $ hdfs --write -o data/weights.tsv <weights.tsv
 
 Cf. `hdfs --help` for the full list of commands and options.
 
