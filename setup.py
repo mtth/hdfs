@@ -3,8 +3,12 @@
 """HdfsCLI: a command line interface for WebHDFS."""
 
 from hdfs import __version__
+from os import environ
 from setuptools import find_packages, setup
 
+# Allow configuration of the CLI alias. This can be helpful since Hadoop 2
+# changed `hadoop fs` to `hdfs` (cf. https://github.com/mtth/hdfs/issues/10).
+ENTRY_POINT = environ.get('HDFS_ENTRY_POINT', 'hdfs')
 
 setup(
     name='hdfs',
@@ -34,7 +38,7 @@ setup(
       'dataframe': ['numpy', 'pandas==0.14.1', 'fastavro'],
     },
     entry_points={'console_scripts': [
-      'hdfs = hdfs.__main__:main',
-      'hdfsavro = hdfs.ext.avro:main',
+      '%s = hdfs.__main__:main' % (ENTRY_POINT, ),
+      '%savro = hdfs.ext.avro:main' % (ENTRY_POINT, ),
     ]},
 )
