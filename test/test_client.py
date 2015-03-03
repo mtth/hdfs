@@ -7,6 +7,7 @@ from hdfs.client import *
 from hdfs.util import HdfsError, temppath
 from helpers import _TestSession
 from nose.tools import eq_, ok_, raises
+from requests.exceptions import ConnectTimeout
 from shutil import rmtree
 from tempfile import mkdtemp
 import os
@@ -46,6 +47,20 @@ class TestLoad(object):
   @raises(HdfsError)
   def test_missing_type(self):
     client = Client._from_options('foo', {})
+
+
+class TestOptions(_TestSession):
+
+  """Test client options."""
+
+  def test_timeout(self):
+    self.client.timeout = 1e-4 # Small enough for it to always timeout.
+    try:
+      self.client.status('.')
+    except ConnectTimeout:
+      self.client.timeout = None
+    else:
+      raise HdfsError('No timeout.')
 
 
 class TestApi(_TestSession):

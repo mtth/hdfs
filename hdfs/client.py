@@ -78,13 +78,14 @@ class _Request(object):
         client.resolve(path),
       )
       params['op'] = operation
-      for key, value in client._params.items():
+      for key, value in client.params.items():
         params.setdefault(key, value)
       response = self.handler(
         url=url,
-        auth=client._auth,
+        auth=client.auth,
         data=data,
         params=params,
+        timeout=client.timeout,
         **self.kwargs
       )
       if not response: # non 2XX status code
@@ -133,13 +134,16 @@ class Client(object):
     followed by WebHDFS port on namenode
   :param auth: Authentication mechanism (forwarded to the request handler).
   :param params: Extra parameters forwarded with every request. Useful for
-    custom authentication. Parameters specified in the request handler will
-    override these defaults.
+    example for custom authentication. Parameters specified in the request
+    handler will override these defaults.
   :param proxy: User to proxy as.
   :param root: Root path. Used to allow relative path parameters.
+  :param timeout:  How long to wait for the server to send data before giving
+    up, as a float, or a `(connect_timeout, read_timeout)` tuple. If the
+    timeout is reached, an appropriate exception will be raised.
 
-  In general, this client should only be used when its subclasses (e.g.
-  :class:`InsecureClient`, :class:`TokenClient`, and others provided by
+  In general, this client should only be used directly when its subclasses
+  (e.g. :class:`InsecureClient`, :class:`TokenClient`, and others provided by
   extensions) do not provide enough flexibility.
 
   """
@@ -147,15 +151,18 @@ class Client(object):
   __metaclass__ = _ClientType
   __registry__ = {}
 
-  def __init__(self, url, root=None, auth=None, params=None, proxy=None):
+  def __init__(
+    self, url, auth=None, params=None, proxy=None, root=None, timeout=None
+  ):
     self._logger = InstanceLogger(self, _logger)
     self._class_name = self.__class__.__name__ # cache this
     self.url = url
-    self.root = root
-    self._auth = auth
-    self._params = params or {}
+    self.auth = auth
+    self.params = params or {}
     if proxy:
-      self._params['doas'] = proxy
+      self.params['doas'] = proxy
+    self.root = root
+    self.timeout = timeout
 
   def __repr__(self):
     return '<%s(url=%s, root=%s)>' % (self._class_name, self.url, self.root)
@@ -634,20 +641,14 @@ class InsecureClient(Client):
     followed by WebHDFS port on namenode
   :param user: User default. Defaults to the current user's (as determined by
     `whoami`).
-  :param proxy: User to proxy as.
-  :param root: Root path. Used to allow relative path parameters. Default to
-    `user`'s home directory on HDFS.
+  :param \*\*kwargs: Keyword arguments passed to the base class' constructor.
 
   """
 
-  def __init__(self, url, user=None, proxy=None, root=None):
+  def __init__(self, url, user=None, **kwargs):
     user = user or getuser()
-    super(InsecureClient, self).__init__(
-      url,
-      params={'user.name': user},
-      proxy=proxy,
-      root=root or '/user/%s/' % (user, ),
-    )
+    kwargs.setdefault('params', {})['user.name'] = user
+    super(InsecureClient, self).__init__(url, **kwargs)
 
 
 class TokenClient(Client):
@@ -657,15 +658,10 @@ class TokenClient(Client):
   :param url: Hostname or IP address of HDFS namenode, prefixed with protocol,
     followed by WebHDFS port on namenode
   :param token: Hadoop delegation token.
-  :param proxy: User to proxy as.
-  :param root: Root path. Used to allow relative path parameters.
+  :param \*\*kwargs: Keyword arguments passed to the base class' constructor.
 
   """
 
-  def __init__(self, url, token, proxy=None, root=None):
-    super(TokenClient, self).__init__(
-      url=url,
-      params={'delegation': token},
-      proxy=proxy,
-      root=root,
-    )
+  def __init__(self, url, token, **kwargs):
+    kwargs.setdefault('params', {})['delegation'] = token
+    super(TokenClient, self).__init__(url, **kwargs)

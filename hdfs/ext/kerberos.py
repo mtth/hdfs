@@ -20,21 +20,16 @@ class KerberosClient(Client):
 
   :param url: Hostname or IP address of HDFS namenode, prefixed with protocol,
     followed by WebHDFS port on namenode
-  :param proxy: User to proxy as.
-  :param root: Root path. Used to allow relative path parameters.
   :param mutual_auth: Whether to enforce mutual authentication or not (possible
     values: `'REQUIRED'`, `'OPTIONAL'`, `'DISABLED'`).
+  :param \*\*kwargs: Keyword arguments passed to the base class' constructor.
 
   """
 
-  def __init__(self, url, proxy=None, root=None, mutual_auth='OPTIONAL'):
+  def __init__(self, url, mutual_auth='OPTIONAL', **kwargs):
     try:
       _mutual_auth = getattr(requests_kerberos, mutual_auth)
     except AttributeError:
       raise HdfsError('Invalid mutual authentication type: %r', mutual_auth)
-    super(KerberosClient, self).__init__(
-      url,
-      auth=HTTPKerberosAuth(_mutual_auth),
-      proxy=proxy,
-      root=root,
-    )
+    kwargs['auth'] = HTTPKerberosAuth(_mutual_auth)
+    super(KerberosClient, self).__init__(url, **kwargs)
