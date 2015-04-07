@@ -511,6 +511,30 @@ class TestContent(_TestSession):
     self.client.content('foo')
 
 
+class TestList(_TestSession):
+
+  @raises(HdfsError)
+  def test_file(self):
+    self.client.write('foo', 'hello, world!')
+    self.client.list('foo')
+
+  @raises(HdfsError)
+  def test_missing(self):
+    self.client.list('foo')
+
+  def test_empty_dir(self):
+    self.client._mkdirs('foo')
+    eq_(self.client.list('foo'), [])
+
+  def test_dir(self):
+    self.client.write('foo/bar', 'hello, world!')
+    statuses = self.client.list('foo')
+    eq_(len(statuses), 1)
+    status = self.client.status('foo/bar')
+    status['pathSuffix'] = 'bar'
+    eq_(statuses[0], (osp.join(self.client.root, 'foo', 'bar'), status))
+
+
 class TestWalk(_TestSession):
 
   def test_file(self):

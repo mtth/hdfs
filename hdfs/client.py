@@ -566,6 +566,27 @@ class Client(object):
         self.resolve(hdfs_src_path), hdfs_dst_path
       )
 
+  def list(self, hdfs_path):
+    """Return status of files contained in a remote folder.
+
+    :param hdfs_path: Remote path to a directory. If `hdfs_path` doesn't exist
+      or points to a normal file, an :class:`HdfsError` will be raised.
+
+    This method returns a list of tuples `(path, status)` where `path` is the
+    absolute path to a file or directory, and `status` is its corresponding
+    JSON FileStatus_ object.
+
+    """
+    hdfs_path = self.resolve(hdfs_path)
+    statuses = self._list_status(hdfs_path).json()['FileStatuses']['FileStatus']
+    if len(statuses) == 1 and not statuses[0]['pathSuffix']:
+      # This is a normal file.
+      raise HdfsError('%r is not a directory.', hdfs_path)
+    return [
+      (osp.join(hdfs_path, status['pathSuffix']), status)
+      for status in statuses
+    ]
+
   def walk(self, hdfs_path, depth=0):
     """Depth-first walk of remote folder statuses.
 
