@@ -577,6 +577,7 @@ class Client(object):
     JSON FileStatus_ object.
 
     """
+    self._logger.info('Listing %s.', hdfs_path)
     hdfs_path = self.resolve(hdfs_path)
     statuses = self._list_status(hdfs_path).json()['FileStatuses']['FileStatus']
     if len(statuses) == 1 and not statuses[0]['pathSuffix']:
@@ -598,7 +599,8 @@ class Client(object):
     `status` is a JSON FileStatus_ object.
 
     """
-    hdfs_path = self.resolve(hdfs_path)
+    self._logger.info('Walking %s.', hdfs_path)
+
     def _walk(dir_path, dir_status, depth):
       """Recursion helper."""
       yield dir_path, dir_status
@@ -611,6 +613,8 @@ class Client(object):
           else: # directory
             for a in _walk(path, status, depth - 1):
               yield a
+
+    hdfs_path = self.resolve(hdfs_path)
     status = self.status(hdfs_path)
     if status['type'] == 'FILE':
       yield hdfs_path, status
