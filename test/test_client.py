@@ -33,7 +33,7 @@ class TestLoad(object):
       def __init__(self, url, bar):
         super(NewClient, self).__init__(url)
         self.bar = bar
-    client = Client._from_options('NewClient', {'url': 123, 'bar': 2})
+    client = Client._from_options('NewClient', {'url': 'bar', 'bar': 2})
     eq_(client.bar, 2)
 
   @raises(HdfsError)

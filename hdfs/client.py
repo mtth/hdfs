@@ -156,7 +156,7 @@ class Client(object):
   ):
     self._logger = InstanceLogger(self, _logger)
     self._class_name = self.__class__.__name__ # cache this
-    self.url = url
+    self.url = url.rstrip('/')
     self.auth = auth
     self.params = params or {}
     if proxy:
