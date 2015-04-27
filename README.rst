@@ -82,11 +82,11 @@ Cf. `hdfs --help` for the full list of commands and options.
 Configuration
 -------------
 
-You can configure which clusters HdfsCLI connects to by writing your own 
+You can configure which clusters to connect to by writing your own 
 configuration at `~/.hdfsrc` (this will also enable the `Client.from_alias` 
 method).
 
-Sample configuration defining two aliases (`foo` and `bar`):
+Sample configuration defining two aliases, `foo` and `bar`:
 
 .. code-block:: cfg
 
@@ -102,8 +102,8 @@ Sample configuration defining two aliases (`foo` and `bar`):
   url = http://url.to.another.namenode:port
 
 All options other than `url` can be omitted. `client` determines which class to 
-use, and the remaining options are passed as named arguments to the appropriate 
-constructor.
+use (defaulting to the generic `Client`), and the remaining options are passed 
+as named arguments to the appropriate constructor.
 
 
 Documentation
