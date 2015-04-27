@@ -69,7 +69,7 @@ download it locally, and finally delete the remote copy.
 CLI
 ---
 
-Sample commands:
+Sample commands (see below for how to configure cluster aliases):
 
 .. code-block:: bash
 
@@ -77,6 +77,33 @@ Sample commands:
   $ hdfs --write -o data/weights.tsv <weights.tsv
 
 Cf. `hdfs --help` for the full list of commands and options.
+
+
+Configuration
+-------------
+
+You can configure which clusters HdfsCLI connects to by writing your own 
+configuration at `~/.hdfsrc` (this will also enable the `Client.from_alias` 
+method).
+
+Sample configuration defining two aliases (`foo` and `bar`):
+
+.. code-block:: cfg
+
+  [hdfs]
+  default.alias = foo # Used when no alias is specified at the command line.
+
+  [foo_alias]
+  client = KerberosClient
+  root = /some/directory
+  url = http://url.to.namenode:port
+
+  [bar_alias]
+  url = http://url.to.another.namenode:port
+
+All options other than `url` can be omitted. `client` determines which class to 
+use, and the remaining options are passed as named arguments to the appropriate 
+constructor.
 
 
 Documentation
