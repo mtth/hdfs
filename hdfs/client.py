@@ -228,7 +228,7 @@ class Client(object):
     # #LATEST expansion (could cache the pattern, but not worth it)
 
     self._logger.debug('Resolved path %r to %r.', hdfs_path, path)
-    return quote(path)
+    return quote(path, '/=').replace(os.sep, '/')
 
   def content(self, hdfs_path):
     """Get content summary for a file or folder on HDFS.

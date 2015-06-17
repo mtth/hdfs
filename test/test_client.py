@@ -139,6 +139,11 @@ class TestResolve(_TestSession):
     encoded = self.client.resolve(path)
     eq_(encoded.split('/')[-2:], ['fo%26o', 'a%3F%25a'])
 
+  def test_resolve_filename_with_safe_characters(self):
+    path = 'foo=1'
+    encoded = self.client.resolve(path)
+    eq_(encoded.split('/')[-1], 'foo=1')
+
   def test_create_file_with_reserved_characters(self):
     path = 'fo&o/a?a'
     self.client.write(path, data='hello')
