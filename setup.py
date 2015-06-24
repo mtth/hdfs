@@ -39,6 +39,6 @@ setup(
   },
   entry_points={'console_scripts': [
     '%s = hdfs.__main__:main' % (ENTRY_POINT, ),
-    '%savro = hdfs.ext.avro:main' % (ENTRY_POINT, ),
+    '%s-avro = hdfs.ext.avro:main' % (ENTRY_POINT, ),
   ]},
 )

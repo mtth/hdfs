@@ -1,6 +1,11 @@
 HdfsCLI
 =======
 
+Version 1.1.0 (2015/06/23)
+--------------------------
+
+* Rename Avro extention entry point to `hdfs-avro`.
+
 
 Version 1.0.1 (2015/06/17)
 --------------------------

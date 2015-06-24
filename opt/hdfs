@@ -15,4 +15,4 @@ _hdfs() {
   COMPREPLY=( $(compgen -W "$opts" -- $cur) )
 }
 complete -o nospace -F _hdfs hdfs
-complete -o nospace -F _hdfs hdfsavro
+complete -o nospace -F _hdfs hdfs-avro
