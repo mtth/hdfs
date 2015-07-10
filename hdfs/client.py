@@ -342,7 +342,8 @@ class Client(object):
       replication=replication,
       buffersize=buffersize,
     )
-    res_2 = rq.put(res_1.headers['location'], data=data)
+    res_2 = rq.put(res_1.headers['location'], data=data,
+                   headers={'content-type': 'application/octet-stream'})
     if not res_2:
       _on_error(res_2)
 
@@ -359,7 +360,8 @@ class Client(object):
       hdfs_path,
       buffersize=buffersize,
     )
-    res_2 = rq.post(res_1.headers['location'], data=data)
+    res_2 = rq.post(res_1.headers['location'], data=data,
+                    headers={'content-type': 'application/octet-stream'})
     if not res_2:
       _on_error(res_2)
 
