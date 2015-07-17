@@ -229,9 +229,9 @@ class TestAppend(_TestSession):
     self.client.append('ap', ' world!')
     self._check_content('ap', 'hello, world!')
 
-  @raises(HdfsError)
   def test_missing_file(self):
-    self.client.append('ap', 'hello,')
+    self.client.append('ap', 'hello!')
+    self._check_content('ap', 'hello!')
 
 
 class TestUpload(_TestSession):

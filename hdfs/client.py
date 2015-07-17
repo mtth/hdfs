@@ -86,6 +86,8 @@ class _Request(object):
         data=data,
         params=params,
         timeout=client.timeout,
+        verify=client.verify,
+        cert=client.cert,
         **self.kwargs
       )
       if not response: # non 2XX status code
@@ -138,13 +140,20 @@ class Client(object):
     handler will override these defaults.
   :param proxy: User to proxy as.
   :param root: Root path. Used to allow relative path parameters.
-  :param timeout:  How long to wait for the server to send data before giving
-    up, as a float, or a `(connect_timeout, read_timeout)` tuple. If the
-    timeout is reached, an appropriate exception will be raised.
+  :param timeout: Forwarded to the request handler. How long to wait for the
+    server to send data before giving up, as a float, or a `(connect_timeout,
+    read_timeout)` tuple. If the timeout is reached, an appropriate exception
+    will be raised. See the requests_ documentation for details
+  :param verify: Forwarded to the request handler. If `True`, the SSL cert will
+    be verified. See the requests_ documentation for details.
+  :param cert: Forwarded to the request handler. Path to client certificate
+    file. See the requests_ documentation for details.
 
   In general, this client should only be used directly when its subclasses
   (e.g. :class:`InsecureClient`, :class:`TokenClient`, and others provided by
   extensions) do not provide enough flexibility.
+
+  .. _requests: http://docs.python-requests.org/en/latest/api/#requests.request
 
   """
 
@@ -152,7 +161,8 @@ class Client(object):
   __registry__ = {}
 
   def __init__(
-    self, url, auth=None, params=None, proxy=None, root=None, timeout=None
+    self, url, auth=None, params=None, proxy=None, root=None, timeout=None,
+    verify=True, cert=None,
   ):
     self._logger = InstanceLogger(self, _logger)
     self._class_name = self.__class__.__name__ # cache this
@@ -163,6 +173,8 @@ class Client(object):
       self.params['doas'] = proxy
     self.root = root
     self.timeout = timeout
+    self.verify = verify
+    self.cert = cert
 
   def __repr__(self):
     return '<%s(url=%s, root=%s)>' % (self._class_name, self.url, self.root)
