@@ -51,12 +51,9 @@ class _Request(object):
   webhdfs_prefix = '/webhdfs/v1'
   doc_url = 'http://hadoop.apache.org/docs/r1.0.4/webhdfs.html'
 
-  def __init__(self, verb, **kwargs):
+  def __init__(self, method, **kwargs):
+    self.method = method
     self.kwargs = kwargs
-    try:
-      self.handler = getattr(rq, verb.lower())
-    except AttributeError:
-      raise HdfsError('Invalid HTTP verb %r.', verb)
 
   def __call__(self):
     pass # make pylint happy
@@ -70,6 +67,7 @@ class _Request(object):
     with the method they represent.
 
     """
+
     def api_handler(client, path, data=None, **params):
       """Wrapper function."""
       url = '%s%s%s' % (
@@ -78,29 +76,15 @@ class _Request(object):
         client.resolve(path),
       )
       params['op'] = operation
-      for key, value in client.params.items():
-        params.setdefault(key, value)
-      response = self.handler(
+      return client._request(
+        method=self.method,
         url=url,
-        auth=client.auth,
+        auth=client.auth, # TODO: See why this can't be moved to `_request`.
         data=data,
         params=params,
-        timeout=client.timeout,
-        verify=client.verify,
-        cert=client.cert,
         **self.kwargs
       )
-      if not response: # non 2XX status code
-        client._logger.warning(
-          '[%s] %s:\n%s', response.status_code,
-          response.request.path_url, response.text
-        )
-        return _on_error(response)
-      else:
-        client._logger.debug(
-          '[%s] %s', response.status_code, response.request.path_url
-        )
-        return response
+
     api_handler.__name__ = '%s_handler' % (operation.lower(), )
     api_handler.__doc__ = 'Cf. %s#%s' % (self.doc_url, operation)
     return api_handler
@@ -178,6 +162,41 @@ class Client(object):
 
   def __repr__(self):
     return '<%s(url=%s, root=%s)>' % (self._class_name, self.url, self.root)
+
+  # Generic request handler
+
+  def _request(self, method, url, **kwargs):
+    """Send request to WebHDFS API.
+
+    :param method: HTTP verb.
+    :param url: Url to send the request to.
+    :param \*\*kwargs: Extra keyword arguments forwarded to the request
+      handler. If any `params` are defined, these will take precendence over
+      the instance's defaults.
+
+    """
+    params = kwargs.setdefault('params', {})
+    for key, value in self.params.items():
+      params.setdefault(key, value)
+    response = rq.request(
+      method=method,
+      url=url,
+      timeout=self.timeout,
+      verify=self.verify,
+      cert=self.cert,
+      **kwargs
+    )
+    if not response: # non 2XX status code
+      self._logger.warning(
+        '[%s] %s:\n%s', response.status_code,
+        response.request.path_url, response.text
+      )
+      return _on_error(response)
+    else:
+      self._logger.debug(
+        '[%s] %s', response.status_code, response.request.path_url
+      )
+      return response
 
   # Raw API endpoints
 
@@ -346,7 +365,7 @@ class Client(object):
 
     """
     self._logger.info('Writing to %s.', hdfs_path)
-    res_1 = self._create_1(
+    res = self._create_1(
       hdfs_path,
       overwrite=overwrite,
       permission=permission,
@@ -354,16 +373,12 @@ class Client(object):
       replication=replication,
       buffersize=buffersize,
     )
-    res_2 = rq.put(
-      res_1.headers['location'],
+    self._request(
+      method='PUT',
+      url=res.headers['location'],
       data=data,
       headers={'content-type': 'application/octet-stream'},
-      verify=self.verify,
-      timeout=self.timeout,
-      cert=self.cert,
     )
-    if not res_2:
-      _on_error(res_2)
 
   def append(self, hdfs_path, data, buffersize=None):
     """Append to an existing file on HDFS.
@@ -374,20 +389,16 @@ class Client(object):
 
     """
     self._logger.info('Appending to %s.', hdfs_path)
-    res_1 = self._append_1(
+    res = self._append_1(
       hdfs_path,
       buffersize=buffersize,
     )
-    res_2 = rq.post(
-      res_1.headers['location'],
+    self._request(
+      method='POST',
+      url=res.headers['location'],
       data=data,
       headers={'content-type': 'application/octet-stream'},
-      verify=self.verify,
-      timeout=self.timeout,
-      cert=self.cert,
     )
-    if not res_2:
-      _on_error(res_2)
 
   def upload(self, hdfs_path, local_path, overwrite=False, **kwargs):
     """Upload a file or directory to HDFS.
@@ -509,8 +520,8 @@ class Client(object):
     def _delayed_download(indexed_paths):
       """Download and atomic swap, with delay to avoid replay errors."""
       file_n, paths = indexed_paths
-      # Sleep some milliseconds so that authentication time stamps are not same
-      time.sleep(0.05 * file_n)
+      # Sleep so that authentication time stamps are not the same.
+      time.sleep(0.5 * file_n)
       _download(paths)
 
     status = self.status(hdfs_path)
