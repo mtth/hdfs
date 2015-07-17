@@ -39,6 +39,13 @@ def _on_error(response):
   raise HdfsError(message)
 
 
+def _merged_dicts(x, y):
+  """Return a dict comprised of merging `x` and `y` via shallow copies."""
+  z = x.copy()
+  z.update(y)
+  return z
+
+
 class _Request(object):
 
   """Class to define API requests.
@@ -78,6 +85,7 @@ class _Request(object):
         client.resolve(path),
       )
       params['op'] = operation
+      rq_kwargs = _merged_dicts(self.kwargs, client.rq_kwargs)
       for key, value in client.params.items():
         params.setdefault(key, value)
       response = self.handler(
@@ -86,7 +94,7 @@ class _Request(object):
         data=data,
         params=params,
         timeout=client.timeout,
-        **self.kwargs
+        **rq_kwargs
       )
       if not response: # non 2XX status code
         client._logger.warning(
@@ -133,14 +141,16 @@ class Client(object):
   :param url: Hostname or IP address of HDFS namenode, prefixed with protocol,
     followed by WebHDFS port on namenode
   :param auth: Authentication mechanism (forwarded to the request handler).
-  :param params: Extra parameters forwarded with every request. Useful for
-    example for custom authentication. Parameters specified in the request
-    handler will override these defaults.
+  :param params: Extra URL-encoded parameters included with every request.
+    Useful for example for custom authentication. Parameters specified in the
+    request handler will override these defaults.
   :param proxy: User to proxy as.
   :param root: Root path. Used to allow relative path parameters.
   :param timeout:  How long to wait for the server to send data before giving
     up, as a float, or a `(connect_timeout, read_timeout)` tuple. If the
     timeout is reached, an appropriate exception will be raised.
+  :param rq_kwargs: Extra parameters passed through to the request library. For
+    example, `requests.get(..., **rq_kwargs)`.
 
   In general, this client should only be used directly when its subclasses
   (e.g. :class:`InsecureClient`, :class:`TokenClient`, and others provided by
@@ -152,7 +162,8 @@ class Client(object):
   __registry__ = {}
 
   def __init__(
-    self, url, auth=None, params=None, proxy=None, root=None, timeout=None
+    self, url, auth=None, params=None, proxy=None, root=None, timeout=None,
+    rq_kwargs=None
   ):
     self._logger = InstanceLogger(self, _logger)
     self._class_name = self.__class__.__name__ # cache this
@@ -163,6 +174,7 @@ class Client(object):
       self.params['doas'] = proxy
     self.root = root
     self.timeout = timeout
+    self.rq_kwargs = rq_kwargs or {}
 
   def __repr__(self):
     return '<%s(url=%s, root=%s)>' % (self._class_name, self.url, self.root)
@@ -343,7 +355,8 @@ class Client(object):
       buffersize=buffersize,
     )
     res_2 = rq.put(res_1.headers['location'], data=data,
-                   headers={'content-type': 'application/octet-stream'})
+                   headers={'content-type': 'application/octet-stream'},
+                   **self.rq_kwargs)
     if not res_2:
       _on_error(res_2)
 
@@ -361,7 +374,8 @@ class Client(object):
       buffersize=buffersize,
     )
     res_2 = rq.post(res_1.headers['location'], data=data,
-                    headers={'content-type': 'application/octet-stream'})
+                    headers={'content-type': 'application/octet-stream'},
+                    **self.rq_kwargs)
     if not res_2:
       _on_error(res_2)
 
