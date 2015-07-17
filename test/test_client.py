@@ -48,6 +48,14 @@ class TestLoad(object):
   def test_missing_type(self):
     client = Client._from_options('foo', {})
 
+  def test_verify(self):
+    ok_(not Client._from_options(None, {'url': '', 'verify': 'false'}).verify)
+    ok_(Client._from_options(None, {'url': '', 'verify': 'yes'}).verify)
+
+  def test_timeout(self):
+    eq_(Client._from_options(None, {'url': ''}).timeout, None)
+    eq_(Client._from_options(None, {'url': '', 'timeout': '1'}).timeout, 1)
+
 
 class TestOptions(_TestSession):
 

@@ -36,6 +36,15 @@ class TestConfig(object):
         writer.write('[foo_alias]\nurl=1\n')
       Config(tpath).get_alias('bar')
 
+  def test_parse_boolean(self):
+    eq_(Config.parse_boolean(True), True)
+    eq_(Config.parse_boolean(False), False)
+    eq_(Config.parse_boolean(''), False)
+    eq_(Config.parse_boolean('False'), False)
+    eq_(Config.parse_boolean('true'), True)
+    eq_(Config.parse_boolean('yes'), True)
+    eq_(Config.parse_boolean(None), False)
+
 
 class TestHuman(object):
 

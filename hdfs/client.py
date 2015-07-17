@@ -127,7 +127,7 @@ class Client(object):
   :param timeout: Forwarded to the request handler. How long to wait for the
     server to send data before giving up, as a float, or a `(connect_timeout,
     read_timeout)` tuple. If the timeout is reached, an appropriate exception
-    will be raised. See the requests_ documentation for details
+    will be raised. See the requests_ documentation for details.
   :param verify: Forwarded to the request handler. If `True`, the SSL cert will
     be verified. See the requests_ documentation for details.
   :param cert: Forwarded to the request handler. Path to client certificate
@@ -156,8 +156,8 @@ class Client(object):
     if proxy:
       self.params['doas'] = proxy
     self.root = root
-    self.timeout = timeout
-    self.verify = verify
+    self.timeout = int(timeout) if timeout else None
+    self.verify = Config.parse_boolean(verify)
     self.cert = cert
 
   def __repr__(self):

@@ -138,6 +138,25 @@ class Config(object):
       handler.setFormatter(lg.Formatter(handler_format))
       return handler
 
+  @staticmethod
+  def parse_boolean(s):
+    """Parse configuration value into boolean.
+
+    :param s: Element to be parsed.
+
+    Behavior is similar to the `RawConfigParser.getboolean` function for
+    strings.
+
+    """
+    if not s:
+      return False
+    s = str(s).lower()
+    if s in set(['1', 'yes', 'true', 'on']):
+      return True
+    elif s in set(['0', 'no', 'false', 'off']):
+      return False
+    else:
+      raise ValueError('Invalid boolean string: %r' % (s, ))
 
 @contextmanager
 def temppath(dir=None):
