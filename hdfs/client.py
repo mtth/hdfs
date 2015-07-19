@@ -184,6 +184,7 @@ class Client(object):
       timeout=self.timeout,
       verify=self.verify,
       cert=self.cert,
+      headers={'content-type': 'application/octet-stream'},
       **kwargs
     )
     if not response: # non 2XX status code
@@ -377,7 +378,6 @@ class Client(object):
       method='PUT',
       url=res.headers['location'],
       data=data,
-      headers={'content-type': 'application/octet-stream'},
     )
 
   def append(self, hdfs_path, data, buffersize=None):
@@ -397,7 +397,6 @@ class Client(object):
       method='POST',
       url=res.headers['location'],
       data=data,
-      headers={'content-type': 'application/octet-stream'},
     )
 
   def upload(self, hdfs_path, local_path, overwrite=False, **kwargs):

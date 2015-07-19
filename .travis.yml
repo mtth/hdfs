@@ -5,12 +5,15 @@ python:
 install:
   - pip install .
 before_script:
-  - export HADOOP_HOME="$(./scripts/hadoop-download.sh)"
-  - ./scripts/hadoop-daemon.sh start
-  - export HDFSCLI_TEST_URL="http://$("${HADOOP_HOME}/bin/hdfs" getconf -confKey dfs.namenode.http-address)"
+  - export HADOOP_HOME="$(./scripts/hadoop.sh download)"
+  - export HADOOP_CONF_DIR="$(./scripts/hadoop.sh config)"
+  - ./scripts/hadoop.sh start
+  - export WEBHDFS_URL="http://$("${HADOOP_HOME}/bin/hdfs" getconf -confKey dfs.namenode.http-address)"
+  - export HTTPFS_URL=http://localhost:14000
   - env | sort
 script:
-  - nosetests -v
+  - HDFSCLI_TEST_URL="$WEBHDFS_URL" nosetests -v
+  - HDFSCLI_TEST_URL="$HTTPFS_URL" nosetests -v
 after_script:
   - ./scripts/hadoop-daemon.sh stop
-  - rm -r $(dirname "$HADOOP_HOME")
+  - rm -r "$(dirname "$HADOOP_HOME")" "$HADOOP_CONF_DIR"

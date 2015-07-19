@@ -6,7 +6,7 @@
 from hdfs.client import *
 from hdfs.util import HdfsError, temppath
 from helpers import _TestSession
-from nose.tools import eq_, ok_, raises
+from nose.tools import eq_, nottest, ok_, raises
 from requests.exceptions import ConnectTimeout, ReadTimeout
 from shutil import rmtree
 from tempfile import mkdtemp
@@ -84,7 +84,7 @@ class TestApi(_TestSession):
     eq_(status['type'], 'DIRECTORY')
 
   def test_get_home_directory(self):
-    path = self.client._get_home_directory('').json()['Path']
+    path = self.client._get_home_directory('/').json()['Path']
     ok_('/user/' in path)
 
   def test_create_file(self):
@@ -527,6 +527,7 @@ class TestContent(_TestSession):
 
 class TestList(_TestSession):
 
+  @nottest # HttpFS is inconsistent here (it actually returns wrong data).
   @raises(HdfsError)
   def test_file(self):
     self.client.write('foo', 'hello, world!')
@@ -606,6 +607,7 @@ class TestLatestExpansion(_TestSession):
     latest = self.client.resolve('#LATEST{2}')
     eq_(latest, osp.join(self.client.root, 'bar', 'foo'))
 
+  @nottest # HttpFS is inconsistent here.
   @raises(HdfsError)
   def test_resolve_file(self):
     self.client.write('bar', 'hello, world!')

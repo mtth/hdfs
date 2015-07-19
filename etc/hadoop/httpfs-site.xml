@@ -1,0 +1,6 @@
+<configuration>
+  <property>
+    <name>httpfs.authentication.signature.secret.file</name>
+    <value>${httpfs.config.dir}/httpfs-site.xml</value>
+  </property>
+</configuration>
