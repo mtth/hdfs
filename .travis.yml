@@ -8,8 +8,8 @@ before_script:
   - export HADOOP_HOME="$(./scripts/hadoop-download.sh)"
   - ./scripts/hadoop-daemon.sh start
   - export HDFSCLI_TEST_URL="http://$("${HADOOP_HOME}/bin/hdfs" getconf -confKey dfs.namenode.http-address)"
+  - env | sort
 script:
-  - env
   - nosetests -v
 after_script:
   - ./scripts/hadoop-daemon.sh stop

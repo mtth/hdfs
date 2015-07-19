@@ -83,8 +83,9 @@ Configuration
 -------------
 
 You can configure which clusters to connect to by writing your own 
-configuration at `~/.hdfsrc` (this will also enable the `Client.from_alias` 
-method).
+configuration at `~/.hdfsrc` (or elsewhere by setting the `HDFSCLI_RCPATH` 
+environment variable correspondingly). This will also enable the 
+`Client.from_alias` method.
 
 Sample configuration defining two aliases, `foo` and `bar`:
 
@@ -96,7 +97,8 @@ Sample configuration defining two aliases, `foo` and `bar`:
   [foo_alias]
   client = KerberosClient
   root = /some/directory
-  url = http://url.to.namenode:port
+  url = https://url.to.namenode:port
+  verify = false
 
   [bar_alias]
   url = http://url.to.another.namenode:port

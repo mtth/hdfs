@@ -5,9 +5,24 @@
 
 from hdfs.util import *
 from nose.tools import eq_, raises
+import os
 
 
 class TestConfig(object):
+
+  def test_rcpath(self):
+    rcpath = os.getenv('HDFSCLI_RCPATH')
+    try:
+      with temppath() as tpath:
+        os.environ['HDFSCLI_RCPATH'] = tpath
+        with open(tpath, 'w') as writer:
+          writer.write('[foo]\nbar=hello')
+        eq_(Config().parser.get('foo', 'bar'), 'hello')
+    finally:
+      if rcpath:
+        os['HDFSCLI_RCPATH'] = rcpath
+      else:
+        os.unsetenv('HDFSCLI_RCPATH')
 
   def test_get_alias(self):
     with temppath() as tpath:

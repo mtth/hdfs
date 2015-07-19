@@ -12,6 +12,7 @@ from os import close, remove
 from shutil import rmtree
 from tempfile import gettempdir, mkstemp
 import logging as lg
+import os
 import os.path as osp
 import sys
 import warnings as wr
@@ -63,19 +64,23 @@ class Config(object):
   """Configuration class.
 
   :param path: path to configuration file. If no file exists at that location,
-    the configuration parser will be empty.
+    the configuration parser will be empty. If not specified, the value of the
+    `HDFSCLI_RCPATH` environment variable is used if it exists, otherwise it
+    defaults to `~/.hdfsrc`.
 
   """
 
-  def __init__(self, path=osp.expanduser('~/.hdfsrc')):
+  default_path = osp.expanduser('~/.hdfsrc')
+
+  def __init__(self, path=None):
+    self.path = path or os.getenv('HDFSCLI_RCPATH', self.default_path)
     self._logger = InstanceLogger(self, _logger)
     self.parser = RawConfigParser()
-    self.path = path
-    if osp.exists(path):
+    if osp.exists(self.path):
       try:
         self.parser.read(self.path)
       except ParsingError:
-        raise HdfsError('Invalid configuration file %r.', path)
+        raise HdfsError('Invalid configuration file %r.', self.path)
 
   def __repr__(self):
     return '<Config(path=%r)>' % (self.path, )
