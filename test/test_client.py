@@ -7,7 +7,7 @@ from hdfs.client import *
 from hdfs.util import HdfsError, temppath
 from helpers import _TestSession
 from nose.tools import eq_, ok_, raises
-from requests.exceptions import ConnectTimeout
+from requests.exceptions import ConnectTimeout, ReadTimeout
 from shutil import rmtree
 from tempfile import mkdtemp
 import os
@@ -65,7 +65,7 @@ class TestOptions(_TestSession):
     self.client.timeout = 1e-4 # Small enough for it to always timeout.
     try:
       self.client.status('.')
-    except ConnectTimeout:
+    except (ConnectTimeout, ReadTimeout):
       self.client.timeout = None
     else:
       raise HdfsError('No timeout.')
@@ -78,14 +78,9 @@ class TestApi(_TestSession):
   def test_list_status_absolute_root(self):
     ok_(self.client._list_status('/'))
 
-  def test_list_status_test_root(self):
-    eq_(
-      self.client._list_status('').content,
-      self.client._list_status(self.client.root).content,
-    )
-
-  def test_get_file_status(self):
-    status = self.client._get_file_status('').json()['FileStatus']
+  def test_get_folder_status(self):
+    self.client._mkdirs('foo')
+    status = self.client._get_file_status('foo').json()['FileStatus']
     eq_(status['type'], 'DIRECTORY')
 
   def test_get_home_directory(self):
@@ -94,6 +89,11 @@ class TestApi(_TestSession):
 
   def test_create_file(self):
     path = 'foo'
+    self.client._create(path, data='hello')
+    ok_(self._file_exists(path))
+
+  def test_create_nested_file(self):
+    path = 'foo/bar'
     self.client._create(path, data='hello')
     ok_(self._file_exists(path))
 
@@ -237,9 +237,9 @@ class TestAppend(_TestSession):
     self.client.append('ap', ' world!')
     self._check_content('ap', 'hello, world!')
 
+  @raises(HdfsError)
   def test_missing_file(self):
     self.client.append('ap', 'hello!')
-    self._check_content('ap', 'hello!')
 
 
 class TestUpload(_TestSession):
@@ -488,7 +488,8 @@ class TestDownload(_TestSession):
 class TestStatus(_TestSession):
 
   def test_directory(self):
-    status = self.client.status('')
+    self.client._mkdirs('foo')
+    status = self.client.status('foo')
     eq_(status['type'], 'DIRECTORY')
     eq_(status['length'], 0)
 

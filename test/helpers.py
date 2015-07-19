@@ -9,47 +9,50 @@ from hdfs.util import HdfsError
 from nose.plugins.skip import SkipTest
 from nose.tools import eq_
 from time import sleep
+import os
 
 
 class _TestSession(object):
 
   """Base class to run tests using remote HDFS.
 
-  These tests are run only if a `test_alias` section is defined in the 
-  `~/.hdfsrc` configuration file, with the root pointing to a test 
-  directory.
+  These tests are run only if a `HDFSCLI_TEST_ALIAS` or `HDFSCLI_TEST_URL`
+  environment variable is defined (the former taking precedence). In the latter
+  case, the root directory will be `/hdfscli/`.
 
   .. warning::
 
-    The test directory is entirely cleaned during tests. Don't put anything
-    important in it!
+    The root directory used is entirely cleaned during tests!
 
   Also contains a few helper functions.
 
   """
 
-  delay = 1 # delay in seconds between tests
+  delay = 0.5 # delay in seconds between tests
+  root = '/hdfscli/' # default root
 
   @classmethod
   def setup_class(cls):
-    try:
-      client = Client.from_alias('test')
-      client._delete('', recursive=True)
-    except (ImportError, NoOptionError, NoSectionError, HdfsError):
-      cls.client = None
+    alias = os.getenv('HDFSCLI_TEST_ALIAS')
+    url = os.getenv('HDFSCLI_TEST_URL')
+    if alias:
+      cls.client = Client.from_alias(alias)
+    elif url:
+      cls.client = InsecureClient(url, root=cls.root)
     else:
-      cls.client = client
+      cls.client = None
+
+  @classmethod
+  def teardown_class(cls):
+    if cls.client:
+      cls.client._delete('', recursive=True)
 
   def setup(self):
     if not self.client:
       raise SkipTest
     else:
-      self.client._mkdirs('')
-
-  def teardown(self):
-    if self.client:
       self.client._delete('', recursive=True)
-    sleep(self.delay)
+      sleep(self.delay)
 
   def _check_content(self, path, content):
     eq_(self.client._open(path).content, content)

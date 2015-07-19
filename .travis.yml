@@ -1,7 +1,16 @@
 language: python
 python:
-  - "2.6"
-  - "2.7"
+  - 2.6
+  - 2.7
 install:
-  - "pip install ."
-script: nosetests
+  - pip install .
+before_script:
+  - export HADOOP_HOME=$(./scripts/hadoop-download.sh)
+  - ./scripts/hadoop-daemon.sh start
+  - export HDFSCLI_TEST_URL="http://$("${HADOOP_HOME}/bin/hdfs" getconf -confKey dfs.namenode.http-address)"
+script:
+  - env
+  - nosetests -v
+after_script:
+  - ./scripts/hadoop-daemon.sh stop
+  - rm -r $(dirname "$HADOOP_HOME")
