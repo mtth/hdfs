@@ -17,19 +17,19 @@ class _TestSession(object):
   """Base class to run tests using remote HDFS.
 
   These tests are run only if a `HDFSCLI_TEST_ALIAS` or `HDFSCLI_TEST_URL`
-  environment variable is defined (the former taking precedence). In the latter
-  case, the root directory will be `/hdfscli/`.
+  environment variable is defined (the former taking precedence). For safety,
+  a suffix is appended to any defined root.
 
   .. warning::
 
-    The root directory used is entirely cleaned during tests!
+    The new root directory used is entirely cleaned during tests!
 
   Also contains a few helper functions.
 
   """
 
   delay = 0.5 # delay in seconds between tests
-  root = '/hdfscli/' # default root
+  root_suffix = '/.hdfscli/' # also used as default root if none specified
 
   @classmethod
   def setup_class(cls):
@@ -37,8 +37,9 @@ class _TestSession(object):
     url = os.getenv('HDFSCLI_TEST_URL')
     if alias:
       cls.client = Client.from_alias(alias)
+      cls.client.root = (cls.client.root or '').rstrip('/') + cls.root_suffix
     elif url:
-      cls.client = InsecureClient(url, root=cls.root)
+      cls.client = InsecureClient(url, root=cls.root_suffix)
     else:
       cls.client = None
 
@@ -53,6 +54,8 @@ class _TestSession(object):
     else:
       self.client._delete('', recursive=True)
       sleep(self.delay)
+
+  # Helpers.
 
   def _check_content(self, path, content):
     eq_(self.client._open(path).content, content)

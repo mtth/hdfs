@@ -184,7 +184,7 @@ class Client(object):
       timeout=self.timeout,
       verify=self.verify,
       cert=self.cert,
-      headers={'content-type': 'application/octet-stream'},
+      headers={'content-type': 'application/octet-stream'}, # For HttpFS.
       **kwargs
     )
     if not response: # non 2XX status code
@@ -520,7 +520,7 @@ class Client(object):
       """Download and atomic swap, with delay to avoid replay errors."""
       file_n, paths = indexed_paths
       # Sleep so that authentication time stamps are not the same.
-      time.sleep(0.5 * file_n)
+      time.sleep(file_n)
       _download(paths)
 
     status = self.status(hdfs_path)
