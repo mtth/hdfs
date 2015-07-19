@@ -5,7 +5,7 @@ python:
 install:
   - pip install .
 before_script:
-  - export HADOOP_HOME=$(./scripts/hadoop-download.sh)
+  - export HADOOP_HOME="$(./scripts/hadoop-download.sh)"
   - ./scripts/hadoop-daemon.sh start
   - export HDFSCLI_TEST_URL="http://$("${HADOOP_HOME}/bin/hdfs" getconf -confKey dfs.namenode.http-address)"
 script:

@@ -7,11 +7,28 @@
 set -o nounset
 set -o errexit
 
-if [[ $# -ne 1 ]]; then
+usage() {
   echo "usage: $0 (start|stop)" >&2
   exit 1
+}
+
+if [[ $# -ne 1 ]]; then
+  usage
 fi
 
-HADOOP_CONF_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/../etc/hadoop"
-"${HADOOP_HOME}/sbin/hadoop-daemon.sh" --config "$HADOOP_CONF_DIR" --script hdfs "$1" datanode
-"${HADOOP_HOME}/sbin/hadoop-daemon.sh" --config "$HADOOP_CONF_DIR" --script hdfs "$1" namenode
+export HADOOP_CONF_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/../etc/hadoop"
+
+case "$1" in
+  start)
+    "${HADOOP_HOME}/bin/hdfs" namenode -format -nonInteractive || :
+    "${HADOOP_HOME}/sbin/hadoop-daemon.sh" --config "$HADOOP_CONF_DIR" --script hdfs start namenode
+    "${HADOOP_HOME}/sbin/hadoop-daemon.sh" --config "$HADOOP_CONF_DIR" --script hdfs start datanode
+    ;;
+  stop)
+    "${HADOOP_HOME}/sbin/hadoop-daemon.sh" --config "$HADOOP_CONF_DIR" --script hdfs stop datanode
+    "${HADOOP_HOME}/sbin/hadoop-daemon.sh" --config "$HADOOP_CONF_DIR" --script hdfs stop namenode
+    ;;
+  *)
+    usage
+    ;;
+esac
