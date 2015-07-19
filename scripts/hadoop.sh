@@ -1,11 +1,13 @@
 #!/usr/bin/env bash
 
-# Various Hadoop utilities to help with testing.
+# Hadoop utilities to setup a standalone HDFS cluster for integration tests.
 
 set -o nounset
 set -o errexit
 
 # Print  usage and exit.
+#
+# Refer to individual functions below for more information.
 #
 usage() {
   echo "usage: $0 (config|download|start|stop)" >&2
@@ -30,7 +32,7 @@ hadoop-download() {
 # The returned path is suitable to be used as environment variable
 # `$HADOOP_CONF_DIR`. Note that this is necessary because proxy users are
 # defined as property keys, so it's not possible to allow the current user
-# otherwise).
+# otherwise.
 #
 hadoop-config() {
   local tpl_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/../etc/hadoop"
@@ -41,7 +43,7 @@ hadoop-config() {
   echo "$conf_dir"
 }
 
-# Start HDFS cluster and HttpFS server.
+# Start HDFS cluster (single namenode and datanode) and HttpFS server.
 #
 # This requires `$HADOOP_HOME` and `$HADOOP_CONF_DIR` to be set.
 #
