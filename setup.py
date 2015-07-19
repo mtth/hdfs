@@ -8,7 +8,10 @@ from setuptools import find_packages, setup
 
 # Allow configuration of the CLI alias. This can be helpful since Hadoop 2
 # changed `hadoop fs` to `hdfs` (cf. https://github.com/mtth/hdfs/issues/10).
-ENTRY_POINT = environ.get('HDFS_ENTRY_POINT', 'hdfs')
+if environ.get('HDFS_ENTRY_POINT'):
+  ENTRY_POINT = environ.get('HDFS_ENTRY_POINT') # Backwards compatibility.
+else:
+  ENTRY_POINT = environ.get('HDFSCLI_ENTRY_POINT', 'hdfs')
 
 setup(
   name='hdfs',

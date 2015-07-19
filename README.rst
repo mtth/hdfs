@@ -13,8 +13,8 @@ API and command line interface for HDFS.
 Features
 --------
 
-* Python bindings for the `WebHDFS API`_, supporting both secure and insecure 
-  clusters.
+* Python bindings for the WebHDFS_ and HttpFS_ API, supporting both secure and 
+  insecure clusters.
 * Lightweight CLI with aliases for convenient namenode URL caching.
 * Additional functionality through optional extensions:
 
@@ -42,11 +42,11 @@ so simply suffix the package name with the desired extensions:
 
 By default the command line entry point will be named `hdfs`. If this conflicts 
 with another utility, you can choose another name by specifying the 
-`HDFS_ENTRY_POINT` environment variable:
+`HDFSCLI_ENTRY_POINT` environment variable:
 
 .. code-block:: bash
 
-  $ HDFS_ENTRY_POINT=hdfscli pip install hdfs
+  $ HDFSCLI_ENTRY_POINT=hdfscli pip install hdfs
 
 
 API
@@ -108,6 +108,20 @@ use (defaulting to the generic `Client`), and the remaining options are passed
 as named arguments to the appropriate constructor.
 
 
+Testing
+-------
+
+HdfsCLI is fully tested against both WebHDFS_ and HttpFS_. Tests can be run 
+either against a URL or an alias (see Configuration_):
+
+.. code-block:: bash
+
+  $ HDFSCLI_TEST_URL=http://localhost:50070 nosetests
+  $ HDFSCLI_TEST_ALIAS=foo nosetests
+
+See `scripts/` for helpers to set up a suitable HDFS cluster.
+
+
 Documentation
 -------------
 
@@ -117,4 +131,5 @@ The full documentation can be found here_.
 .. _here: http://hdfscli.readthedocs.org/
 .. _pip: http://www.pip-installer.org/en/latest/
 .. _pandas: http://pandas.pydata.org/
-.. _WebHDFS API: http://hadoop.apache.org/docs/r1.0.4/webhdfs.html
+.. _WebHDFS: http://hadoop.apache.org/docs/current/hadoop-project-dist/hadoop-hdfs/WebHDFS.html
+.. _HttpFS: http://hadoop.apache.org/docs/current/hadoop-hdfs-httpfs/

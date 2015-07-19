@@ -35,11 +35,11 @@ so simply suffix the package name with the desired extensions:
 
 By default the command line entry point will be named `hdfs`. If this conflicts 
 with another utility, you can choose another name by specifying the 
-`HDFS_ENTRY_POINT` environment variable:
+`HDFSCLI_ENTRY_POINT` environment variable:
 
 .. code-block:: bash
 
-  $ HDFS_ENTRY_POINT=hdfscli pip install hdfs
+  $ HDFSCLI_ENTRY_POINT=hdfscli pip install hdfs
 
 
 API
