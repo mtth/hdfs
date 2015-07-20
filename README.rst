@@ -13,8 +13,8 @@ API and command line interface for HDFS.
 Features
 --------
 
-* Python bindings for the WebHDFS_ and HttpFS_ API, supporting both secure and 
-  insecure clusters.
+* Python bindings for the WebHDFS_ API, supporting both secure and insecure 
+  clusters.
 * Lightweight CLI with aliases for convenient namenode URL caching.
 * Additional functionality through optional extensions:
 
@@ -49,38 +49,49 @@ with another utility, you can choose another name by specifying the
   $ HDFSCLI_ENTRY_POINT=hdfscli pip install hdfs
 
 
+Quickstart
+----------
+
 API
----
+***
 
 Sample snippet using a python client to create a file on HDFS, rename it, 
 download it locally, and finally delete the remote copy.
 
 .. code-block:: python
 
-  from hdfs import KerberosClient
+  from hdfs import TokenClient
 
-  client = KerberosClient('http://namenode:port', root='/user/alice')
+  client = TokenClient('http://namenode:port', 'foo', root='/user/alice')
   client.write('hello.md', 'Hello, world!')
   client.rename('hello.md', 'hello.rst')
   client.download('hello.rst', 'hello.rst')
   client.delete('hello.rst')
 
+Refer to the documentation_ for the full API and extensions.
+
 
 CLI
----
+***
 
 Sample commands (see below for how to configure cluster aliases):
 
 .. code-block:: bash
 
+  $ # Write a single file to HDFS.
+  $ hdfs static/weights.json --write <weights.json
+
+  $ # Read a file from HDFS and storing locally.
+  $ hdfs export/results --read >"results-$(date +%F)"
+
+  $ # Read a file from HDFS and append it to a local log file.
   $ hdfs --read logs/1987-03-23 >>logs
-  $ hdfs --write -o data/weights.tsv <weights.tsv
 
 Cf. `hdfs --help` for the full list of commands and options.
 
 
 Configuration
--------------
+*************
 
 You can configure which clusters to connect to by writing your own 
 configuration at `~/.hdfsrc` (or elsewhere by setting the `HDFSCLI_RCPATH` 
@@ -111,24 +122,18 @@ as named arguments to the appropriate constructor.
 Testing
 -------
 
-HdfsCLI is fully tested against both WebHDFS_ and HttpFS_. Tests can be run 
-either against a URL or an alias (see Configuration_):
+HdfsCLI is tested against both WebHDFS_ and HttpFS_. There are two ways of 
+running tests:
 
 .. code-block:: bash
 
-  $ HDFSCLI_TEST_URL=http://localhost:50070 nosetests
-  $ HDFSCLI_TEST_ALIAS=foo nosetests
+  $ HDFSCLI_TEST_ALIAS=foo nosetests # Using an alias.
+  $ HDFSCLI_TEST_URL=http://localhost:50070 nosetests # Using the URL.
 
 See `scripts/` for helpers to set up a suitable HDFS cluster.
 
 
-Documentation
--------------
-
-The full documentation can be found here_.
-
-
-.. _here: http://hdfscli.readthedocs.org/
+.. _documentation: http://hdfscli.readthedocs.org/
 .. _pip: http://www.pip-installer.org/en/latest/
 .. _pandas: http://pandas.pydata.org/
 .. _WebHDFS: http://hadoop.apache.org/docs/current/hadoop-project-dist/hadoop-hdfs/WebHDFS.html
