@@ -504,6 +504,66 @@ class TestStatus(_TestSession):
     self.client.status('foo')
 
 
+class TestSetOwner(_TestSession):
+
+  def test_directory_owner(self):
+    new_owner = 'newowner'
+    self.client._mkdirs('foo')
+    self.client.set_owner('foo', 'oldowner')
+    self.client.set_owner('foo', new_owner)
+    status = self.client.status('foo')
+    eq_(status['owner'], new_owner)
+
+  def test_file_owner(self):
+    new_owner = 'newowner'
+    self.client.write('foo', 'hello, world!')
+    self.client.set_owner('foo', 'oldowner')
+    self.client.set_owner('foo', new_owner)
+    status = self.client.status('foo')
+    eq_(status['owner'], new_owner)
+
+  def test_directory_for_group(self):
+    new_group = 'newgroup'
+    self.client._mkdirs('foo')
+    self.client.set_owner('foo', group='oldgroup')
+    self.client.set_owner('foo', group=new_group)
+    status = self.client.status('foo')
+    eq_(status['group'], new_group)
+
+  def test_file_for_group(self):
+    new_group = 'newgroup'
+    self.client.write('foo', 'hello, world!')
+    self.client.set_owner('foo', group='oldgroup')
+    self.client.set_owner('foo', group=new_group)
+    status = self.client.status('foo')
+    eq_(status['group'], new_group)
+
+  @raises(HdfsError)
+  def test_missing_for_group(self):
+    self.client.set_owner('foo', group='blah')
+
+
+class TestSetPermission(_TestSession):
+
+  def test_directory(self):
+    new_permission = '755'
+    self.client._mkdirs('foo', permission='444')
+    self.client.set_permissions('foo', new_permission)
+    status = self.client.status('foo')
+    eq_(status['permission'], new_permission)
+
+  def test_file(self):
+    new_permission = '755'
+    self.client.write('foo', 'hello, world!', permission='444')
+    self.client.set_permissions('foo', new_permission)
+    status = self.client.status('foo')
+    eq_(status['permission'], new_permission)
+
+  @raises(HdfsError)
+  def test_missing(self):
+    self.client.set_permissions('foo', '755')
+
+
 class TestContent(_TestSession):
 
   def test_directory(self):
