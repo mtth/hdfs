@@ -602,6 +602,36 @@ class Client(object):
         self.resolve(hdfs_src_path), hdfs_dst_path
       )
 
+  def set_owner(self, hdfs_path, owner=None, group=None):
+    """Change the owner of file.
+
+    :param hdfs_path: HDFS path.
+    :param owner: Optional, new owner for file.
+    :param group: Optional, new group for file.
+
+    """
+    if not owner and not group:
+      raise ValueError('Must set at least one of owner or group.')
+    messages = []
+    if owner:
+      messages.append('owner to %s' % (owner, ))
+    if group:
+      messages.append('group to %s' % (group, ))
+    self._logger.info('Changing %s of %s.', ', and'.join(messages), hdfs_path)
+    self._set_owner(hdfs_path, owner=owner, group=group)
+
+  def set_permissions(self, hdfs_path, permissions):
+    """Change the permissions of file.
+
+    :param hdfs_path: HDFS path.
+    :param permission: New octal permissions string of file.
+
+    """
+    self._logger.info(
+      'Changing permissions of %s to %s.', hdfs_path, permissions
+    )
+    self._set_permission(hdfs_path, permission=permissions)
+
   def list(self, hdfs_path):
     """Return status of files contained in a remote folder.
 
