@@ -578,6 +578,21 @@ class TestSetPermissions(_TestSession):
     self.client.set_permissions('foo', '755')
 
 
+class TestMakeDirectory(_TestSession):
+
+  def test_make_directory(self):
+    path = 'bar'
+    self.client.make_directory(path)
+    ok_(self._file_exists(path))
+
+  def test_make_directory_with_permissions(self):
+    path = 'foo'
+    permission = '555'
+    self.client.make_directory(path, permission=permission)
+    ok_(self._file_exists(path))
+    eq_(self.client.status(path)['permission'], permission)
+
+
 class TestContent(_TestSession):
 
   def test_directory(self):
