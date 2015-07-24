@@ -358,7 +358,7 @@ class Client(object):
       file object. The last two options will allow streaming upload (i.e.
       without having to load the entire contents into memory).
     :param overwrite: Overwrite any existing file or directory.
-    :param permissions: Octal permissions to set on the newly created file.
+    :param permission: Octal permissions to set on the newly created file.
       Leading zeros may be omitted.
     :param blocksize: Block size of the file.
     :param replication: Number of replications of the file.
@@ -434,26 +434,25 @@ class Client(object):
     hdfs_path = self.resolve(hdfs_path)
     temp_path = None
     try:
-      res = self._list_status(hdfs_path)
-    except HdfsError:
-      # Remote path doesn't exist.
-      temp_path = hdfs_path
-    else:
-      statuses = res.json()['FileStatuses']['FileStatus']
-      if len(statuses) == 1 and not statuses[0]['pathSuffix']:
+      statuses = [status for _, status in self.list(hdfs_path)]
+    except HdfsError as err:
+      if 'not a directory' in err.message:
         # Remote path is a normal file.
         if not overwrite:
           raise HdfsError('Remote path %r already exists.', hdfs_path)
       else:
-        # Remote path is a directory.
-        suffixes = set(status['pathSuffix'] for status in statuses)
-        local_name = osp.basename(local_path)
-        hdfs_path = posixpath.join(hdfs_path, local_name)
-        if local_name in suffixes:
-          if not overwrite:
-            raise HdfsError('Remote path %r already exists.', hdfs_path)
-        else:
-          temp_path = hdfs_path
+        # Remote path doesn't exist.
+        temp_path = hdfs_path
+    else:
+      # Remote path is a directory.
+      suffixes = set(status['pathSuffix'] for status in statuses)
+      local_name = osp.basename(local_path)
+      hdfs_path = posixpath.join(hdfs_path, local_name)
+      if local_name in suffixes:
+        if not overwrite:
+          raise HdfsError('Remote path %r already exists.', hdfs_path)
+      else:
+        temp_path = hdfs_path
     if not temp_path:
       # The remote path already exists, we need to generate a temporary one.
       remote_dpath, remote_name = posixpath.split(hdfs_path)
@@ -686,8 +685,8 @@ class Client(object):
 
     :param hdfs_path: HDFS path.
     :param recursive: Recursively delete files and directories. By default,
-      this method will raise :class:`~hdfs.util.HdfsError` if trying to delete
-      a non-empty directory.
+      this method will raise an :class:`HdfsError` if trying to delete a
+      non-empty directory.
 
     """
     self._logger.info('Deleting %s%s.', hdfs_path, ' [R]' if recursive else '')
@@ -701,7 +700,7 @@ class Client(object):
     :param hdfs_src_path: Source path.
     :param hdfs_dst_path: Destination path. If the path already exists and is
       a directory, the source will be moved into it. If the path exists and is
-      a file, this method will raise :class:`~hdfs.util.HdfsError`.
+      a file, this method will raise an :class:`HdfsError`.
 
     """
     self._logger.info('Renaming %s to %s.', hdfs_src_path, hdfs_dst_path)
@@ -720,6 +719,8 @@ class Client(object):
     :param owner: Optional, new owner for file.
     :param group: Optional, new group for file.
 
+    At least one of `owner` and `group` must be specified.
+
     """
     if not owner and not group:
       raise ValueError('Must set at least one of owner or group.')
@@ -735,7 +736,7 @@ class Client(object):
     """Change the permissions of file.
 
     :param hdfs_path: HDFS path.
-    :param permission: New octal permissions string of file.
+    :param permissions: New octal permissions string of file.
 
     """
     self._logger.info(
@@ -757,8 +758,11 @@ class Client(object):
     self._logger.info('Listing %s.', hdfs_path)
     hdfs_path = self.resolve(hdfs_path)
     statuses = self._list_status(hdfs_path).json()['FileStatuses']['FileStatus']
-    if len(statuses) == 1 and not statuses[0]['pathSuffix']:
-      # This is a normal file.
+    if len(statuses) == 1 and (
+      not statuses[0]['pathSuffix'] or self.status(hdfs_path)['type'] == 'FILE'
+      # HttpFS behaves incorrectly here, we sometimes need an extra call to
+      # make sure we always identify if we are dealing with a file.
+    ):
       raise HdfsError('%r is not a directory.', hdfs_path)
     return [
       (osp.join(hdfs_path, status['pathSuffix']), status)

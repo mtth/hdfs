@@ -686,7 +686,6 @@ class TestContent(_TestSession):
 
 class TestList(_TestSession):
 
-  @nottest # HttpFS is inconsistent here (it actually returns wrong data).
   @raises(HdfsError)
   def test_file(self):
     self.client.write('foo', 'hello, world!')
