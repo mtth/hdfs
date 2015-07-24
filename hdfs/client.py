@@ -10,6 +10,7 @@ from multiprocessing.pool import ThreadPool
 from random import sample
 from shutil import move, rmtree
 from urllib import quote
+from warnings import warn
 import logging as lg
 import os
 import os.path as osp
@@ -349,7 +350,7 @@ class Client(object):
       return paths
 
   def write(self, hdfs_path, data, overwrite=False, permission=None,
-    blocksize=None, replication=None, buffersize=None):
+    blocksize=None, replication=None, buffersize=None, append=False):
     """Create a file on HDFS.
 
     :param hdfs_path: Path where to create file. The necessary directories will
@@ -363,19 +364,28 @@ class Client(object):
     :param blocksize: Block size of the file.
     :param replication: Number of replications of the file.
     :param buffersize: Size of upload buffer.
+    :param append: Append to a file rather than create a new one.
 
     """
-    self._logger.info('Writing to %s.', hdfs_path)
-    res = self._create_1(
-      hdfs_path,
-      overwrite=overwrite,
-      permission=permission,
-      blocksize=blocksize,
-      replication=replication,
-      buffersize=buffersize,
-    )
+    if append:
+      if overwrite:
+        raise ValueError('Cannot both overwrite and append.')
+      if permission or blocksize or replication:
+        raise ValueError('Cannot change file properties while appending.')
+      self._logger.info('Appending to %s.', hdfs_path)
+      res = self._append_1(hdfs_path, buffersize=buffersize)
+    else:
+      self._logger.info('Writing to %s.', hdfs_path)
+      res = self._create_1(
+        hdfs_path,
+        overwrite=overwrite,
+        permission=permission,
+        blocksize=blocksize,
+        replication=replication,
+        buffersize=buffersize,
+      )
     self._request(
-      method='PUT',
+      method='POST' if append else 'PUT',
       url=res.headers['location'],
       data=data,
     )
@@ -388,6 +398,10 @@ class Client(object):
     :param buffersize: Size of upload buffer.
 
     """
+    warn(DeprecationWarning(
+      '`Client.append` is going away in 2.0. Please use `Client.write` with '
+      '`append=True` instead.'
+    ))
     self._logger.info('Appending to %s.', hdfs_path)
     res = self._append_1(
       hdfs_path,
@@ -436,7 +450,7 @@ class Client(object):
     try:
       statuses = [status for _, status in self.list(hdfs_path)]
     except HdfsError as err:
-      if 'not a directory' in err.message:
+      if 'not a directory' in str(err):
         # Remote path is a normal file.
         if not overwrite:
           raise HdfsError('Remote path %r already exists.', hdfs_path)
@@ -491,13 +505,13 @@ class Client(object):
     else:
       n_threads = min(n_threads, len(fpath_tuples))
     self._logger.debug(
-      'Uploading %s files using %s threads.', len(fpath_tuples), n_threads
+      'Uploading %s files using %s thread(s).', len(fpath_tuples), n_threads
     )
     try:
       if n_threads == 1:
-        errors = map(_upload, enumerate(fpath_tuples))
+        map(_upload, enumerate(fpath_tuples))
       else:
-        errors = ThreadPool(n_threads).map(_upload, enumerate(fpath_tuples))
+        ThreadPool(n_threads).map(_upload, enumerate(fpath_tuples))
     except Exception as err:
       try:
         self.delete(temp_path, recursive=True)
@@ -646,13 +660,13 @@ class Client(object):
     else:
       n_threads = min(n_threads, len(fpath_tuples))
     self._logger.debug(
-      'Downloading %s files using %s threads.', len(fpath_tuples), n_threads
+      'Downloading %s files using %s thread(s).', len(fpath_tuples), n_threads
     )
     try:
       if n_threads == 1:
-        errors = map(_download, enumerate(fpath_tuples))
+        map(_download, enumerate(fpath_tuples))
       else:
-        errors = ThreadPool(n_threads).map(_download, enumerate(fpath_tuples))
+        ThreadPool(n_threads).map(_download, enumerate(fpath_tuples))
     except Exception as err:
       try:
         if osp.isdir(temp_path):

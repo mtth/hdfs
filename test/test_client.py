@@ -223,10 +223,10 @@ class TestAppend(_TestSession):
       try:
         cls.client.write('ap', '')
         # can't append to an empty file
-        cls.client.append('ap', '')
+        cls.client.write('ap', '', append=True)
         # try a simple append
       except HdfsError as err:
-        if 'Append is not supported.' in err.message:
+        if 'Append is not supported' in str(err):
           cls.client = None
           # skip these tests if HDFS isn't configured to support appends
         else:
@@ -234,12 +234,20 @@ class TestAppend(_TestSession):
 
   def test_simple(self):
     self.client.write('ap', 'hello,')
-    self.client.append('ap', ' world!')
+    self.client.write('ap', ' world!', append=True)
     self._check_content('ap', 'hello, world!')
 
   @raises(HdfsError)
   def test_missing_file(self):
-    self.client.append('ap', 'hello!')
+    self.client.write('ap', 'hello!', append=True)
+
+  @raises(ValueError)
+  def test_overwrite_and_append(self):
+    self.client.write('ap', 'hello!', overwrite=True, append=True)
+
+  @raises(ValueError)
+  def test_set_permission_and_append(self):
+    self.client.write('ap', 'hello!', permission='777', append=True)
 
 
 class TestUpload(_TestSession):

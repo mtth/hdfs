@@ -4,15 +4,17 @@ HdfsCLI
 Version 2.0 (?)
 ---------------
 
+* Add python 3 support (except Kerberos extension).
 * Remove `--` prefix from CLI commands.
 * Make `permission` argument uniform across `Client` methods.
-* Remove `Client.append` method (in favor of `append` argument to
-  `Client.write`).
+* Remove `Client.append` method.
 
 Version 1.4.0 (2015/07/24)
 --------------------------
 
 * Add support for download and upload of arbitrary folders.
+* Deprecate `Client.append` (in favor of `append` argument to
+  `Client.write`).
 
 Version 1.1.0 (2015/06/23)
 --------------------------
