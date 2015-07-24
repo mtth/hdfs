@@ -424,8 +424,8 @@ class Client(object):
       of files will not be created remotely).
     :param overwrite: Overwrite any existing file or directory.
     :param n_threads: Number of threads to use for parallel downloading of
-      part-files. A value of `None` or `1` indicates that parallelization won't
-      be used; `-1` uses as many threads as there are part-files.
+      files. A value of `None` or `1` indicates that parallelization won't be
+      used; `-1` uses as many threads as there are files.
     :param temp_dir: Directory under which the files will first be uploaded
       when `overwrite=True` and the final remote path already exists. Once the
       upload successfully completes, it will be swapped in.
@@ -590,8 +590,8 @@ class Client(object):
       the files will be downloaded inside of it.
     :param overwrite: Overwrite any existing file or directory.
     :param n_threads: Number of threads to use for parallel downloading of
-      part-files. A value of `None` or `1` indicates that parallelization won't
-      be used; `-1` uses as many threads as there are part-files.
+      files. A value of `None` or `1` indicates that parallelization won't be
+      used; `-1` uses as many threads as there are files.
     :param temp_dir: Directory under which the files will first be downloaded
       when `overwrite=True` and the final destination path already exists. Once
       the download successfully completes, it will be swapped in.
@@ -694,18 +694,19 @@ class Client(object):
         )
     return local_path
 
-  def delete(self, hdfs_path, recursive=False):
+  def delete(self, hdfs_path, recursive=False, force=False):
     """Remove a file or directory from HDFS.
 
     :param hdfs_path: HDFS path.
     :param recursive: Recursively delete files and directories. By default,
       this method will raise an :class:`HdfsError` if trying to delete a
       non-empty directory.
+    :param force: Don't raise an error if the path doesn't exist.
 
     """
     self._logger.info('Deleting %s%s.', hdfs_path, ' [R]' if recursive else '')
     res = self._delete(hdfs_path, recursive=recursive)
-    if not res.json()['boolean']:
+    if not res.json()['boolean'] and not force:
       raise HdfsError('Remote path %r not found.', hdfs_path)
 
   def rename(self, hdfs_src_path, hdfs_dst_path):

@@ -344,8 +344,11 @@ class TestDelete(_TestSession):
     self.client.delete('foo')
 
   @raises(HdfsError)
-  def test_delete_missing_file(self):
+  def test_delete_missing_file_without_force(self):
     self.client.delete('foo')
+
+  def test_delete_missing_file_with_force(self):
+    self.client.delete('foo', force=True)
 
   def test_delete_non_empty_directory(self):
     self.client.write('de/foo', 'hello, world!')
