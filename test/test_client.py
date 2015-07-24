@@ -252,37 +252,69 @@ class TestUpload(_TestSession):
     self._check_content('up', 'hello, world!')
 
   @raises(HdfsError)
-  def test_upload_directory(self):
-    tdpath = mkdtemp()
+  def test_upload_empty_directory(self):
+    dpath = mkdtemp()
     try:
-      self.client.upload('up', tdpath)
+      self.client.upload('up', dpath)
     finally:
-      os.rmdir(tdpath)
+      os.rmdir(dpath)
+
+  def test_upload_directory_to_existing_directory(self):
+    dpath = mkdtemp()
+    try:
+      npath = osp.join(dpath, 'hi')
+      os.mkdir(npath)
+      with open(osp.join(npath, 'foo'), 'w') as writer:
+        writer.write('hello!')
+      os.mkdir(osp.join(npath, 'bar'))
+      with open(osp.join(npath, 'bar', 'baz'), 'w') as writer:
+        writer.write('world!')
+      self.client._mkdirs('up')
+      self.client.upload('up', npath)
+      self._check_content('up/hi/foo', 'hello!')
+      self._check_content('up/hi/bar/baz', 'world!')
+    finally:
+      rmtree(dpath)
+
+  def test_upload_directory_to_missing(self):
+    dpath = mkdtemp()
+    try:
+      with open(osp.join(dpath, 'foo'), 'w') as writer:
+        writer.write('hello!')
+      os.mkdir(osp.join(dpath, 'bar'))
+      with open(osp.join(dpath, 'bar', 'baz'), 'w') as writer:
+        writer.write('world!')
+      self.client.upload('up', dpath)
+      self._check_content('up/foo', 'hello!')
+      self._check_content('up/bar/baz', 'world!')
+    finally:
+      rmtree(dpath)
+
+  def test_upload_directory_overwrite_existing_file(self):
+    dpath = mkdtemp()
+    try:
+      with open(osp.join(dpath, 'foo'), 'w') as writer:
+        writer.write('hello!')
+      os.mkdir(osp.join(dpath, 'bar'))
+      with open(osp.join(dpath, 'bar', 'baz'), 'w') as writer:
+        writer.write('world!')
+      self.client.write('up', 'hi')
+      self.client.upload('up', dpath, overwrite=True)
+      self._check_content('up/foo', 'hello!')
+      self._check_content('up/bar/baz', 'world!')
+    finally:
+      rmtree(dpath)
 
   def test_upload_overwrite(self):
     with temppath() as tpath:
       with open(tpath, 'w') as writer:
         writer.write('hello')
       self.client.upload('up', tpath)
-      first_mtime = self._get_mtime('up')
     with temppath() as tpath:
       with open(tpath, 'w') as writer:
         writer.write('there')
       self.client.upload('up', tpath, overwrite=True)
-      second_mtime = self._get_mtime('up')
     self._check_content('up', 'there')
-    ok_(second_mtime > first_mtime)
-
-  # TODO: reimplement caching
-  # def test_upload_overwrite_cached(self):
-  #   with temppath() as tpath:
-  #     with open(tpath, 'w') as writer:
-  #       writer.write('hello')
-  #     self.client.upload('up', tpath)
-  #     first_mtime = self._get_mtime('up')
-  #     self.client.upload('up', tpath, overwrite=True)
-  #     second_mtime = self._get_mtime('up')
-  #   ok_(second_mtime == first_mtime)
 
   @raises(HdfsError)
   def test_upload_overwrite_error(self):
@@ -291,9 +323,6 @@ class TestUpload(_TestSession):
         writer.write('here')
       self.client.upload('up', tpath)
       self.client.upload('up', tpath)
-
-  def _get_mtime(self, hdfs_path):
-    return self.client.status(hdfs_path)['modificationTime']
 
 
 class TestDelete(_TestSession):
@@ -428,25 +457,25 @@ class TestDownload(_TestSession):
       with open(osp.join(fname, partname)) as reader:
         eq_(reader.read(), 'world')
 
-  def test_partitioned_file_sync(self):
-    for name, content in self.parts.items():
-      self.client.write('dl/%s' % (name, ), content)
-    with temppath() as tpath:
-      self.client.download('dl', tpath, n_threads=0)
-      self.check_contents(tpath)
-
-  def test_partitioned_file_async_auto(self):
+  def test_partitioned_file(self):
     for name, content in self.parts.items():
       self.client.write('dl/%s' % (name, ), content)
     with temppath() as tpath:
       self.client.download('dl', tpath, n_threads=-1)
       self.check_contents(tpath)
 
-  def test_partitioned_file_async_manual(self):
+  def test_partitioned_file_setting_n_threads(self):
     for name, content in self.parts.items():
       self.client.write('dl/%s' % (name, ), content)
     with temppath() as tpath:
       self.client.download('dl', tpath, n_threads=2)
+      self.check_contents(tpath)
+
+  def test_partitioned_file_sync(self):
+    for name, content in self.parts.items():
+      self.client.write('dl/%s' % (name, ), content)
+    with temppath() as tpath:
+      self.client.download('dl', tpath, n_threads=0)
       self.check_contents(tpath)
 
   def test_overwrite_file(self):
@@ -459,19 +488,75 @@ class TestDownload(_TestSession):
         eq_(reader.read(), 'there')
 
   @raises(HdfsError)
-  def test_overwrite_error(self):
-    self.client.write('dl', 'hello')
-    with temppath() as tpath:
-      self.client.download('dl', tpath)
-      self.client.download('dl', tpath)
-
-  @raises(HdfsError)
-  def test_partitioned_file_to_existing_file(self):
+  def test_download_file_to_existing_file(self):
     self.client.write('dl', 'hello')
     with temppath() as tpath:
       with open(tpath, 'w') as writer:
+        writer.write('hi')
+      self.client.download('dl', tpath)
+
+  def test_download_file_to_existing_file_with_overwrite(self):
+    self.client.write('dl', 'hello')
+    with temppath() as tpath:
+      with open(tpath, 'w') as writer:
+        writer.write('hi')
+      self.client.download('dl', tpath, overwrite=True)
+      with open(tpath) as reader:
+        eq_(reader.read(), 'hello')
+
+  def test_download_file_to_existing_folder(self):
+    self.client.write('dl', 'hello')
+    with temppath() as tpath:
+      os.mkdir(tpath)
+      self.client.download('dl', tpath)
+      with open(osp.join(tpath, 'dl')) as reader:
+        eq_(reader.read(), 'hello')
+
+  @raises(HdfsError)
+  def test_download_file_to_existing_folder_with_matching_file(self):
+    self.client.write('dl', 'hello')
+    with temppath() as tpath:
+      os.mkdir(tpath)
+      with open(osp.join(tpath, 'dl'), 'w') as writer:
         writer.write('hey')
       self.client.download('dl', tpath)
+
+  def test_download_file_to_existing_folder_overwrite_matching_file(self):
+    self.client.write('dl', 'hello')
+    with temppath() as tpath:
+      os.mkdir(tpath)
+      with open(osp.join(tpath, 'dl'), 'w') as writer:
+        writer.write('hey')
+      self.client.download('dl', tpath, overwrite=True)
+      with open(osp.join(tpath, 'dl')) as reader:
+        eq_(reader.read(), 'hello')
+
+  def test_download_folder_to_existing_folder(self):
+    self.client.write('foo/dl', 'hello')
+    self.client.write('foo/bar/dl', 'there')
+    with temppath() as tpath:
+      os.mkdir(tpath)
+      self.client.download('foo', tpath)
+      with open(osp.join(tpath, 'foo', 'dl')) as reader:
+        eq_(reader.read(), 'hello')
+      with open(osp.join(tpath, 'foo', 'bar', 'dl')) as reader:
+        eq_(reader.read(), 'there')
+
+  def test_download_folder_to_missing_folder(self):
+    self.client.write('foo/dl', 'hello')
+    self.client.write('foo/bar/dl', 'there')
+    with temppath() as tpath:
+      self.client.download('foo', tpath)
+      with open(osp.join(tpath, 'dl')) as reader:
+        eq_(reader.read(), 'hello')
+      with open(osp.join(tpath, 'bar', 'dl')) as reader:
+        eq_(reader.read(), 'there')
+
+  @raises(HdfsError)
+  def test_download_empty_folder(self):
+    self.client._mkdirs('foo')
+    with temppath() as tpath:
+      self.client.download('foo', tpath)
 
   # helpers
 

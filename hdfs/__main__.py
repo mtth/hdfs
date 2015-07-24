@@ -5,21 +5,21 @@
 
 Usage:
   hdfs [-a ALIAS] [--interactive]
-  hdfs [-a ALIAS] --list [-j | -p] [-d DEPTH] [RPATH]
   hdfs [-a ALIAS] --read RPATH
   hdfs [-a ALIAS] --write [-o] RPATH
-  hdfs [-a ALIAS] --download [-o] [-t THREADS] RPATH LPATH
+  hdfs [-a ALIAS] --list [-j | -p] [-d DEPTH] [RPATH]
+  hdfs [-a ALIAS] --download [-ot THREADS] RPATH LPATH
+  hdfs [-a ALIAS] --upload [-ot THREADS] LPATH RPATH
   hdfs -h | --help | -l | --log | -v | --version
 
 Commands:
-  --download                    Download a (potentially distributed) file from
-                                HDFS into `LPATH`.
+  --download                    Download a file or folder to HDFS.
   --interactive                 Start the client and expose it via the python
                                 interpreter (using iPython if available).
   --list                        View information about files and directories.
-  --read                        Read a file from HDFS to standard out. Note
-                                that this only works for normal files.
-  --write                       Write from standard in to a path on HDFS.
+  --read                        Stream a file from HDFS to standard out.
+  --upload                      Upload a file or folder to HDFS.
+  --write                       Stream from standard in to a file on HDFS.
 
 Arguments:
   LPATH                         Path to local file or directory.
@@ -144,7 +144,7 @@ def main():
     logger.addHandler(handler)
   # set up client and fix arguments
   client = Client.from_alias(args['--alias'])
-  rpath = args['RPATH'] or ''
+  rpath = args['RPATH'] or '.'
   for option in ('--depth', '--threads'):
     try:
       args[option] = int(args[option])
@@ -164,6 +164,13 @@ def main():
     read(client.read(rpath), size, '%s\t' % (rpath, ))
   elif args['--download']:
     client.download(
+      rpath,
+      args['LPATH'],
+      overwrite=args['--overwrite'],
+      n_threads=args['--threads']
+    )
+  elif args['--upload']:
+    client.upload(
       rpath,
       args['LPATH'],
       overwrite=args['--overwrite'],

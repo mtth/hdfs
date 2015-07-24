@@ -134,11 +134,11 @@ def read_df(client, hdfs_path, format, use_gzip = False, sep = '\t',
       def _process_function(data_files):
           # Loads downloaded csv files and return a pandas dataframe
 
-          PIG_CSV_HEADER = '.pig_header'
-          hdfs_header_file = posixpath.join(hdfs_path, PIG_CSV_HEADER)
-          client.download(hdfs_header_file, local_dir, overwrite=overwrite)
+          header_path = osp.join(lpath, '.pig_header')
+          if not osp.exists(header_path):
+            raise HdfsError('No header found in %r.', hdfs_path)
           merged_files = io.BytesIO()
-          with open(osp.join(local_dir, PIG_CSV_HEADER), 'r') as f:
+          with open(header_path, 'r') as f:
             merged_files.write(f.read())
 
           for filename in data_files:
@@ -202,7 +202,11 @@ def read_df(client, hdfs_path, format, use_gzip = False, sep = '\t',
       hdfs_path, local_dir, n_threads=n_threads, overwrite=overwrite
     )
 
-    data_files = [osp.join(lpath, fname) for fname in os.listdir(lpath)]
+    data_files = [
+      osp.join(lpath, fname)
+      for fname in os.listdir(lpath)
+      if not fname.startswith('.')
+    ]
     data_files = sorted(data_files)
     df = _process_function(data_files)
 
