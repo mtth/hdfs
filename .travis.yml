@@ -15,5 +15,5 @@ script:
   - HDFSCLI_TEST_URL="$WEBHDFS_URL" nosetests -v
   - HDFSCLI_TEST_URL="$HTTPFS_URL" nosetests -v
 after_script:
-  - ./scripts/hadoop-daemon.sh stop
+  - ./scripts/hadoop.sh stop
   - rm -r "$(dirname "$HADOOP_HOME")" "$HADOOP_CONF_DIR"
