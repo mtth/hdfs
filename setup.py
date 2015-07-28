@@ -34,6 +34,7 @@ setup(
   install_requires=[
     'docopt',
     'requests>=2.0.1',
+    'six>=1.9.0',
   ],
   extras_require={
     'avro': ['avro'],

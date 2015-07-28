@@ -8,6 +8,7 @@ Version 2.0 (?)
 * Remove `--` prefix from CLI commands.
 * Make `permission` argument uniform across `Client` methods.
 * Remove `Client.append` method.
+* `Client.delete` returns boolean indicating success.
 
 Version 1.4.0 (2015/07/24)
 --------------------------

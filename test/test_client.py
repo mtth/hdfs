@@ -337,22 +337,21 @@ class TestDelete(_TestSession):
 
   def test_delete_file(self):
     self.client.write('foo', 'hello, world!')
-    self.client.delete('foo')
+    ok_(self.client.delete('foo'))
+    ok_(not self._file_exists('foo'))
 
   def test_delete_empty_directory(self):
     self.client._mkdirs('foo')
-    self.client.delete('foo')
+    ok_(self.client.delete('foo'))
+    ok_(not self._file_exists('foo'))
 
-  @raises(HdfsError)
-  def test_delete_missing_file_without_force(self):
-    self.client.delete('foo')
-
-  def test_delete_missing_file_with_force(self):
-    self.client.delete('foo', force=True)
+  def test_delete_missing_file(self):
+    ok_(not self.client.delete('foo'))
 
   def test_delete_non_empty_directory(self):
     self.client.write('de/foo', 'hello, world!')
-    self.client.delete('de', recursive=True)
+    ok_(self.client.delete('de', recursive=True))
+    ok_(not self._file_exists('de'))
 
   @raises(HdfsError)
   def test_delete_non_empty_directory_without_recursive(self):

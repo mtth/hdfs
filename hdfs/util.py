@@ -3,8 +3,8 @@
 
 """Utilities."""
 
-from ConfigParser import (NoOptionError, NoSectionError, ParsingError,
-  RawConfigParser)
+from six.moves.configparser import (NoOptionError, NoSectionError,
+  ParsingError, RawConfigParser)
 from contextlib import contextmanager
 from functools import wraps
 from logging.handlers import TimedRotatingFileHandler

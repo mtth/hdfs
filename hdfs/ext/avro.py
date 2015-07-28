@@ -306,7 +306,7 @@ class AvroReader(object):
 
     with AvroReader(client, 'foo.avro') as reader:
       for record in reader:
-        print record.to_json()
+        pass # do things
 
   """
 
@@ -459,14 +459,14 @@ def main():
   else:
     avro_file = AvroReader(client, args['PATH'] or '', parts)
     if args['--schema']:
-      print dumps(avro_file.schema.to_json(), indent=2)
+      sys.stdout.write('%s\n' % (dumps(avro_file.schema.to_json(), indent=2), ))
     elif args['--head']:
       try:
         n_records = int(args['--num'])
       except ValueError:
         raise HdfsError('Invalid `--num` option: %r.', args['--num'])
       for record in islice(avro_file, n_records):
-        print dumps(record, indent=2)
+        sys.stdout.write('%s\n' % (dumps(record, indent=2), ))
     elif args['--sample']:
       num = args['--num']
       frq = args['--freq']
@@ -477,14 +477,14 @@ def main():
           raise HdfsError('Invalid `--freq` option: %r.', args['--freq'])
         for record in avro_file:
           if random() <= freq:
-            print dumps(record)
+            sys.stdout.write('%s\n' % (dumps(record), ))
       else:
         try:
           n_records = int(num)
         except ValueError:
           raise HdfsError('Invalid `--num` option: %r.', num)
         for record in islice(avro_file, n_records):
-          print dumps(record)
+          sys.stdout.write('%s\n' % (dumps(record), ))
 
 if __name__ == '__main__':
   main()

@@ -9,6 +9,8 @@ from itertools import repeat
 from multiprocessing.pool import ThreadPool
 from random import sample
 from shutil import move, rmtree
+from six import add_metaclass
+from six.moves.urllib.parse import quote
 from urllib import quote
 from warnings import warn
 import logging as lg
@@ -113,6 +115,7 @@ class _ClientType(type):
     return client
 
 
+@add_metaclass(_ClientType)
 class Client(object):
 
   """Base HDFS web client.
@@ -142,7 +145,6 @@ class Client(object):
 
   """
 
-  __metaclass__ = _ClientType
   __registry__ = {}
 
   def __init__(
@@ -694,20 +696,20 @@ class Client(object):
         )
     return local_path
 
-  def delete(self, hdfs_path, recursive=False, force=False):
+  def delete(self, hdfs_path, recursive=False):
     """Remove a file or directory from HDFS.
 
     :param hdfs_path: HDFS path.
     :param recursive: Recursively delete files and directories. By default,
       this method will raise an :class:`HdfsError` if trying to delete a
       non-empty directory.
-    :param force: Don't raise an error if the path doesn't exist.
+
+    This function returns `True` if the deletion was successful and `False` if
+    no file or directory previously existed at `hdfs_path`.
 
     """
     self._logger.info('Deleting %s%s.', hdfs_path, ' [R]' if recursive else '')
-    res = self._delete(hdfs_path, recursive=recursive)
-    if not res.json()['boolean'] and not force:
-      raise HdfsError('Remote path %r not found.', hdfs_path)
+    return self._delete(hdfs_path, recursive=recursive).json()['boolean']
 
   def rename(self, hdfs_src_path, hdfs_dst_path):
     """Move a file or folder.

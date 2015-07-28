@@ -3,7 +3,7 @@
 
 """Test helpers."""
 
-from ConfigParser import NoOptionError, NoSectionError
+from six.moves.configparser import NoOptionError, NoSectionError
 from hdfs import * # import all clients
 from hdfs.util import HdfsError
 from nose.plugins.skip import SkipTest
