@@ -9,6 +9,7 @@ from helpers import _TestSession
 from nose.tools import eq_, nottest, ok_, raises
 from requests.exceptions import ConnectTimeout, ReadTimeout
 from shutil import rmtree
+from six import b
 from tempfile import mkdtemp
 import os
 import os.path as osp
@@ -112,7 +113,7 @@ class TestApi(_TestSession):
     self.client._create(paths[0], data='hello')
     ok_(status(self.client._rename(paths[0], destination=paths[1])))
     ok_(not self._file_exists(paths[0]))
-    eq_(self.client._open(paths[1].rsplit('/', 1)[1]).content, 'hello')
+    eq_(self.client._open(paths[1].rsplit('/', 1)[1]).content, b'hello')
     self.client._delete(paths[1])
 
   def test_rename_file_to_existing(self):
@@ -127,7 +128,7 @@ class TestApi(_TestSession):
 
   def test_open_file(self):
     self.client._create('foo', data='hello')
-    eq_(self.client._open('foo').content, 'hello')
+    eq_(self.client._open('foo').content, b'hello')
 
   def test_get_file_checksum(self):
     self.client._create('foo', data='hello')
@@ -155,7 +156,7 @@ class TestResolve(_TestSession):
   def test_create_file_with_reserved_characters(self):
     path = 'fo&o/a?a'
     self.client.write(path, data='hello')
-    eq_(''.join(self.client.read(path)), 'hello')
+    eq_(b''.join(self.client.read(path)), b'hello')
 
   def test_create_file_with_percent(self):
     # `%` (`0x25`) is a special case because it seems to cause errors (even
@@ -166,19 +167,19 @@ class TestResolve(_TestSession):
       self.client.write(path, data='hello')
     except HdfsError:
       pass
-    eq_(''.join(self.client.read(path)), 'hello')
+    eq_(b''.join(self.client.read(path)), b'hello')
 
 
 class TestWrite(_TestSession):
 
   def test_create_from_string(self):
     self.client.write('up', 'hello, world!')
-    self._check_content('up', 'hello, world!')
+    self._check_content('up', b'hello, world!')
 
   def test_create_from_generator(self):
-    data = (e for e in ['hello, ', 'world!'])
+    data = (e for e in [b'hello, ', b'world!'])
     self.client.write('up', data)
-    self._check_content('up', 'hello, world!')
+    self._check_content('up', b'hello, world!')
 
   def test_create_from_file_object(self):
     with temppath() as tpath:
@@ -186,7 +187,7 @@ class TestWrite(_TestSession):
         writer.write('hello, world!')
       with open(tpath) as reader:
         self.client.write('up', reader)
-    self._check_content('up', 'hello, world!')
+    self._check_content('up', b'hello, world!')
 
   def test_create_set_permission(self):
     pass # TODO
@@ -199,13 +200,13 @@ class TestWrite(_TestSession):
   def test_create_and_overwrite_file(self):
     self.client.write('up', 'hello, world!')
     self.client.write('up', 'hello again, world!', overwrite=True)
-    self._check_content('up', 'hello again, world!')
+    self._check_content('up', b'hello again, world!')
 
   @raises(HdfsError)
   def test_create_and_overwrite_directory(self):
     # can't overwrite a directory with a file
     self.client._mkdirs('up')
-    self.client.write('up', 'hello, world!')
+    self.client.write('up', b'hello, world!')
 
   @raises(HdfsError)
   def test_create_invalid_path(self):
@@ -235,7 +236,7 @@ class TestAppend(_TestSession):
   def test_simple(self):
     self.client.write('ap', 'hello,')
     self.client.write('ap', ' world!', append=True)
-    self._check_content('ap', 'hello, world!')
+    self._check_content('ap', b'hello, world!')
 
   @raises(HdfsError)
   def test_missing_file(self):
@@ -257,7 +258,7 @@ class TestUpload(_TestSession):
       with open(tpath, 'w') as writer:
         writer.write('hello, world!')
       self.client.upload('up', tpath)
-    self._check_content('up', 'hello, world!')
+    self._check_content('up', b'hello, world!')
 
   @raises(HdfsError)
   def test_upload_empty_directory(self):
@@ -279,8 +280,8 @@ class TestUpload(_TestSession):
         writer.write('world!')
       self.client._mkdirs('up')
       self.client.upload('up', npath)
-      self._check_content('up/hi/foo', 'hello!')
-      self._check_content('up/hi/bar/baz', 'world!')
+      self._check_content('up/hi/foo', b'hello!')
+      self._check_content('up/hi/bar/baz', b'world!')
     finally:
       rmtree(dpath)
 
@@ -293,8 +294,8 @@ class TestUpload(_TestSession):
       with open(osp.join(dpath, 'bar', 'baz'), 'w') as writer:
         writer.write('world!')
       self.client.upload('up', dpath)
-      self._check_content('up/foo', 'hello!')
-      self._check_content('up/bar/baz', 'world!')
+      self._check_content('up/foo', b'hello!')
+      self._check_content('up/bar/baz', b'world!')
     finally:
       rmtree(dpath)
 
@@ -308,8 +309,8 @@ class TestUpload(_TestSession):
         writer.write('world!')
       self.client.write('up', 'hi')
       self.client.upload('up', dpath, overwrite=True)
-      self._check_content('up/foo', 'hello!')
-      self._check_content('up/bar/baz', 'world!')
+      self._check_content('up/foo', b'hello!')
+      self._check_content('up/bar/baz', b'world!')
     finally:
       rmtree(dpath)
 
@@ -322,7 +323,7 @@ class TestUpload(_TestSession):
       with open(tpath, 'w') as writer:
         writer.write('there')
       self.client.upload('up', tpath, overwrite=True)
-    self._check_content('up', 'there')
+    self._check_content('up', b'there')
 
   @raises(HdfsError)
   def test_upload_overwrite_error(self):
@@ -364,39 +365,39 @@ class TestRead(_TestSession):
   def test_read_file(self):
     self.client.write('foo', 'hello, world!')
     with temppath() as tpath:
-      with open(tpath, 'w') as writer:
+      with open(tpath, 'wb') as writer:
         self._read(writer, 'foo')
-      with open(tpath) as reader:
-        eq_(reader.read(), 'hello, world!')
+      with open(tpath, 'rb') as reader:
+        eq_(reader.read(), b'hello, world!')
 
   @raises(HdfsError)
   def test_read_directory(self):
     self.client._mkdirs('foo')
     with temppath() as tpath:
-      with open(tpath, 'w') as writer:
+      with open(tpath, 'wb') as writer:
         self._read(writer, 'foo')
 
   @raises(HdfsError)
   def test_read_missing_file(self):
     with temppath() as tpath:
-      with open(tpath, 'w') as writer:
+      with open(tpath, 'wb') as writer:
         self._read(writer, 'foo')
 
   def test_read_file_from_offset(self):
     self.client.write('foo', 'hello, world!')
     with temppath() as tpath:
-      with open(tpath, 'w') as writer:
+      with open(tpath, 'wb') as writer:
         self._read(writer, 'foo', offset=7)
-      with open(tpath) as reader:
-        eq_(reader.read(), 'world!')
+      with open(tpath, 'rb') as reader:
+        eq_(reader.read(), b'world!')
 
   def test_read_file_from_offset_with_limit(self):
     self.client.write('foo', 'hello, world!')
     with temppath() as tpath:
-      with open(tpath, 'w') as writer:
+      with open(tpath, 'wb') as writer:
         self._read(writer, 'foo', offset=7, length=5)
-      with open(tpath) as reader:
-        eq_(reader.read(), 'world')
+      with open(tpath, 'rb') as reader:
+        eq_(reader.read(), b'world')
 
   def _read(self, writer, *args, **kwargs):
     for chunk in self.client.read(*args, **kwargs):
@@ -408,7 +409,7 @@ class TestRename(_TestSession):
   def test_rename_file(self):
     self.client.write('foo', 'hello, world!')
     self.client.rename('foo', 'bar')
-    self._check_content('bar', 'hello, world!')
+    self._check_content('bar', b'hello, world!')
 
   @raises(HdfsError)
   def test_rename_missing_file(self):
@@ -424,7 +425,7 @@ class TestRename(_TestSession):
     self.client.write('foo', 'hello, world!')
     self.client._mkdirs('bar')
     self.client.rename('foo', 'bar')
-    self._check_content('bar/foo', 'hello, world!')
+    self._check_content('bar/foo', b'hello, world!')
 
 
 class TestDownload(_TestSession):
@@ -446,8 +447,8 @@ class TestDownload(_TestSession):
   def test_normal_file(self):
     self.client.write('dl', 'hello')
     with temppath() as tpath:
-      fname = self.client.download('dl', tpath)
-      with open(fname) as reader:
+      fpath = self.client.download('dl', tpath)
+      with open(fpath) as reader:
         eq_(reader.read(), 'hello')
 
   def test_nonpartitioned_file(self):

@@ -487,7 +487,8 @@ class Client(object):
     )
     try:
       if n_threads == 1:
-        map(_upload, enumerate(fpath_tuples))
+        for indexed_path_tuple in enumerate(fpath_tuples):
+          _upload(indexed_path_tuple)
       else:
         ThreadPool(n_threads).map(_upload, enumerate(fpath_tuples))
     except Exception as err:
@@ -642,7 +643,8 @@ class Client(object):
     )
     try:
       if n_threads == 1:
-        map(_download, enumerate(fpath_tuples))
+        for indexed_fpath_tuple in enumerate(fpath_tuples):
+          _download(indexed_fpath_tuple)
       else:
         ThreadPool(n_threads).map(_download, enumerate(fpath_tuples))
     except Exception as err:

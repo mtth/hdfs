@@ -9,6 +9,8 @@ Version 2.0 (?)
 
 Breaking changes:
 
+* Change meaning of `n_threads` option in `Client.download` and
+  `Client.upload`.
 * Rename `Client.set_permissions` to `Client.set_permission` to make
   `permission` argument uniform across `Client` methods (alway singular,
   consistent with WebHDFS API).
