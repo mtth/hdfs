@@ -3,7 +3,7 @@
 
 """HdfsCLI."""
 
-__version__ = '1.4.1'
+__version__ = '2.0.0'
 
 import logging as lg
 try:

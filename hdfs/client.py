@@ -391,7 +391,7 @@ class Client(object):
       data=data,
     )
 
-  def upload(self, hdfs_path, local_path, overwrite=False, n_threads=-1,
+  def upload(self, hdfs_path, local_path, overwrite=False, n_threads=0,
     temp_dir=None, **kwargs):
     """Upload a file or directory to HDFS.
 
@@ -401,9 +401,8 @@ class Client(object):
       inside of it will be uploaded (note that this implies that folders empty
       of files will not be created remotely).
     :param overwrite: Overwrite any existing file or directory.
-    :param n_threads: Number of threads to use for parallel downloading of
-      files. A value of `None` or `1` indicates that parallelization won't be
-      used; `-1` uses as many threads as there are files.
+    :param n_threads: Number of threads to use for parallelization. A value of
+      `0` (or negative) uses as many threads as there are files.
     :param temp_dir: Directory under which the files will first be uploaded
       when `overwrite=True` and the final remote path already exists. Once the
       upload successfully completes, it will be swapped in.
@@ -476,10 +475,8 @@ class Client(object):
     else:
       raise HdfsError('Local path %r does not exist.', local_path)
     # Finally, we upload all files (optionally, in parallel).
-    if n_threads == -1:
+    if n_threads <= 0:
       n_threads = len(fpath_tuples)
-    elif not n_threads:
-      n_threads = 1
     else:
       n_threads = min(n_threads, len(fpath_tuples))
     self._logger.debug(
@@ -559,7 +556,7 @@ class Client(object):
         res.close()
     return reader()
 
-  def download(self, hdfs_path, local_path, overwrite=False, n_threads=-1,
+  def download(self, hdfs_path, local_path, overwrite=False, n_threads=0,
     temp_dir=None, **kwargs):
     """Download a file or folder from HDFS and save it locally.
 
@@ -568,9 +565,8 @@ class Client(object):
     :param local_path: Local path. If it already exists and is a directory,
       the files will be downloaded inside of it.
     :param overwrite: Overwrite any existing file or directory.
-    :param n_threads: Number of threads to use for parallel downloading of
-      files. A value of `None` or `1` indicates that parallelization won't be
-      used; `-1` uses as many threads as there are files.
+    :param n_threads: Number of threads to use for parallelization. A value of
+      `0` (or negative) uses as many threads as there are files.
     :param temp_dir: Directory under which the files will first be downloaded
       when `overwrite=True` and the final destination path already exists. Once
       the download successfully completes, it will be swapped in.
@@ -632,10 +628,8 @@ class Client(object):
       for fpath in remote_fpaths
     ]
     # Finally, we download all of them.
-    if n_threads == -1:
+    if n_threads <= 0:
       n_threads = len(fpath_tuples)
-    elif not n_threads:
-      n_threads = 1
     else:
       n_threads = min(n_threads, len(fpath_tuples))
     self._logger.debug(

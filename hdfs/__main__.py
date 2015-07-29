@@ -35,10 +35,8 @@ Options:
   -j --json                     Output JSON instead of tab delimited data.
   -o --overwrite                Allow overwriting any existing files.
   -p --path                     Only include paths in output.
-  -t THREADS --threads=THREADS  Number of threads to use for downloading
-                                distributed files. `-1` allocates a thread per
-                                part-file while `1` disables parallelization
-                                altogether [default: -1].
+  -t THREADS --threads=THREADS  Number of threads to use for parallelization.
+                                `0` allocates a thread per file. [default: 0]
   -v --version                  Show version and exit.
 
 Examples:

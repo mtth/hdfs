@@ -5,10 +5,10 @@ Version 2.0 (?)
 ---------------
 
 * Add python 3 support (except Kerberos extension).
-* Remove `--` prefix from CLI commands.
 
 Breaking changes:
 
+* Remove `--` prefix from CLI commands.
 * Change meaning of `n_threads` option in `Client.download` and
   `Client.upload`.
 * Rename `Client.set_permissions` to `Client.set_permission` to make
