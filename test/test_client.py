@@ -46,7 +46,11 @@ class TestLoad(object):
 
   @raises(HdfsError)
   def test_missing_type(self):
-    client = Client._from_options('foo', {})
+    client = Client._from_options('MissingClient', {})
+
+  @raises(HdfsError)
+  def test_relative_root(self):
+    client = Client._from_options(None, {'url': 'bar', 'root': 'bar'})
 
   def test_verify(self):
     ok_(not Client._from_options(None, {'url': '', 'verify': 'false'}).verify)
@@ -141,6 +145,18 @@ class TestApi(_TestSession):
 
 
 class TestResolve(_TestSession):
+
+  def test_resolve_relative(self):
+    eq_(Client('url', root='/').resolve('bar'), '/bar')
+    eq_(Client('url', root='/foo').resolve('bar'), '/foo/bar')
+    eq_(Client('url', root='/foo/').resolve('bar'), '/foo/bar')
+
+  @raises(HdfsError)
+  def test_resolve_relative_no_root(self):
+    Client('url').resolve('bar')
+
+  def test_resolve_absolute_no_root(self):
+    eq_(Client('url').resolve('/bar'), '/bar')
 
   def test_resolve_filename(self):
     path = 'fo&o/a?%a'
