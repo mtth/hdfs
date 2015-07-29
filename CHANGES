@@ -6,7 +6,12 @@ Version 2.0 (?)
 
 * Add python 3 support (except Kerberos extension).
 * Remove `--` prefix from CLI commands.
-* Make `permission` argument uniform across `Client` methods.
+
+Breaking changes:
+
+* Rename `Client.set_permissions` to `Client.set_permission` to make
+  `permission` argument uniform across `Client` methods (alway singular,
+  consistent with WebHDFS API).
 * Remove `Client.append` method.
 * `Client.delete` returns boolean indicating success.
 

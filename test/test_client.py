@@ -188,7 +188,7 @@ class TestWrite(_TestSession):
         self.client.write('up', reader)
     self._check_content('up', 'hello, world!')
 
-  def test_create_set_permissions(self):
+  def test_create_set_permission(self):
     pass # TODO
 
   @raises(HdfsError)
@@ -609,7 +609,7 @@ class TestSetOwner(_TestSession):
         cls.client.write('foo', '')
         cls.client.set_owner('foo', 'bar')
       except HdfsError as err:
-        if 'Non-super user cannot change owner' in err.message:
+        if 'Non-super user cannot change owner' in str(err):
           cls.client = None
           # skip these tests if HDFS isn't configured to support them.
         else:
@@ -657,20 +657,20 @@ class TestSetPermissions(_TestSession):
   def test_directory(self):
     new_permission = '755'
     self.client._mkdirs('foo', permission='444')
-    self.client.set_permissions('foo', new_permission)
+    self.client.set_permission('foo', new_permission)
     status = self.client.status('foo')
     eq_(status['permission'], new_permission)
 
   def test_file(self):
     new_permission = '755'
     self.client.write('foo', 'hello, world!', permission='444')
-    self.client.set_permissions('foo', new_permission)
+    self.client.set_permission('foo', new_permission)
     status = self.client.status('foo')
     eq_(status['permission'], new_permission)
 
   @raises(HdfsError)
   def test_missing(self):
-    self.client.set_permissions('foo', '755')
+    self.client.set_permission('foo', '755')
 
 
 class TestContent(_TestSession):

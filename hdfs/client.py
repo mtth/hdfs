@@ -11,7 +11,6 @@ from random import sample
 from shutil import move, rmtree
 from six import add_metaclass
 from six.moves.urllib.parse import quote
-from urllib import quote
 from warnings import warn
 import logging as lg
 import os
@@ -361,7 +360,7 @@ class Client(object):
       file object. The last two options will allow streaming upload (i.e.
       without having to load the entire contents into memory).
     :param overwrite: Overwrite any existing file or directory.
-    :param permission: Octal permissions to set on the newly created file.
+    :param permission: Octal permission to set on the newly created file.
       Leading zeros may be omitted.
     :param blocksize: Block size of the file.
     :param replication: Number of replications of the file.
@@ -388,29 +387,6 @@ class Client(object):
       )
     self._request(
       method='POST' if append else 'PUT',
-      url=res.headers['location'],
-      data=data,
-    )
-
-  def append(self, hdfs_path, data, buffersize=None):
-    """Append to an existing file on HDFS.
-
-    :param hdfs_path: Path to file on HDFS. This file must exist.
-    :param data: Contents to be appended. See :meth:`write` for more details.
-    :param buffersize: Size of upload buffer.
-
-    """
-    warn(DeprecationWarning(
-      '`Client.append` is going away in 2.0. Please use `Client.write` with '
-      '`append=True` instead.'
-    ))
-    self._logger.info('Appending to %s.', hdfs_path)
-    res = self._append_1(
-      hdfs_path,
-      buffersize=buffersize,
-    )
-    self._request(
-      method='POST',
       url=res.headers['location'],
       data=data,
     )
@@ -749,17 +725,17 @@ class Client(object):
     self._logger.info('Changing %s of %s.', ', and'.join(messages), hdfs_path)
     self._set_owner(hdfs_path, owner=owner, group=group)
 
-  def set_permissions(self, hdfs_path, permissions):
+  def set_permission(self, hdfs_path, permission):
     """Change the permissions of file.
 
     :param hdfs_path: HDFS path.
-    :param permissions: New octal permissions string of file.
+    :param permission: New octal permissions string of file.
 
     """
     self._logger.info(
-      'Changing permissions of %s to %s.', hdfs_path, permissions
+      'Changing permissions of %s to %s.', hdfs_path, permission
     )
-    self._set_permission(hdfs_path, permission=permissions)
+    self._set_permission(hdfs_path, permission=permission)
 
   def list(self, hdfs_path):
     """Return status of files contained in a remote folder.
