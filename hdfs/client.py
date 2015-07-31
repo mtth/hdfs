@@ -240,7 +240,8 @@ class Client(object):
     if not posixpath.isabs(path):
       if not self.root:
         raise HdfsError('Path %r is relative but no root found.', path)
-      path = posixpath.normpath(posixpath.join(self.root, path))
+      path = posixpath.join(self.root, path)
+    path = posixpath.normpath(path)
 
     def expand_latest(match):
       """Substitute #LATEST marker."""

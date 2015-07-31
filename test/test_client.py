@@ -150,13 +150,16 @@ class TestResolve(_TestSession):
     eq_(Client('url', root='/').resolve('bar'), '/bar')
     eq_(Client('url', root='/foo').resolve('bar'), '/foo/bar')
     eq_(Client('url', root='/foo/').resolve('bar'), '/foo/bar')
+    eq_(Client('url', root='/foo/').resolve('bar/'), '/foo/bar')
+    eq_(Client('url', root='/foo/').resolve('/bar/'), '/bar')
 
   @raises(HdfsError)
   def test_resolve_relative_no_root(self):
     Client('url').resolve('bar')
 
-  def test_resolve_absolute_no_root(self):
+  def test_resolve_absolute(self):
     eq_(Client('url').resolve('/bar'), '/bar')
+    eq_(Client('url').resolve('/bar/foo/'), '/bar/foo')
 
   def test_resolve_filename(self):
     path = 'fo&o/a?%a'
