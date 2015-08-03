@@ -125,7 +125,8 @@ class _Reader(object):
 
   """
 
-  def __init__(self, res, buffer_char, chunk_size, progress):
+  def __init__(self, hdfs_path, res, buffer_char, chunk_size, progress):
+    self._hdfs_path = hdfs_path
     self._res = res
     self._buffer_char = buffer_char
     self._chunk_size = chunk_size
@@ -133,27 +134,37 @@ class _Reader(object):
 
   def __iter__(self):
 
-    def reader(res, buffer_char, chunk_size):
+    def reader(hdfs_path, res, buffer_char, chunk_size, progress):
       """Generator that also terminates the connection when closed."""
+      total_bytes = 0
       try:
-        if not buffer_char:
-          for chunk in res.iter_content(chunk_size):
+        buf = ''
+        for chunk in res.iter_content(chunk_size):
+          if progress:
+            total_bytes += len(chunk)
+            progress(hdfs_path, total_bytes)
+          if not buffer_char:
             yield chunk
-        else:
-          buf = ''
-          for chunk in res.iter_content(chunk_size):
+          else:
             buf += chunk
             splits = buf.split(buffer_char)
             for part in splits[:-1]:
               yield part
             buf = splits[-1]
+        if buffer_char:
           yield buf
       except GeneratorExit:
         pass
       finally:
         res.close()
 
-    return reader(self._res, self._buffer_char, self._chunk_size)
+    return reader(
+      self._hdfs_path,
+      self._res,
+      self._buffer_char,
+      self._chunk_size,
+      self._progress
+    )
 
   def __enter__(self):
     return iter(self)
@@ -553,7 +564,7 @@ class Client(object):
     return hdfs_path
 
   def read(self, hdfs_path, offset=0, length=None, buffer_size=None,
-    chunk_size=1024, buffer_char=None):
+    chunk_size=1024, buffer_char=None, progress=None):
     """Read a file from HDFS.
 
     :param hdfs_path: HDFS path.
@@ -566,8 +577,11 @@ class Client(object):
     :param buffer_char: Character by which to buffer the file instead of
       yielding every `chunk_size` bytes. Note that this can cause the entire
       file to be yielded at once if the character is not appropriate.
+    :param progress: Callback function to track progress, called every
+      `chunksize` bytes. It will be passed two arguments, the path to the
+      file being read and the number of bytes transferred so far.
 
-    In order to ensure that the connection is always properly close, it is
+    In order to ensure that the connection is always properly closed, it is
     recommended to call this method using a `with` statement:
 
     .. code:: python
@@ -589,7 +603,7 @@ class Client(object):
       length=length,
       buffersize=buffer_size
     )
-    return _Reader(res, buffer_char, chunk_size, None)
+    return _Reader(hdfs_path, res, buffer_char, chunk_size, progress)
 
   def download(self, hdfs_path, local_path, overwrite=False, n_threads=0,
     temp_dir=None, **kwargs):
@@ -605,7 +619,9 @@ class Client(object):
     :param temp_dir: Directory under which the files will first be downloaded
       when `overwrite=True` and the final destination path already exists. Once
       the download successfully completes, it will be swapped in.
-    :param \*\*kwargs: Keyword arguments forwarded to :meth:`read`.
+    :param \*\*kwargs: Keyword arguments forwarded to :meth:`read`. If a
+      `progress` argument is passed and threading is used, care must be taken
+      to ensure correct behavior.
 
     On success, this method returns the local download path.
 

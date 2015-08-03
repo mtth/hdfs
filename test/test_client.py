@@ -410,6 +410,20 @@ class TestRead(_TestSession):
       with open(tpath, 'rb') as reader:
         eq_(reader.read(), b'hello, world!')
 
+  def test_with_progress(self):
+    def callback(path, nbytes, chunk_lengths=[]):
+      chunk_lengths.append(nbytes)
+      return chunk_lengths
+    self.client.write('foo', 'hello, world!')
+    with temppath() as tpath:
+      with open(tpath, 'wb') as writer:
+        with self.client.read('foo', chunk_size=5, progress=callback) as reader:
+          for chunk in reader:
+            writer.write(chunk)
+      with open(tpath, 'rb') as reader:
+        eq_(reader.read(), b'hello, world!')
+      eq_(callback('', 0), [5, 10, 13, 0])
+
   def _read(self, writer, *args, **kwargs):
     for chunk in self.client.read(*args, **kwargs):
       writer.write(chunk)
