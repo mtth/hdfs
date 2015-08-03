@@ -400,6 +400,16 @@ class TestRead(_TestSession):
       with open(tpath, 'rb') as reader:
         eq_(reader.read(), b'world')
 
+  def test_as_context_manager(self):
+    self.client.write('foo', 'hello, world!')
+    with temppath() as tpath:
+      with open(tpath, 'wb') as writer:
+        with self.client.read('foo') as reader:
+          for chunk in reader:
+            writer.write(chunk)
+      with open(tpath, 'rb') as reader:
+        eq_(reader.read(), b'hello, world!')
+
   def _read(self, writer, *args, **kwargs):
     for chunk in self.client.read(*args, **kwargs):
       writer.write(chunk)

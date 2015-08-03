@@ -114,6 +114,54 @@ class _ClientType(type):
     return client
 
 
+class _Reader(object):
+
+  """HDFS file reader.
+
+  Instances of this class can be both iterated over directly (in which case the
+  response will be closed when the generator ends or is closed explicitely) or
+  used as a context manager (closing the connection on exit). See
+  :meth:`Client.read` for more information.
+
+  """
+
+  def __init__(self, res, buffer_char, chunk_size, progress):
+    self._res = res
+    self._buffer_char = buffer_char
+    self._chunk_size = chunk_size
+    self._progress = progress
+
+  def __iter__(self):
+
+    def reader(res, buffer_char, chunk_size):
+      """Generator that also terminates the connection when closed."""
+      try:
+        if not buffer_char:
+          for chunk in res.iter_content(chunk_size):
+            yield chunk
+        else:
+          buf = ''
+          for chunk in res.iter_content(chunk_size):
+            buf += chunk
+            splits = buf.split(buffer_char)
+            for part in splits[:-1]:
+              yield part
+            buf = splits[-1]
+          yield buf
+      except GeneratorExit:
+        pass
+      finally:
+        res.close()
+
+    return reader(self._res, self._buffer_char, self._chunk_size)
+
+  def __enter__(self):
+    return iter(self)
+
+  def __exit__(self, exc_type, exc_value, traceback):
+    self._res.close() # Does nothing if already closed.
+
+
 @add_metaclass(_ClientType)
 class Client(object):
 
@@ -506,7 +554,7 @@ class Client(object):
 
   def read(self, hdfs_path, offset=0, length=None, buffer_size=None,
     chunk_size=1024, buffer_char=None):
-    """Read file. Returns a generator.
+    """Read a file from HDFS.
 
     :param hdfs_path: HDFS path.
     :param offset: Starting byte position.
@@ -519,8 +567,19 @@ class Client(object):
       yielding every `chunk_size` bytes. Note that this can cause the entire
       file to be yielded at once if the character is not appropriate.
 
-    If only reading part of a file, don't forget to close the connection by
-    terminating the generator by using its `close` method.
+    In order to ensure that the connection is always properly close, it is
+    recommended to call this method using a `with` statement:
+
+    .. code:: python
+
+      with client.read('foo') as reader:
+        for chunk in reader:
+          pass
+
+    Otherwise, the generator returned by this method can also be used directly.
+    The connection must then be closed explicitly if the generator isn't fully
+    read (this can happen in particular if an exception occurs). This can be
+    done by always terminating the generator with its `close` method.
 
     """
     self._logger.info('Reading file %s.', hdfs_path)
@@ -530,28 +589,7 @@ class Client(object):
       length=length,
       buffersize=buffer_size
     )
-
-    def reader():
-      """Generator that also terminates the connection when closed."""
-      try:
-        if not buffer_char:
-          for chunk in res.iter_content(chunk_size):
-            yield chunk
-        else:
-          buf = ''
-          for chunk in res.iter_content(chunk_size):
-            buf += chunk
-            splits = buf.split(buffer_char)
-            for part in splits[:-1]:
-              yield part
-            buf = splits[-1]
-          yield buf
-      except GeneratorExit:
-        pass
-      finally:
-        res.close()
-
-    return reader()
+    return _Reader(res, buffer_char, chunk_size, None)
 
   def download(self, hdfs_path, local_path, overwrite=False, n_threads=0,
     temp_dir=None, **kwargs):

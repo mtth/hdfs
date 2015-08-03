@@ -5,7 +5,8 @@ Version 2.0 (?)
 ---------------
 
 * Add python 3 support (except Kerberos extension).
-* Allow use of `Client.write` and `Client.read` as context managers.
+* Add `Client.makedirs` method.
+* Allow use of `Client.read` as context manager.
 * Add progress hook to `Client.write`, `Client.read`, `Client.upload`, and
   `Client.download`.
 
@@ -23,8 +24,9 @@ Breaking changes:
   consistent with WebHDFS API).
 * Change meaning of `n_threads` option in `Client.download` and
   `Client.upload`.
-* Add `status` option to `Client.list` and `Client.walk`. By default these
-  functions now only return the names of the relevant files and folders.
+* Add `status` option to `Client.list`, `Client.walk`, and `Client.parts`. By
+  default these functions now only return the names of the relevant files and
+  folders.
 * Change `Client.walk` to be consistent with `os.walk`. Also change meaning of
   `depth` option.
 * Remove `Client.append` method.
