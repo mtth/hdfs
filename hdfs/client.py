@@ -737,6 +737,24 @@ class Client(object):
         self.resolve(hdfs_src_path), hdfs_dst_path
       )
 
+  def make_directory(self, hdfs_path, permissions=None):
+    """Make a directory, returning True if successful, or False if a file or
+    directory already exists at the path.
+
+    :param hdfs_path: Path of directory to be made
+    :param permissions: Optional, octal permissions string.
+
+    """
+    try:
+      self.status(hdfs_path):
+    except HdfsError:  # Path already exists
+      return False
+    res = self._mkdirs(hdfs_path, permission=permissions)
+    if res.json()['boolean']:
+      return True
+    else:
+      raise HdfsError('Unable to make directory %s.', hdfs_path)
+
   def set_owner(self, hdfs_path, owner=None, group=None):
     """Change the owner of file.
 
