@@ -68,12 +68,12 @@ class _Request(object):
 
     """
 
-    def api_handler(client, path, data=None, **params):
+    def api_handler(client, hdfs_path, data=None, **params):
       """Wrapper function."""
       params['op'] = operation
       return client._request(
         method=self.method,
-        path=path,
+        hdfs_path=hdfs_path,
         auth=client.auth, # TODO: See why this can't be moved to `_request`.
         data=data,
         params=params,
