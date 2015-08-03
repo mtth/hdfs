@@ -943,3 +943,41 @@ class TestMakeDirs(_TestSession):
     self.client.makedirs('foo/bar', permission='722')
     eq_(self.client.status('foo')['permission'], '733')
     eq_(self.client.status('foo/bar')['permission'], '722')
+
+class TestSetTimes(_TestSession):
+
+  @raises(ValueError)
+  def test_none(self):
+    self.client.makedirs('foo')
+    self.client.set_times('foo')
+
+  @raises(HdfsError)
+  def test_missing(self):
+    self.client.set_times('foo', 1234)
+
+  @raises(HdfsError)
+  def test_negative(self):
+    self.client.write('foo', 'hello')
+    self.client.set_times('foo', access_time=-1234)
+
+  def test_file(self):
+    self.client.write('foo', 'hello')
+    self.client.set_times('foo', access_time=1234)
+    eq_(self.client.status('foo')['accessTime'], 1234)
+    self.client.set_times('foo', modification_time=12345)
+    eq_(self.client.status('foo')['modificationTime'], 12345)
+    self.client.set_times('foo', access_time=1, modification_time=2)
+    status = self.client.status('foo')
+    eq_(status['accessTime'], 1)
+    eq_(status['modificationTime'], 2)
+
+  def test_folder(self):
+    self.client.write('foo/bar', 'hello')
+    self.client.set_times('foo', access_time=1234)
+    eq_(self.client.status('foo')['accessTime'], 1234)
+    self.client.set_times('foo', modification_time=12345)
+    eq_(self.client.status('foo')['modificationTime'], 12345)
+    self.client.set_times('foo', access_time=1, modification_time=2)
+    status = self.client.status('foo')
+    eq_(status['accessTime'], 1)
+    eq_(status['modificationTime'], 2)

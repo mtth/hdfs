@@ -813,6 +813,28 @@ class Client(object):
     )
     self._set_permission(hdfs_path, permission=permission)
 
+  def set_times(self, hdfs_path, access_time=None, modification_time=None):
+    """Change remote timestamps.
+
+    :param hdfs_path: HDFS path.
+    :param access_time: Timestamp of last file access.
+    :param modification_time: Timestamps of last file access.
+
+    """
+    if not access_time and not modification_time:
+      raise ValueError('At least one of time must be specified.')
+    msgs = []
+    if access_time:
+      msgs.append('access time to %s' % (access_time, ))
+    if modification_time:
+      msgs.append('modification time to %s' % (modification_time, ))
+    self._logger.info('Updating %s of %s.' % (' and '.join(msgs), hdfs_path))
+    self._set_times(
+      hdfs_path,
+      accesstime=access_time,
+      modificationtime=modification_time,
+    )
+
   def list(self, hdfs_path, status=False):
     """Return names of files contained in a remote folder.
 

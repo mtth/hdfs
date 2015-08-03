@@ -4,34 +4,35 @@ HdfsCLI
 Version 2.0 (?)
 ---------------
 
-* Add python 3 support (except Kerberos extension).
-* Add `Client.makedirs` method.
+* Add python 3 support (the Kerberos extension's requirements must however
+  be manually installed).
+* Add `Client.makedirs` and `Client.set_times` methods.
 * Allow use of `Client.read` as context manager.
-* Add progress hook to `Client.write`, `Client.read`, `Client.upload`, and
-  `Client.download`.
+* Add `progress` argument to `Client.read` and `Client.upload` and a
+ `chunk_size` argument to the latter to allow better tracking.
 
 Breaking changes:
 
+* `Client.delete` returns a boolean indicating success (rather than failing if
+  the path was already empty).
+* Rename `Client.set_permissions` to `Client.set_permission` to make
+  `permission` argument uniform across `Client` methods (alway singular,
+  consistent with WebHDFS API).
 * `Client.parts` will now throw an error if called on a normal file.
-* Make most client attributes private (e.g. `url`, `timeout`, etc.), except
-  `root`. This is to keep autocompletion suggestions cleaner.
+* Make most client attributes private (e.g. `cert`, `timeout`, etc.), except
+  `url` and `root`.
 * Remove `--` prefix from CLI commands. Also simplify CLI to only
   interactive, download and upload commands (write and read behavior can
   be achieved by passing '-' as local path). The `Client` API changes
   should make it more convenient to perform these from a python shell.
-* Rename `Client.set_permissions` to `Client.set_permission` to make
-  `permission` argument uniform across `Client` methods (alway singular,
-  consistent with WebHDFS API).
 * Change meaning of `n_threads` option in `Client.download` and
   `Client.upload`.
+* Change `Client.walk` to be consistent with `os.walk`. Also change meaning of
+  `depth` option.
 * Add `status` option to `Client.list`, `Client.walk`, and `Client.parts`. By
   default these functions now only return the names of the relevant files and
   folders.
-* Change `Client.walk` to be consistent with `os.walk`. Also change meaning of
-  `depth` option.
 * Remove `Client.append` method.
-* `Client.delete` returns boolean indicating success (rather than failing if
-  the path was already empty).
 
 Version 1.4.0 (2015/07/24)
 --------------------------
