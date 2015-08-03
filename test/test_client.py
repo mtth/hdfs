@@ -862,3 +862,28 @@ class TestParts(_TestSession):
     status = self.client.status(fpath)
     status['pathSuffix'] = fname
     eq_(self.client.parts('foo', status=True), [(fname, status)])
+
+class TestMakeDirs(_TestSession):
+
+  def test_simple(self):
+    self.client.makedirs('foo')
+    eq_(self.client.status('foo')['type'], 'DIRECTORY')
+
+  def test_nested(self):
+    self.client.makedirs('foo/bar')
+    eq_(self.client.status('foo/bar')['type'], 'DIRECTORY')
+
+  def test_with_permission(self):
+    self.client.makedirs('foo', permission='733')
+    eq_(self.client.status('foo')['permission'], '733')
+
+  @raises(HdfsError)
+  def test_overwrite_file(self):
+    self.client.write('foo', 'hello')
+    self.client.makedirs('foo')
+
+  def test_overwrite_directory_with_permission(self):
+    self.client.makedirs('foo', permission='733')
+    self.client.makedirs('foo/bar', permission='722')
+    eq_(self.client.status('foo')['permission'], '733')
+    eq_(self.client.status('foo/bar')['permission'], '722')

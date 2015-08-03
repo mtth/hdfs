@@ -799,6 +799,22 @@ class Client(object):
       for infos in _walk(hdfs_path, s, depth):
         yield infos
 
+  def makedirs(self, hdfs_path, permission=None):
+    """Create a remote directory, recursively if necessary.
+
+    :param hdfs_path: Remote path. Intermediate directories will be created
+      appropriately.
+    :param permission: Octal permission to set on the newly created directory.
+      These permissions will only be set on directories that do not already
+      exist.
+
+    This function currently has no return value as WebHDFS doesn't return a
+    meaningful flag.
+
+    """
+    self._logger.info('Creating directories at %r.', hdfs_path)
+    self._mkdirs(hdfs_path, permission=permission)
+
   # Class loaders
 
   @classmethod
