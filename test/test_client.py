@@ -38,27 +38,33 @@ class TestLoad(object):
 
   @raises(HdfsError)
   def test_missing_options(self):
-    client = Client._from_options('KerberosClient', {})
+    Client._from_options('KerberosClient', {})
 
   @raises(HdfsError)
   def test_invalid_options(self):
-    client = Client._from_options(None, {'foo': 123})
+    Client._from_options(None, {'foo': 123})
 
   @raises(HdfsError)
   def test_missing_type(self):
-    client = Client._from_options('MissingClient', {})
-
-  @raises(HdfsError)
-  def test_relative_root(self):
-    client = Client._from_options(None, {'url': 'bar', 'root': 'bar'})
+    Client._from_options('MissingClient', {})
 
   def test_verify(self):
     ok_(not Client._from_options(None, {'url': '', 'verify': 'false'}).verify)
     ok_(Client._from_options(None, {'url': '', 'verify': 'yes'}).verify)
 
   def test_timeout(self):
+    eq_(Client('').timeout, None)
+    eq_(Client('', timeout=1).timeout, 1)
+    eq_(Client('', timeout=(1,2)).timeout, (1,2))
     eq_(Client._from_options(None, {'url': ''}).timeout, None)
     eq_(Client._from_options(None, {'url': '', 'timeout': '1'}).timeout, 1)
+    eq_(Client._from_options(None, {'url': '', 'timeout': '1,2'}).timeout, (1,2))
+
+  def test_cert(self):
+    eq_(Client('').cert, None)
+    eq_(Client('', cert='foo').cert, 'foo')
+    eq_(Client('', cert='foo,bar').cert, ('foo', 'bar'))
+    eq_(Client('', cert=('foo', 'bar')).cert, ('foo', 'bar'))
 
 
 class TestOptions(_TestSession):
@@ -156,6 +162,10 @@ class TestResolve(_TestSession):
   @raises(HdfsError)
   def test_resolve_relative_no_root(self):
     Client('url').resolve('bar')
+
+  @raises(HdfsError)
+  def test_resolve_relative_root(self):
+    Client('', root='bar').resolve('foo')
 
   def test_resolve_absolute(self):
     eq_(Client('url').resolve('/bar'), '/bar')

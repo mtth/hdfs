@@ -157,11 +157,16 @@ class Client(object):
     if proxy:
       self.params['doas'] = proxy
     self.root = root
-    if self.root and not posixpath.isabs(self.root):
-      raise HdfsError('Non-absolute root: %r', self.root)
-    self.timeout = int(timeout) if timeout else None
+    if isinstance(timeout, basestring):
+      timeouts = tuple(int(s) for s in timeout.split(','))
+      self.timeout = timeouts[0] if len(timeouts) == 1 else timeouts
+    else:
+      self.timeout = timeout
     self.verify = Config.parse_boolean(verify)
-    self.cert = cert
+    if cert and ',' in cert:
+      self.cert = tuple(s.strip() for s in cert.split(','))
+    else:
+      self.cert = cert
 
   def __repr__(self):
     return '<%s(url=%s, root=%s)>' % (self._class_name, self.url, self.root)
@@ -240,6 +245,8 @@ class Client(object):
     if not posixpath.isabs(path):
       if not self.root:
         raise HdfsError('Path %r is relative but no root found.', path)
+      if not posixpath.isabs(self.root):
+        raise HdfsError('Non-absolute root found: %r', self.root)
       path = posixpath.join(self.root, path)
     path = posixpath.normpath(path)
 
