@@ -73,7 +73,7 @@ class _Request(object):
     def api_handler(client, path, data=None, **params):
       """Wrapper function."""
       url = '%s%s%s' % (
-        client.url,
+        client.url.rstrip('/'),
         self.webhdfs_prefix,
         client.resolve(path),
       )
@@ -81,7 +81,7 @@ class _Request(object):
       return client._request(
         method=self.method,
         url=url,
-        auth=client.auth, # TODO: See why this can't be moved to `_request`.
+        auth=client._auth, # TODO: See why this can't be moved to `_request`.
         data=data,
         params=params,
         **self.kwargs
@@ -120,7 +120,7 @@ class Client(object):
   """Base HDFS web client.
 
   :param url: Hostname or IP address of HDFS namenode, prefixed with protocol,
-    followed by WebHDFS port on namenode
+    followed by WebHDFS port on namenode.
   :param auth: Authentication mechanism (forwarded to the request handler).
   :param params: Extra parameters forwarded with every request. Useful for
     example for custom authentication. Parameters specified in the request
@@ -152,18 +152,18 @@ class Client(object):
   ):
     self._logger = InstanceLogger(self, _logger)
     self._class_name = self.__class__.__name__ # cache this
-    self.url = url.rstrip('/')
-    self.auth = auth
-    self.params = params or {}
-    if proxy:
-      self.params['doas'] = proxy
     self.root = root
-    self.timeout = int(timeout) if timeout else None
-    self.verify = Config.parse_boolean(verify)
-    self.cert = cert
+    self.url = url
+    self._auth = auth
+    self._params = params or {}
+    if proxy:
+      self._params['doas'] = proxy
+    self._timeout = int(timeout) if timeout else None
+    self._verify = Config.parse_boolean(verify)
+    self._cert = cert
 
   def __repr__(self):
-    return '<%s(url=%s, root=%s)>' % (self._class_name, self.url, self.root)
+    return '<%s(url=%r)>' % (self._class_name, self.url)
 
   # Generic request handler
 
@@ -178,14 +178,14 @@ class Client(object):
 
     """
     params = kwargs.setdefault('params', {})
-    for key, value in self.params.items():
+    for key, value in self._params.items():
       params.setdefault(key, value)
     response = rq.request(
       method=method,
       url=url,
-      timeout=self.timeout,
-      verify=self.verify,
-      cert=self.cert,
+      timeout=self._timeout,
+      verify=self._verify,
+      cert=self._cert,
       headers={'content-type': 'application/octet-stream'}, # For HttpFS.
       **kwargs
     )

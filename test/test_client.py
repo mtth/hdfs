@@ -51,12 +51,12 @@ class TestLoad(object):
     client = Client._from_options('foo', {})
 
   def test_verify(self):
-    ok_(not Client._from_options(None, {'url': '', 'verify': 'false'}).verify)
-    ok_(Client._from_options(None, {'url': '', 'verify': 'yes'}).verify)
+    ok_(not Client._from_options(None, {'url': '', 'verify': 'false'})._verify)
+    ok_(Client._from_options(None, {'url': '', 'verify': 'yes'})._verify)
 
   def test_timeout(self):
-    eq_(Client._from_options(None, {'url': ''}).timeout, None)
-    eq_(Client._from_options(None, {'url': '', 'timeout': '1'}).timeout, 1)
+    eq_(Client._from_options(None, {'url': ''})._timeout, None)
+    eq_(Client._from_options(None, {'url': '', 'timeout': '1'})._timeout, 1)
 
 
 class TestOptions(_TestSession):
@@ -64,11 +64,11 @@ class TestOptions(_TestSession):
   """Test client options."""
 
   def test_timeout(self):
-    self.client.timeout = 1e-4 # Small enough for it to always timeout.
+    self.client._timeout = 1e-4 # Small enough for it to always timeout.
     try:
       self.client.status('.')
     except (ConnectTimeout, ReadTimeout):
-      self.client.timeout = None
+      self.client._timeout = None
     else:
       raise HdfsError('No timeout.')
 
