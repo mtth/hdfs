@@ -49,6 +49,7 @@ class _Request(object):
 
   """
 
+  webhdfs_prefix = '/webhdfs/v1'
   doc_url = 'http://hadoop.apache.org/docs/r1.0.4/webhdfs.html'
 
   def __init__(self, method, **kwargs):
@@ -70,10 +71,15 @@ class _Request(object):
 
     def api_handler(client, hdfs_path, data=None, **params):
       """Wrapper function."""
+      url = '%s%s%s' % (
+        client.url.rstrip('/'),
+        self.webhdfs_prefix,
+        client.resolve(hdfs_path),
+      )
       params['op'] = operation
       return client._request(
         method=self.method,
-        hdfs_path=hdfs_path,
+        url=url,
         auth=client.auth, # TODO: See why this can't be moved to `_request`.
         data=data,
         params=params,
@@ -167,18 +173,16 @@ class Client(object):
 
   # Generic request handler
 
-  def _request(self, method, hdfs_path, **kwargs):
+  def _request(self, method, url, **kwargs):
     """Send request to WebHDFS API.
 
     :param method: HTTP verb.
-    :param hdfs_path: HDFS path for which to submit the request. This path will
-      be resolved before sending the request.
+    :param url: Url to send the request to.
     :param \*\*kwargs: Extra keyword arguments forwarded to the request
       handler. If any `params` are defined, these will take precendence over
       the instance's defaults.
 
     """
-    url = '%s/webhdfs/v1%s' % (self.url.rstrip('/'), self.resolve(hdfs_path))
     params = kwargs.setdefault('params', {})
     for key, value in self.params.items():
       params.setdefault(key, value)
