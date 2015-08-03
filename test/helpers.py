@@ -29,7 +29,7 @@ class _TestSession(object):
   """
 
   delay = 0.5 # delay in seconds between tests
-  root_suffix = '/.hdfscli/' # also used as default root if none specified
+  root_suffix = '/.hdfscli' # also used as default root if none specified
 
   @classmethod
   def setup_class(cls):

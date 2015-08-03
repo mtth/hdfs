@@ -15,7 +15,7 @@ from warnings import warn
 import logging as lg
 import os
 import os.path as osp
-import posixpath
+import posixpath as psp
 import re
 import requests as rq
 import time
@@ -294,61 +294,56 @@ class Client(object):
     self._logger.info('Fetching status for %s.', hdfs_path)
     return self._get_file_status(hdfs_path).json()['FileStatus']
 
-  def parts(self, hdfs_path, parts=None):
+  def parts(self, hdfs_path, parts=None, status=False):
     """Returns a dictionary of part-files corresponding to a path.
 
-    :param hdfs_path: Remote path. If it points to a non partitioned file,
-      a dictionary with only element that path is returned. This makes it
-      easier to handle these two cases.
+    :param hdfs_path: Remote path.
     :param parts: List of part-files numbers or total number of part-files to
       select. If a number, that many partitions will be chosen at random. By
       default all part-files are returned. If `parts` is a list and one of the
       parts is not found or too many samples are demanded, an
       :class:`~hdfs.util.HdfsError` is raised.
+    :param status: Also return each file's corresponding FileStatus_.
 
     """
     self._logger.debug('Fetching parts for %s.', hdfs_path)
-    status = self.status(hdfs_path)
-    if status['type'] == 'FILE':
-      if parts and parts != 1 and parts != [0]:
-        raise HdfsError('%r is not partitioned.', hdfs_path)
-      return {hdfs_path: status}
+    pattern = re.compile(r'^part-(?:(?:m|r)-|)(\d+)[^/]*$')
+    matches = (
+      (name, pattern.match(name), s)
+      for name, s in self.list(hdfs_path, status=True)
+    )
+    part_files = dict(
+      (int(match.group(1)), (name, s))
+      for name, match, s in matches
+      if match
+    )
+    if not part_files:
+      raise HdfsError('No part-files found in %r.', hdfs_path)
+    self._logger.debug(
+      'Found %s parts for %s: %s.', len(part_files), hdfs_path,
+      ', '.join(t[0] for t in sorted(part_files.values()))
+    )
+    if parts:
+      if isinstance(parts, int):
+        self._logger.debug('Choosing %s parts randomly.', parts)
+        if parts > len(part_files):
+          raise HdfsError('Not enough part-files in %r.', hdfs_path)
+        parts = sample(part_files, parts)
+      try:
+        infos = list(part_files[p] for p in parts)
+      except KeyError as err:
+        raise HdfsError('No part-file %r in %r.', err.args[0], hdfs_path)
+      self._logger.info(
+        'Returning %s of %s parts for %s: %s.', len(infos), len(part_files),
+        hdfs_path, ', '.join(sorted(name for name, _ in infos))
+      )
     else:
-      pattern = re.compile(r'^part-(?:(?:m|r)-|)(\d+)[^/]*$')
-      matches = (
-        (path, pattern.match(status['pathSuffix']), status)
-        for path, status in self.walk(hdfs_path, depth=1)
+      infos = list(sorted(part_files.values()))
+      self._logger.info(
+        'Returning all %s parts for %s: %s.', len(infos), hdfs_path,
+        ', '.join(name for name, _ in infos)
       )
-      part_files = dict(
-        (int(match.group(1)), (path, status))
-        for path, match, status in matches
-        if match
-      )
-      self._logger.debug(
-        'Found %s parts for %s: %s.', len(part_files), hdfs_path,
-        ', '.join(t[0] for t in sorted(part_files.values()))
-      )
-      if parts:
-        if isinstance(parts, int):
-          self._logger.debug('Choosing %s parts randomly.', parts)
-          if parts > len(part_files):
-            raise HdfsError('Not enough part-files in %r.', hdfs_path)
-          parts = sample(part_files, parts)
-        try:
-          paths = dict(part_files[p] for p in parts)
-        except KeyError as err:
-          raise HdfsError('No part-file %r in %r.', err.args[0], hdfs_path)
-        self._logger.info(
-          'Returning %s of %s parts for %s: %s.', len(paths), len(part_files),
-          hdfs_path, ', '.join(sorted(paths))
-        )
-      else:
-        paths = dict(part_files.values())
-        self._logger.info(
-          'Returning all %s parts for %s: %s.', len(paths), hdfs_path,
-          ', '.join(sorted(paths))
-        )
-      return paths
+    return infos if status else [name for name, _ in infos]
 
   def write(self, hdfs_path, data, overwrite=False, permission=None,
     blocksize=None, replication=None, buffersize=None, append=False):
@@ -425,7 +420,7 @@ class Client(object):
     hdfs_path = self.resolve(hdfs_path)
     temp_path = None
     try:
-      statuses = [status for _, status in self.list(hdfs_path)]
+      statuses = [status for _, status in self.list(hdfs_path, status=True)]
     except HdfsError as err:
       if 'not a directory' in str(err):
         # Remote path is a normal file.
@@ -438,7 +433,7 @@ class Client(object):
       # Remote path is a directory.
       suffixes = set(status['pathSuffix'] for status in statuses)
       local_name = osp.basename(local_path)
-      hdfs_path = posixpath.join(hdfs_path, local_name)
+      hdfs_path = psp.join(hdfs_path, local_name)
       if local_name in suffixes:
         if not overwrite:
           raise HdfsError('Remote path %r already exists.', hdfs_path)
@@ -446,9 +441,9 @@ class Client(object):
         temp_path = hdfs_path
     if not temp_path:
       # The remote path already exists, we need to generate a temporary one.
-      remote_dpath, remote_name = posixpath.split(hdfs_path)
+      remote_dpath, remote_name = psp.split(hdfs_path)
       temp_dir =  temp_dir or remote_dpath
-      temp_path = posixpath.join(
+      temp_path = psp.join(
         temp_dir,
         '%s.temp-%s' % (remote_name, int(time.time()))
       )
@@ -467,7 +462,7 @@ class Client(object):
         raise HdfsError('No files to upload found inside %r.', local_path)
       offset = len(local_path.rstrip(os.sep)) + len(os.sep)
       fpath_tuples = [
-        (fpath, posixpath.join(temp_path, fpath[offset:].replace(os.sep, '/')))
+        (fpath, psp.join(temp_path, fpath[offset:].replace(os.sep, '/')))
         for fpath in local_fpaths
       ]
     elif osp.exists(local_path):
@@ -535,6 +530,7 @@ class Client(object):
       length=length,
       buffersize=buffer_size
     )
+
     def reader():
       """Generator that also terminates the connection when closed."""
       try:
@@ -554,6 +550,7 @@ class Client(object):
         pass
       finally:
         res.close()
+
     return reader()
 
   def download(self, hdfs_path, local_path, overwrite=False, n_threads=0,
@@ -593,7 +590,7 @@ class Client(object):
     hdfs_path = self.resolve(hdfs_path)
     local_path = osp.realpath(local_path)
     if osp.isdir(local_path):
-      local_path = osp.join(local_path, posixpath.basename(hdfs_path))
+      local_path = osp.join(local_path, psp.basename(hdfs_path))
     if osp.exists(local_path):
       if not overwrite:
         raise HdfsError('Path %r already exists.', local_path)
@@ -612,13 +609,18 @@ class Client(object):
         raise HdfsError('Parent directory of %r does not exist.', local_path)
       temp_path = local_path
     # Then we figure out which files we need to download and where.
-    remote_fpaths = [
-      fpath
-      for (fpath, status) in self.walk(hdfs_path, depth=-1)
-      if status['type'] == 'FILE'
-    ]
-    if not remote_fpaths:
-      raise HdfsError('No files to download found inside %r.', hdfs_path)
+    remote_paths = list(self.walk(hdfs_path))
+    if not remote_paths:
+      # This is a single file.
+      remote_fpaths = [hdfs_path]
+    else:
+      remote_fpaths = [
+        psp.join(dpath, fname)
+        for dpath, _, fnames in remote_paths
+        for fname in fnames
+      ]
+      if not remote_fpaths:
+        raise HdfsError('No files to download found inside %r.', hdfs_path)
     offset = len(hdfs_path) + 1 # Prefix length.
     fpath_tuples = [
       (
@@ -733,15 +735,12 @@ class Client(object):
     )
     self._set_permission(hdfs_path, permission=permission)
 
-  def list(self, hdfs_path):
-    """Return status of files contained in a remote folder.
+  def list(self, hdfs_path, status=False):
+    """Return names of files contained in a remote folder.
 
     :param hdfs_path: Remote path to a directory. If `hdfs_path` doesn't exist
       or points to a normal file, an :class:`HdfsError` will be raised.
-
-    This method returns a list of tuples `(path, status)` where `path` is the
-    absolute path to a file or directory, and `status` is its corresponding
-    JSON FileStatus_ object.
+    :param status: Also return each file's corresponding FileStatus_.
 
     """
     self._logger.info('Listing %s.', hdfs_path)
@@ -753,44 +752,52 @@ class Client(object):
       # make sure we always identify if we are dealing with a file.
     ):
       raise HdfsError('%r is not a directory.', hdfs_path)
-    return [
-      (osp.join(hdfs_path, status['pathSuffix']), status)
-      for status in statuses
-    ]
+    if status:
+      return [(s['pathSuffix'], s) for s in statuses]
+    else:
+      return [s['pathSuffix'] for s in statuses]
 
-  def walk(self, hdfs_path, depth=0):
-    """Depth-first walk of remote folder statuses.
+  def walk(self, hdfs_path, depth=0, status=False):
+    """Depth-first walk of remote filesystem.
 
-    :param hdfs_path: Starting path.
-    :param depth: Maximum depth to explore. Specify `-1` for no limit.
+    :param hdfs_path: Starting path. If the path doesn't exist, an
+      :class:`HdfsError` will be raised. If it points to a file, the returned
+      generator will be empty.
+    :param depth: Maximum depth to explore. `0` for no limit.
+    :param status: Also return each file or folder's corresponding FileStatus_.
 
-    This method returns a generator yielding tuples `(path, status)`
-    where `path` is the absolute path to the current file or directory, and
-    `status` is a JSON FileStatus_ object.
+    This method returns a generator yielding tuples `(path, dirs, files)`
+    where `path` is the absolute path to the current directory, `dirs` is the
+    list of directory names it contains, and `files` is the list of file names
+    it contains.
 
     """
     self._logger.info('Walking %s.', hdfs_path)
 
     def _walk(dir_path, dir_status, depth):
       """Recursion helper."""
-      yield dir_path, dir_status
-      if depth != 0:
-        statuses = self._list_status(dir_path).json()['FileStatuses']
-        for status in statuses['FileStatus']:
-          path = osp.join(dir_path, status['pathSuffix'])
-          if status['type'] == 'FILE':
-            yield path, status
-          else: # directory
-            for a in _walk(path, status, depth - 1):
-              yield a
+      infos = self.list(dir_path, status=True)
+      dir_infos = [info for info in infos if info[1]['type'] == 'DIRECTORY']
+      file_infos = [info for info in infos if info[1]['type'] == 'FILE']
+      if status:
+        yield ((dir_path, dir_status), dir_infos, file_infos)
+      else:
+        yield (
+          dir_path,
+          [name for name, _ in dir_infos],
+          [name for name, _ in file_infos],
+        )
+      if depth != 1:
+        for name, s in dir_infos:
+          path = psp.join(dir_path, name)
+          for infos in _walk(path, s, depth - 1):
+            yield infos
 
-    hdfs_path = self.resolve(hdfs_path)
-    status = self.status(hdfs_path)
-    if status['type'] == 'FILE':
-      yield hdfs_path, status
-    else:
-      for a in _walk(hdfs_path, status, depth):
-        yield a
+    hdfs_path = self.resolve(hdfs_path) # Cache resolution.
+    s = self.status(hdfs_path)
+    if s['type'] == 'DIRECTORY':
+      for infos in _walk(hdfs_path, s, depth):
+        yield infos
 
   # Class loaders
 

@@ -317,8 +317,6 @@ class AvroReader(object):
   def __init__(self, client, hdfs_path, parts=None):
     self._client = client
     self._parts = client.parts(hdfs_path, parts)
-    if not self._parts:
-      raise HdfsError('No Avro file found at %r.', hdfs_path)
 
     def _reader():
       """Record generator over all part-files."""

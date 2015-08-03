@@ -5,17 +5,31 @@ Version 2.0 (?)
 ---------------
 
 * Add python 3 support (except Kerberos extension).
+* Allow use of `Client.write` and `Client.read` as context managers.
+* Add progress hook to `Client.write`, `Client.read`, `Client.upload`, and
+  `Client.download`.
 
 Breaking changes:
 
-* Remove `--` prefix from CLI commands.
-* Change meaning of `n_threads` option in `Client.download` and
-  `Client.upload`.
+* `Client.parts` will now throw an error if called on a normal file.
+* Make most client attributes private (e.g. `url`, `timeout`, etc.), except
+  `root`. This is to keep autocompletion suggestions cleaner.
+* Remove `--` prefix from CLI commands. Also simplify CLI to only
+  interactive, download and upload commands (write and read behavior can
+  be achieved by passing '-' as local path). The `Client` API changes
+  should make it more convenient to perform these from a python shell.
 * Rename `Client.set_permissions` to `Client.set_permission` to make
   `permission` argument uniform across `Client` methods (alway singular,
   consistent with WebHDFS API).
+* Change meaning of `n_threads` option in `Client.download` and
+  `Client.upload`.
+* Add `status` option to `Client.list` and `Client.walk`. By default these
+  functions now only return the names of the relevant files and folders.
+* Change `Client.walk` to be consistent with `os.walk`. Also change meaning of
+  `depth` option.
 * Remove `Client.append` method.
-* `Client.delete` returns boolean indicating success.
+* `Client.delete` returns boolean indicating success (rather than failing if
+  the path was already empty).
 
 Version 1.4.0 (2015/07/24)
 --------------------------

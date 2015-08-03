@@ -13,6 +13,7 @@ from six import b
 from tempfile import mkdtemp
 import os
 import os.path as osp
+import posixpath as psp
 import time
 
 
@@ -653,7 +654,7 @@ class TestSetOwner(_TestSession):
     self.client.set_owner('foo', group='blah')
 
 
-class TestSetPermissions(_TestSession):
+class TestSetPermission(_TestSession):
 
   def test_directory(self):
     new_permission = '755'
@@ -712,43 +713,55 @@ class TestList(_TestSession):
 
   def test_dir(self):
     self.client.write('foo/bar', 'hello, world!')
-    statuses = self.client.list('foo')
+    eq_(self.client.list('foo'), ['bar'])
+
+  def test_dir_with_status(self):
+    self.client.write('foo/bar', 'hello, world!')
+    statuses = self.client.list('foo', status=True)
     eq_(len(statuses), 1)
     status = self.client.status('foo/bar')
     status['pathSuffix'] = 'bar'
-    eq_(statuses[0], (osp.join(self.client.root, 'foo', 'bar'), status))
+    eq_(statuses[0], ('bar', status))
 
 
 class TestWalk(_TestSession):
 
+  @raises(HdfsError)
+  def test_missing(self):
+    list(self.client.walk('foo'))
+
   def test_file(self):
     self.client.write('foo', 'hello, world!')
-    infos = list(self.client.walk('foo'))
-    status = self.client.status('foo')
-    eq_(len(infos), 1)
-    eq_(infos[0], (osp.join(self.client.root, 'foo'), status))
+    ok_(not list(self.client.walk('foo')))
 
-  def test_file_with_depth(self):
+  def test_folder(self):
+    self.client.write('hello', 'hello, world!')
+    self.client.write('foo/hey', 'hey, world!')
+    infos = list(self.client.walk(''))
+    eq_(len(infos), 2)
+    eq_(infos[0], (psp.join(self.client.root), ['foo'], ['hello']))
+    eq_(infos[1], (psp.join(self.client.root, 'foo'), [], ['hey']))
+
+  def test_folder_with_depth(self):
+    self.client.write('foo/bar', 'hello, world!')
+    infos = list(self.client.walk('', depth=1))
+    eq_(len(infos), 1)
+    eq_(infos[0], (self.client.root, ['foo'], []))
+
+  def test_folder_with_status(self):
     self.client.write('foo', 'hello, world!')
-    infos = list(self.client.walk('foo', depth=48))
+    infos = list(self.client.walk('', status=True))
     status = self.client.status('foo')
+    status['pathSuffix'] = 'foo'
     eq_(len(infos), 1)
-    eq_(infos[0], (osp.join(self.client.root, 'foo'), status))
-
-  def test_dir_without_depth(self):
-    self.client.write('bar/foo', 'hello, world!')
-    infos = list(self.client.walk('bar', depth=0))
-    status = self.client.status('bar')
-    eq_(len(infos), 1)
-    eq_(infos[0], (osp.join(self.client.root, 'bar'), status))
-
-  def test_dir_with_depth(self):
-    self.client.write('bar/foo', 'hello, world!')
-    self.client.write('bar/baz', 'hello again, world!')
-    self.client.write('bar/bax/foo', 'hello yet again, world!')
-    infos = list(self.client.walk('bar', depth=1))
-    eq_(len(infos), 4)
-
+    eq_(
+      infos[0],
+      (
+        (self.client.root, self.client.status('')),
+        [],
+        [('foo', status)]
+      )
+    )
 
 class TestLatestExpansion(_TestSession):
 
@@ -786,3 +799,66 @@ class TestLatestExpansion(_TestSession):
   def test_resolve_empty_directory(self):
     self.client._mkdirs('bar')
     self.client.resolve('bar/#LATEST')
+
+class TestParts(_TestSession):
+
+  @raises(HdfsError)
+  def test_missing(self):
+    self.client.parts('foo')
+
+  @raises(HdfsError)
+  def test_file(self):
+    self.client.write('foo', 'hello')
+    self.client.parts('foo')
+
+  @raises(HdfsError)
+  def test_empty_folder(self):
+    self.client._mkdirs('foo')
+    self.client.parts('foo')
+
+  @raises(HdfsError)
+  def test_folder_without_parts(self):
+    self.client.write('foo/bar', 'hello')
+    self.client.parts('foo')
+
+  def test_folder_with_single_part(self):
+    fname = 'part-m-00000.avro'
+    self.client.write(psp.join('foo', fname), 'first')
+    eq_(self.client.parts('foo'), [fname])
+
+  def test_folder_with_multiple_parts(self):
+    fnames = ['part-m-00000.avro', 'part-m-00001.avro']
+    self.client.write(psp.join('foo', fnames[0]), 'first')
+    self.client.write(psp.join('foo', fnames[1]), 'second')
+    eq_(self.client.parts('foo'), fnames)
+
+  def test_folder_with_multiple_parts_and_others(self):
+    fnames = ['part-m-00000.avro', 'part-m-00001.avro']
+    self.client.write(psp.join('foo', '.header'), 'metadata')
+    self.client.write(psp.join('foo', fnames[0]), 'first')
+    self.client.write(psp.join('foo', fnames[1]), 'second')
+    eq_(self.client.parts('foo'), fnames)
+
+  def test_with_selection(self):
+    fnames = ['part-m-00000.avro', 'part-m-00001.avro']
+    self.client.write(psp.join('foo', '.header'), 'metadata')
+    self.client.write(psp.join('foo', fnames[0]), 'first')
+    self.client.write(psp.join('foo', fnames[1]), 'second')
+    parts = self.client.parts('foo', parts=1)
+    eq_(len(parts), 1)
+    ok_(parts[0] in fnames)
+
+  def test_with_selection(self):
+    fnames = ['part-m-00000.avro', 'part-m-00001.avro']
+    self.client.write(psp.join('foo', '.header'), 'metadata')
+    self.client.write(psp.join('foo', fnames[0]), 'first')
+    self.client.write(psp.join('foo', fnames[1]), 'second')
+    eq_(self.client.parts('foo', parts=[1]), fnames[1:])
+
+  def test_with_status(self):
+    fname = 'part-m-00000.avro'
+    fpath = psp.join('foo', fname)
+    self.client.write(fpath, 'first')
+    status = self.client.status(fpath)
+    status['pathSuffix'] = fname
+    eq_(self.client.parts('foo', status=True), [(fname, status)])
