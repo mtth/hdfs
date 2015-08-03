@@ -136,13 +136,13 @@ class _Reader(object):
 
     def reader(hdfs_path, res, buffer_char, chunk_size, progress):
       """Generator that also terminates the connection when closed."""
-      total_bytes = 0
+      nbytes = 0
       try:
         buf = ''
         for chunk in res.iter_content(chunk_size):
           if progress:
-            total_bytes += len(chunk)
-            progress(hdfs_path, total_bytes)
+            nbytes += len(chunk)
+            progress(hdfs_path, nbytes)
           if not buffer_char:
             yield chunk
           else:
@@ -153,6 +153,8 @@ class _Reader(object):
             buf = splits[-1]
         if buffer_char:
           yield buf
+        if progress:
+          progress(hdfs_path, -1)
       except GeneratorExit:
         pass
       finally:
@@ -446,7 +448,7 @@ class Client(object):
     )
 
   def upload(self, hdfs_path, local_path, overwrite=False, n_threads=0,
-    temp_dir=None, **kwargs):
+    temp_dir=None, chunk_size=1024, progress=None, **kwargs):
     """Upload a file or directory to HDFS.
 
     :param hdfs_path: Target HDFS path. If it already exists and is a
@@ -460,6 +462,11 @@ class Client(object):
     :param temp_dir: Directory under which the files will first be uploaded
       when `overwrite=True` and the final remote path already exists. Once the
       upload successfully completes, it will be swapped in.
+    :param chunk_size: Interval in bytes by which the files will be uploaded.
+    :param progress: Callback function to track progress, called every
+      `chunk_size` bytes. It will be passed two arguments, the path to the
+      file being uploaded and the number of bytes transferred so far. On
+      completion, it will be called once with `-1` as second argument.
     :param \*\*kwargs: Keyword arguments forwarded to :meth:`write`.
 
     On success, this method returns the remote upload path.
@@ -472,8 +479,24 @@ class Client(object):
       _index, (_local_path, _temp_path) = _indexed_path_tuple
       time.sleep(_index) # Avoid replay errors.
       self._logger.debug('Uploading %r to %r.', _local_path, _temp_path)
-      with open(_local_path, 'rb') as _reader:
-        self.write(_temp_path, _reader, overwrite=False, **kwargs)
+      with open(_local_path, 'rb') as reader:
+
+        def wrap(_reader, _chunk_size, _progress):
+          """Generator that can track progress."""
+          nbytes = 0
+          while True:
+            chunk = reader.read(_chunk_size)
+            if chunk:
+              if _progress:
+                nbytes += len(chunk)
+                _progress(_local_path, nbytes)
+              yield chunk
+            else:
+              break
+          if _progress:
+            _progress(_local_path, -1)
+
+        self.write(_temp_path, wrap(reader, chunk_size, progress), **kwargs)
 
     # First, we gather information about remote paths.
     hdfs_path = self.resolve(hdfs_path)
@@ -578,8 +601,9 @@ class Client(object):
       yielding every `chunk_size` bytes. Note that this can cause the entire
       file to be yielded at once if the character is not appropriate.
     :param progress: Callback function to track progress, called every
-      `chunksize` bytes. It will be passed two arguments, the path to the
-      file being read and the number of bytes transferred so far.
+      `chunk_size` bytes. It will be passed two arguments, the path to the
+      file being uploaded and the number of bytes transferred so far. On
+      completion, it will be called once with `-1` as second argument.
 
     In order to ensure that the connection is always properly closed, it is
     recommended to call this method using a `with` statement:

@@ -3,6 +3,7 @@
 
 """Test Hdfs client interactions with HDFS."""
 
+from collections import defaultdict
 from hdfs.client import *
 from hdfs.util import HdfsError, temppath
 from helpers import _TestSession
@@ -334,6 +335,37 @@ class TestUpload(_TestSession):
       self.client.upload('up', tpath)
       self.client.upload('up', tpath)
 
+  def test_upload_with_progress(self):
+
+    def callback(path, nbytes, history=defaultdict(list)):
+      history[path].append(nbytes)
+      return history
+
+    dpath = mkdtemp()
+    try:
+      path1 = osp.join(dpath, 'foo')
+      with open(path1, 'w') as writer:
+        writer.write('hello!')
+      os.mkdir(osp.join(dpath, 'bar'))
+      path2 = osp.join(dpath, 'bar', 'baz')
+      with open(path2, 'w') as writer:
+        writer.write('the world!')
+      self.client.upload(
+        'up',
+        dpath,
+        chunk_size=4,
+        n_threads=1, # Callback isn't thread-safe.
+        progress=callback
+      )
+      self._check_content('up/foo', b'hello!')
+      self._check_content('up/bar/baz', b'the world!')
+      eq_(
+        callback('', 0),
+        {path1: [4, 6, -1], path2: [4, 8, 10, -1], '': [0]}
+      )
+    finally:
+      rmtree(dpath)
+
 
 class TestDelete(_TestSession):
 
@@ -422,7 +454,7 @@ class TestRead(_TestSession):
             writer.write(chunk)
       with open(tpath, 'rb') as reader:
         eq_(reader.read(), b'hello, world!')
-      eq_(callback('', 0), [5, 10, 13, 0])
+      eq_(callback('', 0), [5, 10, 13, -1, 0])
 
   def _read(self, writer, *args, **kwargs):
     for chunk in self.client.read(*args, **kwargs):
