@@ -104,13 +104,15 @@ class Config(object):
       alias = alias or self.parser.get('hdfs', 'default.alias')
     except (NoOptionError, NoSectionError):
       raise HdfsError('No alias specified and no default alias found.')
-    section = '%s_alias' % (alias, )
-    try:
-      options = dict(self.parser.items(section))
-    except NoSectionError:
-      raise HdfsError('Alias not found: %r.', alias)
-    else:
-      return options
+    for suffix in ('.alias', '_alias'):
+      section = '%s%s' % (alias, suffix)
+      try:
+        options = dict(self.parser.items(section))
+      except NoSectionError:
+        pass # Backwards compatibility.
+      else:
+        return options
+    raise HdfsError('Alias not found: %r.', alias)
 
   def get_file_handler(self, name):
     """Create and configure logging file handler.

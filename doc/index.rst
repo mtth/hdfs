@@ -66,19 +66,17 @@ Sample commands (see below for how to configure cluster aliases):
 .. code-block:: bash
 
   $ # Read all files inside a folder from HDFS and store them locally.
-  $ hdfscli download export/results/ "results-$(date +%F)"
-
+  $ hdfscli download --alias=dev export/results/ "results-$(date +%F)"
   $ # Read a file from HDFS and append its contents to a local log file.
   $ hdfscli download logs/1987-03-23.txt - >>logs
-
   $ # Write a single file to HDFS.
-  $ hdfscli upload weights.json static/
+  $ hdfscli upload --alias=dev weights.json static/
 
 Fully featured shell (using IPython_ if available):
 
 .. code-block:: bash
 
-  $ hdfscli
+  $ hdfscli --alias=dev
   Welcome to the interactive HDFS python shell.
   The HDFS client is available as `CLIENT`.
 

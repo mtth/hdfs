@@ -61,7 +61,7 @@ download it locally, and finally delete the remote copy.
 
   from hdfs import TokenClient
 
-  client = TokenClient('http://namenode:port', 'foo', root='/user/alice')
+  client = TokenClient('http://namenode:port', 'token', root='/user/alice')
   client.write('hello.md', 'Hello, world!')
   client.rename('hello.md', 'hello.rst')
   client.download('hello.rst', 'hello.rst')
@@ -73,7 +73,8 @@ Refer to the documentation_ for the full API and extensions.
 CLI
 ***
 
-Sample commands (see below for how to configure cluster aliases):
+Sample commands (see below for information on how to configure cluster 
+aliases):
 
 .. code-block:: bash
 
@@ -82,13 +83,13 @@ Sample commands (see below for how to configure cluster aliases):
   $ # Read a file from HDFS and append its contents to a local log file.
   $ hdfscli download logs/1987-03-23.txt - >>logs
   $ # Write a single file to HDFS.
-  $ hdfscli upload weights.json static/
+  $ hdfscli upload --alias=dev weights.json models/
 
-Fully featured shell (using IPython_ if available):
+Python shell integration (using IPython_ if available):
 
 .. code-block:: bash
 
-  $ hdfscli
+  $ hdfscli --alias=dev
   Welcome to the interactive HDFS python shell.
   The HDFS client is available as `CLIENT`.
 
@@ -109,21 +110,21 @@ configuration at `~/.hdfsrc` (or elsewhere by setting the `HDFSCLI_RCPATH`
 environment variable correspondingly). This will also enable the 
 `Client.from_alias` method.
 
-Sample configuration defining two aliases, `foo` and `bar`:
+Sample configuration defining two aliases, `dev` and `prod`:
 
 .. code-block:: cfg
 
   [hdfs]
   default.alias = foo # Used when no alias is specified at the command line.
 
-  [foo_alias]
-  client = KerberosClient
-  root = /some/directory
-  url = https://url.to.namenode:port
-  verify = false
+  [dev.alias]
+  url = http://url.to.dev.namenode:port
 
-  [bar_alias]
-  url = http://url.to.another.namenode:port
+  [prod.alias]
+  url = https://url.to.prod.namenode:port
+  client = KerberosClient
+  root = /jobs/
+  verify = false
 
 All options other than `url` can be omitted. `client` determines which class to 
 use (defaulting to the generic `Client`), and the remaining options are passed 

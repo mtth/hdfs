@@ -25,6 +25,16 @@ class TestConfig(object):
         os.unsetenv('HDFSCLI_RCPATH')
 
   def test_get_alias(self):
+    # New format.
+    with temppath() as tpath:
+      with open(tpath, 'w') as writer:
+        writer.write('[foo.alias]\nurl=1\nauth=k\nroot=2\n')
+      config = Config(tpath)
+      eq_(
+        config.get_alias('foo'),
+        {'url': '1', 'auth': 'k', 'root': '2'}
+      )
+    # Old format.
     with temppath() as tpath:
       with open(tpath, 'w') as writer:
         writer.write('[foo_alias]\nurl=1\nauth=k\nroot=2\n')
