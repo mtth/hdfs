@@ -49,9 +49,7 @@ HdfsCLI exits with return status 1 if an error occurred and 0 otherwise.
 from docopt import docopt
 from hdfs import __version__
 from hdfs.client import Client
-from hdfs.util import Config, HdfsError, catch, hsize, htime
-from json import dumps
-from time import time
+from hdfs.util import Config, HdfsError, catch
 from threading import Lock
 import logging as lg
 import os
@@ -99,7 +97,7 @@ class _Progress(object):
           )
         )
       else:
-        sys.stderr.write('%79s' % ('', ))
+        sys.stderr.write('%79s\r' % ('', ))
 
   @classmethod
   def from_hdfs_path(cls, client, hdfs_path):
@@ -119,12 +117,18 @@ class _Progress(object):
     :param local_path: Local path.
 
     """
-    nbytes = 0
-    nfiles = 0
-    for dpath, dnames, fnames in os.walk(local_path):
-      for fname in fnames:
-        nbytes += osp.getsize(osp.join(dpath, fname))
-        nfiles += 1
+    if osp.isdir(local_path):
+      nbytes = 0
+      nfiles = 0
+      for dpath, _, fnames in os.walk(local_path):
+        for fname in fnames:
+          nbytes += osp.getsize(osp.join(dpath, fname))
+          nfiles += 1
+    elif osp.exists(local_path):
+      nbytes = osp.getsize(local_path)
+      nfiles = 1
+    else:
+      raise HdfsError('No file found at: %s', local_path)
     return cls(nbytes, nfiles)
 
 

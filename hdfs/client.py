@@ -3,7 +3,7 @@
 
 """HDFS clients."""
 
-from .util import Config, HdfsError, InstanceLogger, temppath
+from .util import Config, HdfsError, InstanceLogger
 from getpass import getuser
 from itertools import repeat
 from multiprocessing.pool import ThreadPool
@@ -12,7 +12,6 @@ from shutil import move, rmtree
 from six import add_metaclass
 from six.moves.urllib.parse import quote
 from threading import Lock
-from warnings import warn
 import logging as lg
 import os
 import os.path as osp

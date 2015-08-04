@@ -35,7 +35,7 @@ from docopt import docopt
 from io import BytesIO
 from itertools import islice
 from json import dumps
-from random import random, shuffle
+from random import random
 from tempfile import mkstemp
 import avro as av
 import avro.datafile as avd
@@ -386,7 +386,7 @@ class AvroWriter(object):
 
   def __init__(self, client, hdfs_path, overwrite=False, schema=None):
     if schema and not isinstance(schema, av.schema.Schema):
-        raise HdfsError('Invalid schema: %r.', schema)
+      raise HdfsError('Invalid schema: %r.', schema)
     self._client = client
     self._schema = schema
 
