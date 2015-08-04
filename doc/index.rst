@@ -33,13 +33,12 @@ so simply suffix the package name with the desired extensions:
 
   $ pip install hdfs[avro,dataframe,kerberos]
 
-By default the command line entry point will be named `hdfs`. If this conflicts 
-with another utility, you can choose another name by specifying the 
-`HDFSCLI_ENTRY_POINT` environment variable:
+By default the command line entry point will be named `hdfscli`. You can choose 
+another name by specifying the `HDFSCLI_ENTRY_POINT` environment variable:
 
 .. code-block:: bash
 
-  $ HDFSCLI_ENTRY_POINT=hdfscli pip install hdfs
+  $ HDFSCLI_ENTRY_POINT=hdfs pip install hdfs
 
 
 API
@@ -62,14 +61,20 @@ download it locally, and finally delete the remote copy.
 CLI
 ---
 
-Sample commands:
+Sample commands (see below for how to configure cluster aliases):
 
 .. code-block:: bash
 
-  $ hdfs --read logs/1987-03-23 >>logs
-  $ hdfs --write -o data/weights.tsv <weights.tsv
+  $ # Read all files inside a folder from HDFS and store them locally.
+  $ hdfscli download export/results/ "results-$(date +%F)"
 
-Cf. `hdfs --help` for the full list of commands and options.
+  $ # Read a file from HDFS and append its contents to a local log file.
+  $ hdfscli download logs/1987-03-23.txt - >>logs
+
+  $ # Write a single file to HDFS.
+  $ hdfscli upload weights.json static/
+
+Cf. `hdfscli --help` for the full list of commands and options.
 
 
 Table of contents
