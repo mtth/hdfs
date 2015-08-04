@@ -79,12 +79,24 @@ Sample commands (see below for how to configure cluster aliases):
 
   $ # Read all files inside a folder from HDFS and store them locally.
   $ hdfscli download export/results/ "results-$(date +%F)"
-
   $ # Read a file from HDFS and append its contents to a local log file.
   $ hdfscli download logs/1987-03-23.txt - >>logs
-
   $ # Write a single file to HDFS.
   $ hdfscli upload weights.json static/
+
+Fully featured shell (using IPython_ if available):
+
+.. code-block:: bash
+
+  $ hdfscli
+  Welcome to the interactive HDFS python shell.
+  The HDFS client is available as `CLIENT`.
+
+  In [1]: CLIENT.list('data/')
+  Out[1]: ['1.json', '2.json']
+
+  In [2]: CLIENT.delete('data/2.json')
+  Out[2]: True
 
 Cf. `hdfscli --help` for the full list of commands and options.
 
@@ -137,3 +149,4 @@ See `scripts/` for helpers to set up a suitable HDFS cluster.
 .. _pandas: http://pandas.pydata.org/
 .. _WebHDFS: http://hadoop.apache.org/docs/current/hadoop-project-dist/hadoop-hdfs/WebHDFS.html
 .. _HttpFS: http://hadoop.apache.org/docs/current/hadoop-hdfs-httpfs/
+.. _IPython: http://ipython.org/

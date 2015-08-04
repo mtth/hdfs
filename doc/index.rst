@@ -74,6 +74,20 @@ Sample commands (see below for how to configure cluster aliases):
   $ # Write a single file to HDFS.
   $ hdfscli upload weights.json static/
 
+Fully featured shell (using IPython_ if available):
+
+.. code-block:: bash
+
+  $ hdfscli
+  Welcome to the interactive HDFS python shell.
+  The HDFS client is available as `CLIENT`.
+
+  In [1]: CLIENT.list('data/')
+  Out[1]: ['1.json', '2.json']
+
+  In [2]: CLIENT.delete('data/2.json')
+  Out[2]: True
+
 Cf. `hdfscli --help` for the full list of commands and options.
 
 
@@ -98,3 +112,4 @@ Indices and tables
 .. _pip: http://www.pip-installer.org/en/latest/
 .. _WebHDFS API: http://hadoop.apache.org/docs/r1.0.4/webhdfs.html
 .. _pandas: http://pandas.pydata.org/
+.. _IPython: http://ipython.org/
