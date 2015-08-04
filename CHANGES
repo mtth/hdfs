@@ -44,12 +44,14 @@ Breaking changes:
   folders.
 * Remove `Client.append` method.
 
+
 Version 1.4.0 (2015/07/24)
 --------------------------
 
 * Add support for download and upload of arbitrary folders.
 * Deprecate `Client.append` (in favor of `append` argument to
   `Client.write`).
+
 
 Version 1.1.0 (2015/06/23)
 --------------------------
