@@ -34,7 +34,7 @@ Options:
   -f --force                    Allow overwriting any existing files.
   -s --silent                   Don't display progress status.
   -t THREADS --threads=THREADS  Number of threads to use for parallelization.
-                                0 allocates a thread per file. [default: 1]
+                                0 allocates a thread per file. [default: 0]
 
 Examples:
   hdfscli -a prod /user/foo

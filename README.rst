@@ -45,7 +45,7 @@ another name by specifying the `HDFSCLI_ENTRY_POINT` environment variable:
 
 .. code-block:: bash
 
-  $ HDFSCLI_ENTRY_POINT=hdfs pip install hdfscli
+  $ HDFSCLI_ENTRY_POINT=hdfs pip install hdfs
 
 
 Quickstart

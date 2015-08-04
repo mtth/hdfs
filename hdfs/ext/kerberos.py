@@ -51,10 +51,10 @@ class KerberosClient(Client):
     super(KerberosClient, self).__init__(url, **kwargs)
 
   def _request(self, method, url, **kwargs):
-    """Overriden method to avoid replay errors.
+    """Overriden method to avoid authentication errors.
 
-    Authentication will otherwise sometimes fail if too many concurrent
-    requests are being made.
+    Authentication will otherwise fail if too many concurrent requests are
+    being made.
 
     """
     if not 'auth' in kwargs:

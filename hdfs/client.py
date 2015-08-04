@@ -564,7 +564,7 @@ class Client(object):
         for path_tuple in fpath_tuples:
           _upload(path_tuple)
       else:
-        ThreadPool(n_threads).map_async(_upload, fpath_tuples).get(1 << 63)
+        ThreadPool(n_threads).map_async(_upload, fpath_tuples).get(1 << 31)
         # Not using map because of http://stackoverflow.com/a/1408476/1062617
     except Exception as err:
       try:
@@ -724,7 +724,7 @@ class Client(object):
         for fpath_tuple in fpath_tuples:
           _download(fpath_tuple)
       else:
-        ThreadPool(n_threads).map_async(_download, fpath_tuples).get(1 << 63)
+        ThreadPool(n_threads).map_async(_download, fpath_tuples).get(1 << 31)
         # Not using map because of http://stackoverflow.com/a/1408476/1062617
     except Exception as err:
       try:
