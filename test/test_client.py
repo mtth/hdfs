@@ -610,6 +610,17 @@ class TestDownload(_TestSession):
       with open(osp.join(tpath, 'foo', 'bar', 'dl')) as reader:
         eq_(reader.read(), 'there')
 
+  def test_download_folder_to_existing_folder_parallel(self):
+    self.client.write('foo/dl', 'hello')
+    self.client.write('foo/bar/dl', 'there')
+    with temppath() as tpath:
+      os.mkdir(tpath)
+      self.client.download('foo', tpath, n_threads=0)
+      with open(osp.join(tpath, 'foo', 'dl')) as reader:
+        eq_(reader.read(), 'hello')
+      with open(osp.join(tpath, 'foo', 'bar', 'dl')) as reader:
+        eq_(reader.read(), 'there')
+
   def test_download_folder_to_missing_folder(self):
     self.client.write('foo/dl', 'hello')
     self.client.write('foo/bar/dl', 'there')

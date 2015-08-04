@@ -19,6 +19,7 @@ import os.path as osp
 import posixpath as psp
 import re
 import requests as rq
+import sys
 import time
 
 
@@ -448,7 +449,7 @@ class Client(object):
       data=data,
     )
 
-  def upload(self, hdfs_path, local_path, overwrite=False, n_threads=0,
+  def upload(self, hdfs_path, local_path, overwrite=False, n_threads=1,
     temp_dir=None, chunk_size=1024, progress=None, **kwargs):
     """Upload a file or directory to HDFS.
 
@@ -564,8 +565,7 @@ class Client(object):
         for path_tuple in fpath_tuples:
           _upload(path_tuple)
       else:
-        ThreadPool(n_threads).map_async(_upload, fpath_tuples).get(1 << 31)
-        # Not using map because of http://stackoverflow.com/a/1408476/1062617
+        _map_async(n_threads, _upload, fpath_tuples)
     except Exception as err:
       try:
         self.delete(temp_path, recursive=True)
@@ -630,7 +630,7 @@ class Client(object):
     )
     return _Reader(hdfs_path, res, buffer_char, chunk_size, progress)
 
-  def download(self, hdfs_path, local_path, overwrite=False, n_threads=0,
+  def download(self, hdfs_path, local_path, overwrite=False, n_threads=1,
     temp_dir=None, **kwargs):
     """Download a file or folder from HDFS and save it locally.
 
@@ -724,8 +724,7 @@ class Client(object):
         for fpath_tuple in fpath_tuples:
           _download(fpath_tuple)
       else:
-        ThreadPool(n_threads).map_async(_download, fpath_tuples).get(1 << 31)
-        # Not using map because of http://stackoverflow.com/a/1408476/1062617
+        _map_async(n_threads, _download, fpath_tuples)
     except Exception as err:
       try:
         if osp.isdir(temp_path):
@@ -988,3 +987,26 @@ class TokenClient(Client):
   def __init__(self, url, token, **kwargs):
     kwargs.setdefault('params', {})['delegation'] = token
     super(TokenClient, self).__init__(url, **kwargs)
+
+
+# Helpers
+# -------
+
+def _map_async(pool_size, func, args):
+  """Async map (threading), handling python 2.6 edge case.
+
+  :param pool_size: Maximum number of threads.
+  :param func: Function to run.
+  :param args: Iterable of arguments (one per thread).
+
+  This is necessary since using `map` will in general prevent keyboard
+  interrupts from functioning properly (see this thread for more details -
+  http://stackoverflow.com/a/1408476/1062617), but `map_async` hangs in python
+  2.6.
+
+  """
+  pool = ThreadPool(pool_size)
+  if sys.version_info <= (2, 6):
+    return pool.map(func, args)
+  else:
+    return pool.map_async(func, args).get(1 << 31)
