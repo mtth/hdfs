@@ -4,10 +4,10 @@
 """HdfsCLI: a command line interface for WebHDFS.
 
 Usage:
-  hdfs [interactive] [-a ALIAS]
-  hdfs download [-fsa ALIAS] [-t THREADS] HDFS_PATH LOCAL_PATH
-  hdfs upload [-sa ALIAS] [-A | -f] [-t THREADS] LOCAL_PATH HDFS_PATH
-  hdfs -h | -L | -V
+  hdfscli [interactive] [-a ALIAS]
+  hdfscli download [-fsa ALIAS] [-t THREADS] HDFS_PATH LOCAL_PATH
+  hdfscli upload [-sa ALIAS] [-A | -f] [-t THREADS] LOCAL_PATH HDFS_PATH
+  hdfscli -h | -L | -V
 
 Commands:
   download                      Download a file or folder from HDFS. If a
@@ -37,10 +37,10 @@ Options:
                                 0 allocates a thread per file. [default: 1]
 
 Examples:
-  hdfs -a prod /user/foo
-  hdfs download features.avro dat/
-  hdfs download logs/1987-03-23 - >>logs
-  hdfs upload -f - data/weights.tsv <weights.tsv
+  hdfscli -a prod /user/foo
+  hdfscli download features.avro dat/
+  hdfscli download logs/1987-03-23 - >>logs
+  hdfscli upload -f - data/weights.tsv <weights.tsv
 
 HdfsCLI exits with return status 1 if an error occurred and 0 otherwise.
 
@@ -135,7 +135,7 @@ def main():
   # Set up logging.
   logger = lg.getLogger('hdfs')
   logger.setLevel(lg.DEBUG)
-  handler = Config().get_file_handler('hdfs')
+  handler = Config().get_file_handler('hdfscli')
   if handler:
     logger.addHandler(handler)
   # Set up client and fix arguments.

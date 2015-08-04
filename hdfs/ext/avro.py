@@ -4,10 +4,10 @@
 """HdfsAvro: an Avro extension for HdfsCLI.
 
 Usage:
-  hdfs-avro [-a ALIAS] --schema PATH
-  hdfs-avro [-a ALIAS] --head [-n NUM] [-p PARTS] PATH
-  hdfs-avro [-a ALIAS] --sample (-f FREQ | -n NUM) PATH
-  hdfs-avro -h | --help | -l | --log
+  hdfscli-avro [-a ALIAS] --schema PATH
+  hdfscli-avro [-a ALIAS] --head [-n NUM] [-p PARTS] PATH
+  hdfscli-avro [-a ALIAS] --sample (-f FREQ | -n NUM) PATH
+  hdfscli-avro -h | --help | -l | --log
 
 Commands:
   --schema                      Pretty print schema.
@@ -438,7 +438,7 @@ def main():
   # set up logging
   logger = lg.getLogger('hdfs')
   logger.setLevel(lg.DEBUG)
-  handler = Config().get_file_handler('hdfs-avro')
+  handler = Config().get_file_handler('hdfscli-avro')
   if handler:
     logger.addHandler(handler)
   try:

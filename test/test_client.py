@@ -955,6 +955,7 @@ class TestSetTimes(_TestSession):
   def test_missing(self):
     self.client.set_times('foo', 1234)
 
+  @nottest # HttpFS doesn't raise an error here.
   @raises(HdfsError)
   def test_negative(self):
     self.client.write('foo', 'hello')
