@@ -4,46 +4,43 @@
 """HdfsCLI: a command line interface for WebHDFS.
 
 Usage:
-  hdfs [-a ALIAS] [--interactive]
-  hdfs [-a ALIAS] --read RPATH
-  hdfs [-a ALIAS] --write [-o] RPATH
-  hdfs [-a ALIAS] --list [-j | -p] [-d DEPTH] [RPATH]
-  hdfs [-a ALIAS] --download [-ot THREADS] RPATH LPATH
-  hdfs [-a ALIAS] --upload [-ot THREADS] LPATH RPATH
-  hdfs -h | --help | -l | --log | -v | --version
+  hdfs [interactive] [-a ALIAS]
+  hdfs download [-fsa ALIAS] [-t THREADS] HDFS_PATH LOCAL_PATH
+  hdfs upload [-sa ALIAS] [-A | -f] [-t THREADS] LOCAL_PATH HDFS_PATH
+  hdfs -h | -L | -V
 
 Commands:
-  --download                    Download a file or folder to HDFS.
-  --interactive                 Start the client and expose it via the python
+  download                      Download a file or folder from HDFS. If a
+                                single file is downloaded, - can be
+                                specified as LOCAL_PATH to stream it to
+                                standard out.
+  interactive                   Start the client and expose it via the python
                                 interpreter (using iPython if available).
-  --list                        View information about files and directories.
-  --read                        Stream a file from HDFS to standard out.
-  --upload                      Upload a file or folder to HDFS.
-  --write                       Stream from standard in to a file on HDFS.
+  upload                        Upload a file or folder to HDFS. - can be
+                                specified as LOCAL_PATH to read from standard
+                                in.
 
 Arguments:
-  LPATH                         Path to local file or directory.
-  RPATH                         Remote HDFS path.
+  HDFS_PATH                     Remote HDFS path.
+  LOCAL_PATH                    Path to local file or directory.
 
 Options:
+  -A --append                   Append data to an existing file. Only supported
+                                if uploading a single file or from standard in.
+  -L --log                      Show path to current log file and exit.
+  -V --version                  Show version and exit.
   -a ALIAS --alias=ALIAS        Alias, defaults to alias pointed to by
-                                `default.alias` in ~/.hdfsrc.
-  -d DEPTH --depth=DEPTH        Maximum depth to explore directories. Specify
-                                `-1` for no limit [default: 0].
-  -l --log                      Show path to current log file and exit.
-  -h --help                     Show this message and exit.
-  -j --json                     Output JSON instead of tab delimited data.
-  -o --overwrite                Allow overwriting any existing files.
-  -p --path                     Only include paths in output.
+                                default.alias in ~/.hdfsrc.
+  -f --force                    Allow overwriting any existing files.
+  -s --silent                   Don't display progress status.
   -t THREADS --threads=THREADS  Number of threads to use for parallelization.
-                                `0` allocates a thread per file. [default: 0]
-  -v --version                  Show version and exit.
+                                0 allocates a thread per file. [default: 1]
 
 Examples:
   hdfs -a prod /user/foo
-  hdfs --read logs/1987-03-23 >>logs
-  hdfs --write -o data/weights.tsv <weights.tsv
-  hdfs --download features.avro dat/
+  hdfs download features.avro dat/
+  hdfs download logs/1987-03-23 - >>logs
+  hdfs upload -f - data/weights.tsv <weights.tsv
 
 HdfsCLI exits with return status 1 if an error occurred and 0 otherwise.
 
@@ -55,132 +52,162 @@ from hdfs.client import Client
 from hdfs.util import Config, HdfsError, catch, hsize, htime
 from json import dumps
 from time import time
+from threading import Lock
 import logging as lg
+import os
+import os.path as osp
 import sys
 
 
-def list_infos(client, hdfs_path, depth, json, path):
-  """Get informations about files and directories.
+class _Progress(object):
 
-  :param client: :class:`~hdfs.client.Client` instance.
-  :param hdfs_path: Remote path.
-  :param depth: Maximum exploration depth.
-  :param json: Return JSON output. Takes precedence over `path`.
-  :param path: Return paths only.
+  """Progress tracker callback.
+
+  :param nbytes: Total number of bytes that will be transferred.
+  :param nfiles: Total number of files that will be transferred.
 
   """
-  def _infos():
-    """Helper generator."""
-    for path, status in client.walk(hdfs_path, depth=depth):
-      if status['type'] == 'DIRECTORY' and not path:
-        yield path, status, client.content(path)
+
+  def __init__(self, nbytes, nfiles):
+    self._total_bytes = nbytes
+    self._pending_files = nfiles
+    self._downloading_files = 0
+    self._complete_files = 0
+    self._lock = Lock()
+    self._data = {}
+
+  def __call__(self, hdfs_path, nbytes):
+    # TODO: improve lock granularity.
+    with self._lock:
+      data = self._data
+      if hdfs_path not in data:
+        self._pending_files -= 1
+        self._downloading_files += 1
+      if nbytes == -1:
+        self._downloading_files -= 1
+        self._complete_files += 1
       else:
-        yield path, status, None
-  if json:
-    info = [
-      {'path': path, 'status': status, 'content': content}
-      for path, status, content in _infos()
-    ]
-    sys.stdout.write('%s\n' % (dumps(info), ))
-  elif path:
-    paths = (
-      '%s/' % (p.rstrip('/'), ) if s['type'] == 'DIRECTORY' else p
-      for p, s, _ in _infos()
-    )
-    sys.stdout.write('%s\n' % (' '.join(paths)))
-  else:
-    for fpath, status, content in _infos():
-      type_ = status['type']
-      if type_ == 'DIRECTORY':
-        size = hsize(content['length']) if content else '     -'
+        data[hdfs_path] = nbytes
+      if self._pending_files + self._downloading_files > 0:
+        sys.stderr.write(
+          '%3.1f%%\t[ pending: %d | downloading: %d | complete: %d ]   \r' %
+          (
+            100. * sum(data.values()) / self._total_bytes,
+            self._pending_files,
+            self._downloading_files,
+            self._complete_files,
+          )
+        )
       else:
-        size = hsize(status['length'])
-      time_ = htime(time() - status['modificationTime'] / 1000)
-      sys.stdout.write('%s\t%s\t%s\t%s\n' % (size, time_, type_[0], fpath))
+        sys.stderr.write('%79s' % ('', ))
 
-def read(reader, size, message, _out=sys.stdout, _err=sys.stderr):
-  """Download a file from HDFS.
+  @classmethod
+  def from_hdfs_path(cls, client, hdfs_path):
+    """Instantiate from remote path.
 
-  :param reader: Generator.
-  :param message: Message printed for each file read.
-  :param _out: Performance caching.
-  :param _err: Performance caching.
+    :param client: HDFS client.
+    :param hdfs_path: HDFS path.
 
-  If the output is piped to something else than a TTY, progress percentages
-  are displayed.
+    """
+    content = client.content(hdfs_path)
+    return cls(content['length'], content['fileCount'])
 
-  """
-  if _out.isatty():
-    for chunk in reader:
-      _out.write(chunk)
-  else:
-    _err.write('%s\t ??%%\r' % (message, ))
-    _err.flush()
-    try:
-      position = 0
-      for chunk in reader:
-        position += len(chunk)
-        progress = 100 * position / size
-        _err.write('%s\t%3i%%\r' % (message, progress))
-        _err.flush()
-        _out.write(chunk)
-    except HdfsError as exc:
-      _err.write('%s\t%s\n' % (message, exc))
-    else:
-      _err.write('%s\t     \n' % (message, ))
+  @classmethod
+  def from_local_path(cls, local_path):
+    """Instantiate from a local path.
+
+    :param local_path: Local path.
+
+    """
+    nbytes = 0
+    nfiles = 0
+    for dpath, dnames, fnames in os.walk(local_path):
+      for fname in fnames:
+        nbytes += osp.getsize(osp.join(dpath, fname))
+        nfiles += 1
+    return cls(nbytes, nfiles)
+
 
 @catch(HdfsError)
 def main():
   """Entry point."""
-  # arguments parsing first for quicker feedback on invalid arguments
   args = docopt(__doc__, version=__version__)
-  # set up logging
+  # Set up logging.
   logger = lg.getLogger('hdfs')
   logger.setLevel(lg.DEBUG)
   handler = Config().get_file_handler('hdfs')
   if handler:
     logger.addHandler(handler)
-  # set up client and fix arguments
+  # Set up client and fix arguments.
   client = Client.from_alias(args['--alias'])
-  rpath = args['RPATH'] or '.'
-  for option in ('--depth', '--threads'):
-    try:
-      args[option] = int(args[option])
-    except ValueError:
-      raise HdfsError('Invalid `%s` option: %r.', option, args[option])
-  # run command
+  hdfs_path = args['HDFS_PATH']
+  local_path = args['LOCAL_PATH']
+  force = args['--force']
+  silent = args['--silent']
+  try:
+    n_threads = int(args['--threads'])
+  except ValueError:
+    raise HdfsError('Invalid `--threads` option: %r.', args['--threads'])
+  # Run command.
   if args['--log']:
     if handler:
       sys.stdout.write('%s\n' % (handler.baseFilename, ))
     else:
       raise HdfsError('No log file active.')
-  elif args['--write']:
-    reader = (line for line in sys.stdin) # doesn't work with stdin, why?
-    client.write(rpath, reader, overwrite=args['--overwrite'])
-  elif args['--read']:
-    size = client.status(rpath)['length']
-    read(client.read(rpath), size, '%s\t' % (rpath, ))
-  elif args['--download']:
-    client.download(
-      rpath,
-      args['LPATH'],
-      overwrite=args['--overwrite'],
-      n_threads=args['--threads']
-    )
-  elif args['--upload']:
-    client.upload(
-      rpath,
-      args['LPATH'],
-      overwrite=args['--overwrite'],
-      n_threads=args['--threads']
-    )
-  elif args['--list']:
-    list_infos(client, rpath, args['--depth'], args['--json'], args['--path'])
+  elif args['download']:
+    if local_path == '-':
+      if not sys.stdout.isatty() and sys.stderr.isatty() and not silent:
+        progress = _Progress.from_hdfs_path(client, hdfs_path)
+      else:
+        progress = None
+      for chunk in client.read(hdfs_path, progress=progress):
+        sys.stdout.write(chunk)
+    else:
+      if sys.stderr.isatty() and not silent:
+        progress = _Progress.from_hdfs_path(client, hdfs_path)
+      else:
+        progress = None
+      client.download(
+        hdfs_path,
+        local_path,
+        overwrite=force,
+        n_threads=n_threads,
+        progress=progress
+      )
+  elif args['upload']:
+    append = args['--append']
+    if local_path == '-':
+      client.write(
+        hdfs_path,
+        (line for line in sys.stdin), # Doesn't work with stdin.
+        append=append,
+        overwrite=force,
+      )
+    else:
+      if append:
+        # TODO: add progress tracking here.
+        if osp.isfile(local_path):
+          with open(local_path) as reader:
+            client.write(hdfs_path, reader, append=True)
+        else:
+          raise HdfsError('Can only append when uploading a single file.')
+      else:
+        if sys.stderr.isatty() and not silent:
+          progress = _Progress.from_local_path(local_path)
+        else:
+          progress = None
+        client.upload(
+          hdfs_path,
+          local_path,
+          overwrite=force,
+          n_threads=n_threads,
+          progress=progress,
+        )
   else:
+    logger.setLevel(lg.WARNING) # iPython likes to print all logged messages.
     banner = (
-      'Interactive HDFS python shell.\n'
-      'Client for %r is available as `CLIENT`.'
-      % (client.url, )
+      'Welcome to the interactive HDFS python shell.\n'
+      'The HDFS client is available as `CLIENT`.\n'
     )
     namespace = {'CLIENT': client}
     try:

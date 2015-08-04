@@ -11,6 +11,7 @@ from random import sample
 from shutil import move, rmtree
 from six import add_metaclass
 from six.moves.urllib.parse import quote
+from threading import Lock
 from warnings import warn
 import logging as lg
 import os
@@ -81,7 +82,7 @@ class _Request(object):
       return client._request(
         method=self.method,
         url=url,
-        auth=client._auth, # TODO: See why this can't be moved to `_request`.
+        auth=client._auth,
         data=data,
         params=params,
         **self.kwargs
@@ -474,10 +475,9 @@ class Client(object):
     """
     self._logger.info('Uploading %s to %s.', local_path, hdfs_path)
 
-    def _upload(_indexed_path_tuple):
+    def _upload(_path_tuple):
       """Upload a single file."""
-      _index, (_local_path, _temp_path) = _indexed_path_tuple
-      time.sleep(_index) # Avoid replay errors.
+      _local_path, _temp_path = _path_tuple
       self._logger.debug('Uploading %r to %r.', _local_path, _temp_path)
       with open(_local_path, 'rb') as reader:
 
@@ -561,10 +561,11 @@ class Client(object):
     )
     try:
       if n_threads == 1:
-        for indexed_path_tuple in enumerate(fpath_tuples):
-          _upload(indexed_path_tuple)
+        for path_tuple in fpath_tuples:
+          _upload(path_tuple)
       else:
-        ThreadPool(n_threads).map(_upload, enumerate(fpath_tuples))
+        ThreadPool(n_threads).map_async(_upload, fpath_tuples).get(1 << 63)
+        # Not using map because of http://stackoverflow.com/a/1408476/1062617
     except Exception as err:
       try:
         self.delete(temp_path, recursive=True)
@@ -651,18 +652,21 @@ class Client(object):
 
     """
     self._logger.info('Downloading %r to %r.', hdfs_path, local_path)
+    lock = Lock()
 
-    def _download(_indexed_path_tuple):
+    def _download(_path_tuple):
       """Download a single file."""
-      _index, (_remote_path, _temp_path) = _indexed_path_tuple
-      time.sleep(_index)
-      _dpath = osp.dirname(_temp_path)
+      _remote_path, _temp_path = _path_tuple
       self._logger.debug('Downloading %r to %r.', _remote_path, _temp_path)
-      if not osp.exists(_dpath):
-        os.makedirs(_dpath)
+      _dpath = osp.dirname(_temp_path)
+      with lock:
+        # Prevent race condition when using multiple threads.
+        if not osp.exists(_dpath):
+          os.makedirs(_dpath)
       with open(_temp_path, 'wb') as _writer:
-        for chunk in self.read(_remote_path, **kwargs):
-          _writer.write(chunk)
+        with self.read(_remote_path, **kwargs) as reader:
+          for chunk in reader:
+            _writer.write(chunk)
 
     # First, we figure out where we will download the files to.
     hdfs_path = self.resolve(hdfs_path)
@@ -717,10 +721,11 @@ class Client(object):
     )
     try:
       if n_threads == 1:
-        for indexed_fpath_tuple in enumerate(fpath_tuples):
-          _download(indexed_fpath_tuple)
+        for fpath_tuple in fpath_tuples:
+          _download(fpath_tuple)
       else:
-        ThreadPool(n_threads).map(_download, enumerate(fpath_tuples))
+        ThreadPool(n_threads).map_async(_download, fpath_tuples).get(1 << 63)
+        # Not using map because of http://stackoverflow.com/a/1408476/1062617
     except Exception as err:
       try:
         if osp.isdir(temp_path):

@@ -10,9 +10,17 @@ Version 2.0 (?)
 * Allow use of `Client.read` as context manager.
 * Add `progress` argument to `Client.read` and `Client.upload` and a
  `chunk_size` argument to the latter to allow better tracking.
+* Improve robustness of `KerberosClient`. In particular add the
+  `max_concurrency` parameter which can be tuned to prevent authentication
+  errors when too many simultaneous requests are being made. Along with
+  the new delay parameter, this lets us remove the timeouts in
+  `Client.download` and `Client.upload`, which both simplify and speed up these
+  functions.
 
 Breaking changes:
 
+* Change default entry point name to `hdfscli` to avoid clashing with
+  Hadoop HDFS script.
 * `Client.delete` returns a boolean indicating success (rather than failing if
   the path was already empty).
 * Rename `Client.set_permissions` to `Client.set_permission` to make
