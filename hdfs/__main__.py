@@ -144,6 +144,7 @@ def main():
   local_path = args['LOCAL_PATH']
   force = args['--force']
   silent = args['--silent']
+  chunk_size = 1 << 16 # 65kB to avoid calling progress too often.
   try:
     n_threads = int(args['--threads'])
   except ValueError:
@@ -160,8 +161,13 @@ def main():
         progress = _Progress.from_hdfs_path(client, hdfs_path)
       else:
         progress = None
-      for chunk in client.read(hdfs_path, progress=progress):
-        sys.stdout.write(chunk)
+      with client.read(
+        hdfs_path,
+        chunk_size=chunk_size,
+        progress=progress,
+      ) as reader:
+        for chunk in reader:
+          sys.stdout.write(chunk)
     else:
       if sys.stderr.isatty() and not silent:
         progress = _Progress.from_hdfs_path(client, hdfs_path)
@@ -172,7 +178,8 @@ def main():
         local_path,
         overwrite=force,
         n_threads=n_threads,
-        progress=progress
+        chunk_size=chunk_size,
+        progress=progress,
       )
   elif args['upload']:
     append = args['--append']
@@ -201,6 +208,7 @@ def main():
           local_path,
           overwrite=force,
           n_threads=n_threads,
+          chunk_size=chunk_size,
           progress=progress,
         )
   else:
