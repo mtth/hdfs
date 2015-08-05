@@ -6,6 +6,8 @@ Version 2.0 (?)
 
 * Add python 3 support (the Kerberos extension's requirements must however
   be manually installed).
+* Allow relative client root. It will be assumed relative to the user's home
+  directory.
 * Add `Client.makedirs` and `Client.set_times` methods.
 * Allow use of `Client.read` as context manager.
 * Add `progress` argument to `Client.read` and `Client.upload` and a

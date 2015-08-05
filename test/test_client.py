@@ -56,18 +56,21 @@ class TestLoad(object):
     ok_(Client._from_options(None, {'url': '', 'verify': 'yes'})._verify)
 
   def test_timeout(self):
-    eq_(Client('').timeout, None)
-    eq_(Client('', timeout=1).timeout, 1)
-    eq_(Client('', timeout=(1,2)).timeout, (1,2))
-    eq_(Client._from_options(None, {'url': ''}).timeout, None)
-    eq_(Client._from_options(None, {'url': '', 'timeout': '1'}).timeout, 1)
-    eq_(Client._from_options(None, {'url': '', 'timeout': '1,2'}).timeout, (1,2))
+    eq_(Client('')._timeout, None)
+    eq_(Client('', timeout=1)._timeout, 1)
+    eq_(Client('', timeout=(1,2))._timeout, (1,2))
+    eq_(Client._from_options(None, {'url': ''})._timeout, None)
+    eq_(Client._from_options(None, {'url': '', 'timeout': '1'})._timeout, 1)
+    eq_(
+      Client._from_options(None, {'url': '', 'timeout': '1,2'})._timeout,
+      (1,2)
+    )
 
   def test_cert(self):
-    eq_(Client('').cert, None)
-    eq_(Client('', cert='foo').cert, 'foo')
-    eq_(Client('', cert='foo,bar').cert, ('foo', 'bar'))
-    eq_(Client('', cert=('foo', 'bar')).cert, ('foo', 'bar'))
+    eq_(Client('')._cert, None)
+    eq_(Client('', cert='foo')._cert, 'foo')
+    eq_(Client('', cert='foo,bar')._cert, ('foo', 'bar'))
+    eq_(Client('', cert=('foo', 'bar'))._cert, ('foo', 'bar'))
 
 
 class TestOptions(_TestSession):
@@ -162,13 +165,25 @@ class TestResolve(_TestSession):
     eq_(Client('url', root='/foo/').resolve('bar/'), '/foo/bar')
     eq_(Client('url', root='/foo/').resolve('/bar/'), '/bar')
 
-  @raises(HdfsError)
   def test_resolve_relative_no_root(self):
-    Client('url').resolve('bar')
+    root = self.client.root
+    try:
+      self.client.root = None
+      home = self.client._get_home_directory('/').json()['Path']
+      eq_(self.client.resolve('bar'), psp.join(home, 'bar'))
+      eq_(self.client.root, home)
+    finally:
+      self.client.root = root
 
-  @raises(HdfsError)
   def test_resolve_relative_root(self):
-    Client('', root='bar').resolve('foo')
+    root = self.client.root
+    try:
+      self.client.root = 'bar'
+      home = self.client._get_home_directory('/').json()['Path']
+      eq_(self.client.resolve('foo'), psp.join(home, 'bar', 'foo'))
+      eq_(self.client.root, psp.join(home, 'bar'))
+    finally:
+      self.client.root = root
 
   def test_resolve_absolute(self):
     eq_(Client('url').resolve('/bar'), '/bar')

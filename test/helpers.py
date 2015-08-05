@@ -10,6 +10,7 @@ from nose.plugins.skip import SkipTest
 from nose.tools import eq_
 from time import sleep
 import os
+import posixpath as psp
 
 
 class _TestSession(object):
@@ -29,7 +30,7 @@ class _TestSession(object):
   """
 
   delay = 0.5 # delay in seconds between tests
-  root_suffix = '/.hdfscli' # also used as default root if none specified
+  root_suffix = '.hdfscli' # also used as default root if none specified
 
   @classmethod
   def setup_class(cls):
@@ -37,7 +38,10 @@ class _TestSession(object):
     url = os.getenv('HDFSCLI_TEST_URL')
     if alias:
       cls.client = Client.from_alias(alias)
-      cls.client.root = (cls.client.root or '').rstrip('/') + cls.root_suffix
+      if cls.client.root:
+        cls.client.root = psp.join(cls.client.root, cls.root_suffix)
+      else:
+        cls.client.root = cls.root_suffix
     elif url:
       cls.client = InsecureClient(url, root=cls.root_suffix)
     else:

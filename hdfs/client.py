@@ -188,7 +188,9 @@ class Client(object):
     example for custom authentication. Parameters specified in the request
     handler will override these defaults.
   :param proxy: User to proxy as.
-  :param root: Root path. Used to allow relative path parameters.
+  :param root: Root path, this will be prefixed to all HDFS paths passed to the
+    client. If the root is relative, the path will be assumed relative to the
+    user's home directory.
   :param timeout: Forwarded to the request handler. How long to wait for the
     server to send data before giving up, as a float, or a `(connect_timeout,
     read_timeout)` tuple. If the timeout is reached, an appropriate exception
@@ -305,13 +307,13 @@ class Client(object):
 
     """
     path = hdfs_path
-    if not posixpath.isabs(path):
-      if not self.root:
-        raise HdfsError('Path %r is relative but no root found.', path)
-      if not posixpath.isabs(self.root):
-        raise HdfsError('Non-absolute root found: %r', self.root)
-      path = posixpath.join(self.root, path)
-    path = posixpath.normpath(path)
+    if not psp.isabs(path):
+      if not self.root or not psp.isabs(self.root):
+        root = self._get_home_directory('/').json()['Path']
+        self.root = psp.join(root, self.root) if self.root else root
+        self._logger.debug('Updated root to %r.', self.root)
+      path = psp.join(self.root, path)
+    path = psp.normpath(path)
 
     def expand_latest(match):
       """Substitute #LATEST marker."""
@@ -319,7 +321,7 @@ class Client(object):
       suffix = ''
       n = match.group(1) # n as in {N} syntax
       for _ in repeat(None, int(n) if n else 1):
-        statuses = self._list_status(posixpath.join(prefix, suffix)).json()
+        statuses = self._list_status(psp.join(prefix, suffix)).json()
         candidates = sorted([
           (-status['modificationTime'], status['pathSuffix'])
           for status in statuses['FileStatuses']['FileStatus']
@@ -328,7 +330,7 @@ class Client(object):
           raise HdfsError('Cannot expand #LATEST. %r is empty.', prefix)
         elif len(candidates) == 1 and candidates[0][1] == '':
           raise HdfsError('Cannot expand #LATEST. %r is a file.', prefix)
-        suffix = posixpath.join(suffix, candidates[0][1])
+        suffix = psp.join(suffix, candidates[0][1])
       return '/' + suffix
 
     path = re.sub(r'/?#LATEST(?:{(\d+)})?(?=/|$)', expand_latest, path)
