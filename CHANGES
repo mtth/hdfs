@@ -6,12 +6,13 @@ Version 2.0 (?)
 
 * Add python 3 support (the Kerberos extension's requirements must however
   be manually installed).
-* Allow relative client root. It will be assumed relative to the user's home
-  directory.
-* Add `Client.makedirs` and `Client.set_times` methods.
-* Allow use of `Client.read` as context manager.
+* Allow specifying relative client roots. These will be assumed relative to the
+  user's home directory.
+* Add several client methods: `makedirs`, `set_times`, `checksum`,
+  `set_replication`.
 * Add `progress` argument to `Client.read` and `Client.upload` and a
  `chunk_size` argument to the latter to allow better tracking.
+* Allow use of `Client.read` as context manager.
 * Improve robustness of `KerberosClient`. In particular add the
   `max_concurrency` parameter which can be tuned to prevent authentication
   errors when too many simultaneous requests are being made. Along with

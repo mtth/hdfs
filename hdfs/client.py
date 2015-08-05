@@ -9,7 +9,7 @@ from itertools import repeat
 from multiprocessing.pool import ThreadPool
 from random import sample
 from shutil import move, rmtree
-from six import add_metaclass
+from six import add_metaclass, string_types
 from six.moves.urllib.parse import quote
 from threading import Lock
 import logging as lg
@@ -222,7 +222,7 @@ class Client(object):
     self._params = params or {}
     if proxy:
       self._params['doas'] = proxy
-    if isinstance(timeout, basestring):
+    if isinstance(timeout, string_types):
       timeouts = tuple(int(s) for s in timeout.split(','))
       self._timeout = timeouts[0] if len(timeouts) == 1 else timeouts
     else:

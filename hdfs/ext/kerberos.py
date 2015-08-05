@@ -40,7 +40,7 @@ class KerberosClient(Client):
     self._lock = Lock()
     self._sem = Semaphore(int(max_concurrency))
     self._timestamp = time() - self._delay
-    if isinstance(mutual_auth, basestring):
+    if isinstance(mutual_auth, string_types):
       try:
         _mutual_auth = getattr(requests_kerberos, mutual_auth)
       except AttributeError:

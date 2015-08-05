@@ -1,11 +1,14 @@
 .. default-role:: code
 
 
-HdfsCLI |build_image|
----------------------
+HdfsCLI |build_image| |pypi_image|
+----------------------------------
 
 .. |build_image| image:: https://travis-ci.org/mtth/hdfs.png?branch=master
   :target: https://travis-ci.org/mtth/hdfs
+
+.. |pypi_image| image:: https://badge.fury.io/py/hdfs.svg
+  :target: https://pypi.python.org/pypi/hdfs/
 
 API and command line interface for HDFS.
 

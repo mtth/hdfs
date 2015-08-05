@@ -36,6 +36,7 @@ from io import BytesIO
 from itertools import islice
 from json import dumps
 from random import random
+from six import string_types
 from tempfile import mkstemp
 import avro as av
 import avro.datafile as avd
@@ -65,7 +66,7 @@ def _get_type(obj, allow_null=False):
     raise NotImplementedError('TODO')
   if isinstance(obj, bool):
     schema_type = 'boolean'
-  elif isinstance(obj, basestring):
+  elif isinstance(obj, string_types):
     schema_type = 'string'
   elif isinstance(obj, int):
     schema_type = 'int'
