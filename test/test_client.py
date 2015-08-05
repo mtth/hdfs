@@ -993,3 +993,41 @@ class TestSetTimes(_TestSession):
     status = self.client.status('foo')
     eq_(status['accessTime'], 1)
     eq_(status['modificationTime'], 2)
+
+class TestChecksum(_TestSession):
+
+  @raises(HdfsError)
+  def test_missing(self):
+    self.client.checksum('foo')
+
+  @raises(HdfsError)
+  def test_folder(self):
+    self.client.makedirs('foo')
+    self.client.checksum('foo')
+
+  def test_file(self):
+    self.client.write('foo', 'hello')
+    checksum = self.client.checksum('foo')
+    eq_(set(['algorithm', 'bytes', 'length']), set(checksum))
+
+class TestSetReplication(_TestSession):
+
+  @raises(HdfsError)
+  def test_missing(self):
+    self.client.set_replication('foo', 1)
+
+  @raises(HdfsError)
+  def test_folder(self):
+    self.client.makedirs('foo')
+    self.client.set_replication('foo', 1)
+
+  @raises(HdfsError)
+  def test_invalid_replication(self):
+    self.client.write('foo', 'hello')
+    self.client.set_replication('foo', 0)
+
+  def test_file(self):
+    self.client.write('foo', 'hello')
+    replication = self.client.status('foo')['replication'] + 1
+    self.client.set_replication('foo', replication)
+    eq_(self.client.status('foo')['replication'], replication)

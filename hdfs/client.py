@@ -479,23 +479,23 @@ class Client(object):
       """Upload a single file."""
       _local_path, _temp_path = _path_tuple
       self._logger.debug('Uploading %r to %r.', _local_path, _temp_path)
+
+      def wrap(_reader, _chunk_size, _progress):
+        """Generator that can track progress."""
+        nbytes = 0
+        while True:
+          chunk = _reader.read(_chunk_size)
+          if chunk:
+            if _progress:
+              nbytes += len(chunk)
+              _progress(_local_path, nbytes)
+            yield chunk
+          else:
+            break
+        if _progress:
+          _progress(_local_path, -1)
+
       with open(_local_path, 'rb') as reader:
-
-        def wrap(_reader, _chunk_size, _progress):
-          """Generator that can track progress."""
-          nbytes = 0
-          while True:
-            chunk = reader.read(_chunk_size)
-            if chunk:
-              if _progress:
-                nbytes += len(chunk)
-                _progress(_local_path, nbytes)
-              yield chunk
-            else:
-              break
-          if _progress:
-            _progress(_local_path, -1)
-
         self.write(_temp_path, wrap(reader, chunk_size, progress), **kwargs)
 
     # First, we gather information about remote paths.
@@ -838,6 +838,46 @@ class Client(object):
       modificationtime=modification_time,
     )
 
+  def set_replication(self, hdfs_path, replication):
+    """Set file replication.
+
+    :param hdfs_path: Path to an existing remote file. An :class:`HdfsError`
+      will be raised if the path doesn't exist or points to a directory.
+    :param replication: Replication factor.
+
+    """
+    self._logger.info(
+      'Setting replication factor to %s for %r.', replication, hdfs_path
+    )
+    res = self._set_replication(hdfs_path, replication=replication)
+    if not res.json()['boolean']:
+      raise HdfsError('%r is not a file.', hdfs_path)
+
+  def makedirs(self, hdfs_path, permission=None):
+    """Create a remote directory, recursively if necessary.
+
+    :param hdfs_path: Remote path. Intermediate directories will be created
+      appropriately.
+    :param permission: Octal permission to set on the newly created directory.
+      These permissions will only be set on directories that do not already
+      exist.
+
+    This function currently has no return value as WebHDFS doesn't return a
+    meaningful flag.
+
+    """
+    self._logger.info('Creating directories at %r.', hdfs_path)
+    self._mkdirs(hdfs_path, permission=permission)
+
+  def checksum(self, hdfs_path):
+    """Get a remote file's checksum.
+
+    :param hdfs_path: Remote path. Must point to a file.
+
+    """
+    self._logger.info('Getting checksum for %r.', hdfs_path)
+    return self._get_file_checksum(hdfs_path).json()['FileChecksum']
+
   def list(self, hdfs_path, status=False):
     """Return names of files contained in a remote folder.
 
@@ -901,22 +941,6 @@ class Client(object):
     if s['type'] == 'DIRECTORY':
       for infos in _walk(hdfs_path, s, depth):
         yield infos
-
-  def makedirs(self, hdfs_path, permission=None):
-    """Create a remote directory, recursively if necessary.
-
-    :param hdfs_path: Remote path. Intermediate directories will be created
-      appropriately.
-    :param permission: Octal permission to set on the newly created directory.
-      These permissions will only be set on directories that do not already
-      exist.
-
-    This function currently has no return value as WebHDFS doesn't return a
-    meaningful flag.
-
-    """
-    self._logger.info('Creating directories at %r.', hdfs_path)
-    self._mkdirs(hdfs_path, permission=permission)
 
   # Class loaders
 
