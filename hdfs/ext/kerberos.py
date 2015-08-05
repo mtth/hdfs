@@ -11,6 +11,7 @@ Namely, it adds a new :class:`~hdfs.client.Client` subclass,
 from ..client import Client
 from ..util import HdfsError
 from requests_kerberos import HTTPKerberosAuth, OPTIONAL
+from six import string_types
 from threading import Lock, Semaphore
 from time import sleep, time
 import requests_kerberos # For mutual authentication globals.
