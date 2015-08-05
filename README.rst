@@ -115,7 +115,7 @@ Sample configuration defining two aliases, `dev` and `prod`:
 .. code-block:: cfg
 
   [hdfs]
-  default.alias = foo # Used when no alias is specified at the command line.
+  default.alias = dev # Used when no alias is specified at the command line.
 
   [dev.alias]
   url = http://url.to.dev.namenode:port
@@ -139,7 +139,7 @@ running tests:
 
 .. code-block:: bash
 
-  $ HDFSCLI_TEST_ALIAS=foo nosetests # Using an alias.
+  $ HDFSCLI_TEST_ALIAS=dev nosetests # Using an alias.
   $ HDFSCLI_TEST_URL=http://localhost:50070 nosetests # Using the URL.
 
 See `scripts/` for helpers to set up a suitable HDFS cluster.

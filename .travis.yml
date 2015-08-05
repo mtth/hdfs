@@ -19,3 +19,10 @@ script:
 after_script:
   - ./scripts/hadoop.sh stop
   - rm -r "$(dirname "$HADOOP_HOME")" "$HADOOP_CONF_DIR"
+deploy:
+  provider: pypi
+  user: mtth
+  password:
+    secure: pJUxlxpB92jDCsAaMP67opcnu61A78BO02qhpvsdkXwCpJFBNBitgvqc8pfD1yCvkIPnCMjdhFKkJEUAqf3aCwAsLiCtL0xWqdwTpb9Ae3BkOsV4CpZZL3jkWAjiPWaPjZi3wbfJoSelTPB9NL6LuJ4KUfbBo4S1esQ1B3vCKuI=
+  on:
+    tags: true
