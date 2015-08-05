@@ -6,9 +6,10 @@ HdfsCLI
 
 API and command line interface for HDFS.
 
-* Python bindings for the `WebHDFS API`_, supporting both secure and insecure 
-  clusters.
-* Lightweight CLI with aliases for convenient namenode URL caching.
+* Python (2.6+ and 3.3+) bindings for the WebHDFS_ API, supporting both secure 
+  and insecure clusters.
+* Lightweight CLI to transfer files and start an interactive client shell, with 
+  aliases for convenient namenode URL caching.
 * Additional functionality through optional extensions:
 
   + `avro`, allowing reading/writing Avro files directly from JSON.
@@ -108,6 +109,6 @@ Indices and tables
 
 
 .. _pip: http://www.pip-installer.org/en/latest/
-.. _WebHDFS API: http://hadoop.apache.org/docs/r1.0.4/webhdfs.html
+.. _WebHDFS: http://hadoop.apache.org/docs/r1.0.4/webhdfs.html
 .. _pandas: http://pandas.pydata.org/
 .. _IPython: http://ipython.org/

@@ -16,9 +16,10 @@ API and command line interface for HDFS.
 Features
 --------
 
-* Python bindings for the WebHDFS_ API, supporting both secure and insecure 
-  clusters.
-* Lightweight CLI with aliases for convenient namenode URL caching.
+* Python (2.6+ and 3.3+) bindings for the WebHDFS_ API, supporting both secure 
+  and insecure clusters.
+* Lightweight CLI to transfer files and start an interactive client shell, with 
+  aliases for convenient namenode URL caching.
 * Additional functionality through optional extensions:
 
   + `avro`, allowing reading/writing Avro files directly from JSON.
