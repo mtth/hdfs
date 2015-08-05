@@ -71,12 +71,12 @@ class _Request(object):
 
     """
 
-    def api_handler(client, path, data=None, **params):
+    def api_handler(client, hdfs_path, data=None, **params):
       """Wrapper function."""
       url = '%s%s%s' % (
         client.url.rstrip('/'),
         self.webhdfs_prefix,
-        client.resolve(path),
+        client.resolve(hdfs_path),
       )
       params['op'] = operation
       return client._request(
@@ -220,9 +220,16 @@ class Client(object):
     self._params = params or {}
     if proxy:
       self._params['doas'] = proxy
-    self._timeout = int(timeout) if timeout else None
+    if isinstance(timeout, basestring):
+      timeouts = tuple(int(s) for s in timeout.split(','))
+      self._timeout = timeouts[0] if len(timeouts) == 1 else timeouts
+    else:
+      self._timeout = timeout
     self._verify = Config.parse_boolean(verify)
-    self._cert = cert
+    if cert and ',' in cert:
+      self._cert = tuple(s.strip() for s in cert.split(','))
+    else:
+      self._cert = cert
 
   def __repr__(self):
     return '<%s(url=%r)>' % (self._class_name, self.url)
@@ -298,9 +305,13 @@ class Client(object):
 
     """
     path = hdfs_path
-    if not (osp.isabs(path) or self.root and osp.isabs(self.root)):
-      raise HdfsError('Path %r is relative but no absolute root found.', path)
-    path = osp.normpath(osp.join(self.root, path))
+    if not posixpath.isabs(path):
+      if not self.root:
+        raise HdfsError('Path %r is relative but no root found.', path)
+      if not posixpath.isabs(self.root):
+        raise HdfsError('Non-absolute root found: %r', self.root)
+      path = posixpath.join(self.root, path)
+    path = posixpath.normpath(path)
 
     def expand_latest(match):
       """Substitute #LATEST marker."""
@@ -308,7 +319,7 @@ class Client(object):
       suffix = ''
       n = match.group(1) # n as in {N} syntax
       for _ in repeat(None, int(n) if n else 1):
-        statuses = self._list_status(osp.join(prefix, suffix)).json()
+        statuses = self._list_status(posixpath.join(prefix, suffix)).json()
         candidates = sorted([
           (-status['modificationTime'], status['pathSuffix'])
           for status in statuses['FileStatuses']['FileStatus']
@@ -317,14 +328,14 @@ class Client(object):
           raise HdfsError('Cannot expand #LATEST. %r is empty.', prefix)
         elif len(candidates) == 1 and candidates[0][1] == '':
           raise HdfsError('Cannot expand #LATEST. %r is a file.', prefix)
-        suffix = osp.join(suffix, candidates[0][1])
-      return os.sep + suffix
+        suffix = posixpath.join(suffix, candidates[0][1])
+      return '/' + suffix
 
     path = re.sub(r'/?#LATEST(?:{(\d+)})?(?=/|$)', expand_latest, path)
     # #LATEST expansion (could cache the pattern, but not worth it)
 
     self._logger.debug('Resolved path %r to %r.', hdfs_path, path)
-    return quote(path.replace(os.sep, '/'), '/=')
+    return quote(path, '/=')
 
   def content(self, hdfs_path):
     """Get content summary for a file or folder on HDFS.
