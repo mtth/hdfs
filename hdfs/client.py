@@ -973,7 +973,7 @@ class InsecureClient(Client):
     if not session.params:
       session.params = {}
     session.params['user.name'] = user
-    super(InsecureClient, self).__init__(url, session=session, **kwargs)
+    super(InsecureClient, self).__init__(url, **kwargs)
 
 
 class TokenClient(Client):
