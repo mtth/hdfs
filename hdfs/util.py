@@ -3,14 +3,18 @@
 
 """Utilities."""
 
-from six.moves.configparser import (NoOptionError, NoSectionError,
-  ParsingError, RawConfigParser)
+from collections import deque
 from contextlib import contextmanager
 from functools import wraps
 from logging.handlers import TimedRotatingFileHandler
 from os import close, remove
 from shutil import rmtree
+from six.moves.configparser import (NoOptionError, NoSectionError,
+  ParsingError, RawConfigParser)
+from six.moves.queue import Queue
 from tempfile import gettempdir, mkstemp
+from threading import Thread
+import io
 import logging as lg
 import os
 import os.path as osp
@@ -164,6 +168,61 @@ class Config(object):
       return False
     else:
       raise ValueError('Invalid boolean string: %r' % (s, ))
+
+
+class AsyncWriter(object):
+
+  """Asynchronous publisher-consumer.
+
+  :param consumer: Function which takes a single generator as argument.
+
+  This class can be used to transform functions which expect a generator into
+  file-like writer objects. This can make it possible to combine different APIs
+  together more easily. For example, to send streaming requests:
+
+  .. code:: python
+
+    import requests as rq
+
+    with AsyncWriter(lambda data: rq.post(URL, data=data)) as writer:
+      writer.write('Hello, world!')
+
+  """
+
+  def __init__(self, consumer):
+    self._consumer = consumer
+    self._queue = None
+
+  def __enter__(self):
+    if self._queue:
+      raise ValueError('Cannot nest contexts.')
+    self._queue = Queue()
+    self._reader = Thread(target=self._consumer, args=(self._reader(), ))
+    self._reader.start()
+    return self
+
+  def __exit__(self, exc_type, exc_value, traceback):
+    self._queue.put(None)
+    self._reader.join()
+    self._queue = None
+
+  def write(self, chunk):
+    """Stream data to the underlying consumer.
+
+    :param chunk: Bytes to write. These will be buffered in memory until the
+      consumer reads them.
+
+    """
+    self._queue.put(chunk)
+
+  def _reader(self):
+    """Generator read by the consumer."""
+    while True:
+      chunk = self._queue.get()
+      if chunk is None:
+        break
+      yield chunk
+
 
 @contextmanager
 def temppath(dir=None):

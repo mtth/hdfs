@@ -3,7 +3,8 @@
 
 """HDFS clients."""
 
-from .util import Config, HdfsError, InstanceLogger
+from .util import AsyncWriter, Config, HdfsError, InstanceLogger
+from contextlib import contextmanager
 from getpass import getuser
 from itertools import repeat
 from multiprocessing.pool import ThreadPool
@@ -113,67 +114,6 @@ class _ClientType(type):
     client = super(_ClientType, mcs).__new__(mcs, name, bases, attrs)
     client.__registry__[client.__name__] = client
     return client
-
-
-class _Reader(object):
-
-  """HDFS file reader.
-
-  Instances of this class can be both iterated over directly (in which case the
-  response will be closed when the generator ends or is closed explicitely) or
-  used as a context manager (closing the connection on exit). See
-  :meth:`Client.read` for more information.
-
-  """
-
-  def __init__(self, hdfs_path, res, buffer_char, chunk_size, progress):
-    self._hdfs_path = hdfs_path
-    self._res = res
-    self._buffer_char = buffer_char
-    self._chunk_size = chunk_size
-    self._progress = progress
-
-  def __iter__(self):
-
-    def reader(hdfs_path, res, buffer_char, chunk_size, progress):
-      """Generator that also terminates the connection when closed."""
-      nbytes = 0
-      try:
-        buf = ''
-        for chunk in res.iter_content(chunk_size):
-          if progress:
-            nbytes += len(chunk)
-            progress(hdfs_path, nbytes)
-          if not buffer_char:
-            yield chunk
-          else:
-            buf += chunk
-            splits = buf.split(buffer_char)
-            for part in splits[:-1]:
-              yield part
-            buf = splits[-1]
-        if buffer_char:
-          yield buf
-        if progress:
-          progress(hdfs_path, -1)
-      except GeneratorExit:
-        pass
-      finally:
-        res.close()
-
-    return reader(
-      self._hdfs_path,
-      self._res,
-      self._buffer_char,
-      self._chunk_size,
-      self._progress
-    )
-
-  def __enter__(self):
-    return iter(self)
-
-  def __exit__(self, exc_type, exc_value, traceback):
-    self._res.close() # Does nothing if already closed.
 
 
 @add_metaclass(_ClientType)
@@ -420,7 +360,7 @@ class Client(object):
       )
     return infos if status else [name for name, _ in infos]
 
-  def write(self, hdfs_path, data, overwrite=False, permission=None,
+  def write(self, hdfs_path, data=None, overwrite=False, permission=None,
     blocksize=None, replication=None, buffersize=None, append=False):
     """Create a file on HDFS.
 
@@ -428,7 +368,9 @@ class Client(object):
       be created appropriately.
     :param data: Contents of file to write. Can be a string, a generator or a
       file object. The last two options will allow streaming upload (i.e.
-      without having to load the entire contents into memory).
+      without having to load the entire contents into memory). If `None`, this
+      method will return a file-like object and should be called using a `with`
+      block (see below for examples).
     :param overwrite: Overwrite any existing file or directory.
     :param permission: Octal permission to set on the newly created file.
       Leading zeros may be omitted.
@@ -437,7 +379,29 @@ class Client(object):
     :param buffersize: Size of upload buffer.
     :param append: Append to a file rather than create a new one.
 
+    Sample usages:
+
+    .. code:: python
+      from json import dumps
+
+      records = [
+        {'name': 'foo', 'weight': 1},
+        {'name': 'bar', 'weight': 2},
+      ]
+
+      # As a context manager:
+      with client.write('data/records.jsonl') as writer:
+        for record in records:
+          writer.write(dumps(record))
+
+      # Or, passing in a generator directly:
+      dumped_records = (dumps(record) for record in records)
+      client.write('data/records.jsonl', data=dumped_records)
+
+
     """
+    # TODO: Figure out why this function generates a "Connection pool is full,
+    # discarding connection" warning when passed a generator.
     if append:
       if overwrite:
         raise ValueError('Cannot both overwrite and append.')
@@ -455,11 +419,18 @@ class Client(object):
         replication=replication,
         buffersize=buffersize,
       )
-    self._request(
-      method='POST' if append else 'PUT',
-      url=res.headers['location'],
-      data=data,
-    )
+
+    def consumer(_data):
+      self._request(
+        method='POST' if append else 'PUT',
+        url=res.headers['location'],
+        data=_data,
+      )
+
+    if data is None:
+      return AsyncWriter(consumer)
+    else:
+      consumer(data)
 
   def upload(self, hdfs_path, local_path, overwrite=False, n_threads=1,
     temp_dir=None, chunk_size=1024, progress=None, **kwargs):
@@ -599,8 +570,9 @@ class Client(object):
         )
     return hdfs_path
 
+  @contextmanager
   def read(self, hdfs_path, offset=0, length=None, buffer_size=None,
-    chunk_size=1024, buffer_char=None, progress=None):
+    chunk_size=1024, progress=None):
     """Read a file from HDFS.
 
     :param hdfs_path: HDFS path.
@@ -609,17 +581,14 @@ class Client(object):
       file.
     :param buffer_size: Size of the buffer in bytes used for transferring the
       data. Defaults the the value set in the HDFS configuration.
-    :param chunk_size: Interval in bytes at which the generator will yield.
-    :param buffer_char: Character by which to buffer the file instead of
-      yielding every `chunk_size` bytes. Note that this can cause the entire
-      file to be yielded at once if the character is not appropriate.
+    :param chunk_size: Interval in bytes at which the generator will yield. If
+      set to `0`, a file-like object will be returned instead of a generator.
     :param progress: Callback function to track progress, called every
       `chunk_size` bytes. It will be passed two arguments, the path to the
       file being uploaded and the number of bytes transferred so far. On
       completion, it will be called once with `-1` as second argument.
 
-    In order to ensure that the connection is always properly closed, it is
-    recommended to call this method using a `with` statement:
+    This method must be called using a `with` block:
 
     .. code:: python
 
@@ -627,12 +596,11 @@ class Client(object):
         for chunk in reader:
           pass
 
-    Otherwise, the generator returned by this method can also be used directly.
-    The connection must then be closed explicitly if the generator isn't fully
-    read (this can happen in particular if an exception occurs). This can be
-    done by always terminating the generator with its `close` method.
+    This ensures that connections are always properly closed.
 
     """
+    if progress and not chunk_size:
+      raise HdfsError('Callbacks are only supported with positive chunk size.')
     self._logger.info('Reading file %s.', hdfs_path)
     res = self._open(
       hdfs_path,
@@ -640,7 +608,26 @@ class Client(object):
       length=length,
       buffersize=buffer_size
     )
-    return _Reader(hdfs_path, res, buffer_char, chunk_size, progress)
+    try:
+      if chunk_size:
+        if progress:
+
+          def reader(_hdfs_path, _res, _chunk_size, _progress):
+            """Generator that tracks progress."""
+            nbytes = 0
+            for chunk in _res.iter_content(_chunk_size):
+              nbytes += len(chunk)
+              _progress(_hdfs_path, nbytes)
+              yield chunk
+            _progress(_hdfs_path, -1)
+
+          yield reader(hdfs_path, res, chunk_size, progress)
+        else:
+          yield res.iter_content(chunk_size)
+      else:
+        yield res.raw
+    finally:
+      res.close()
 
   def download(self, hdfs_path, local_path, overwrite=False, n_threads=1,
     temp_dir=None, **kwargs):

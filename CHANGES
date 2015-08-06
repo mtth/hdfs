@@ -12,7 +12,8 @@ Version 2.0 (?)
   `set_replication`.
 * Add `progress` argument to `Client.read` and `Client.upload` and a
  `chunk_size` argument to the latter to allow better tracking.
-* Allow use of `Client.read` as context manager.
+* `Client.read` and `Client.write` can now return file-like objects (supporting
+  `read` and `write` calls respectively).
 * Improve robustness of `KerberosClient`. In particular add the
   `max_concurrency` parameter which can be tuned to prevent authentication
   errors when too many simultaneous requests are being made. Along with
@@ -28,6 +29,9 @@ Breaking changes:
   Hadoop HDFS script.
 * `Client.delete` returns a boolean indicating success (rather than failing if
   the path was already empty).
+* `Client.read` must now be used in a `with` block. This ensures that
+  connections are properly closed. Setting `chunk_size` to `0` exposes a
+  seekable file object (useful for decoding, e.g. Avro).
 * Rename `Client.set_permissions` to `Client.set_permission` to make
   `permission` argument uniform across `Client` methods (alway singular,
   consistent with WebHDFS API).

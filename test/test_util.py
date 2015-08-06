@@ -85,3 +85,37 @@ class TestHuman(object):
     eq_(htime(90), ' 1.5m')
     eq_(htime(3600), ' 1.0h')
     eq_(htime(3600 * 24 * 7 * 4 * 12 * 24), '24.0Y')
+
+
+class TestAsyncWriter(object):
+
+  def test_basic(self):
+    result = []
+    def consumer(gen):
+      result.append(list(gen))
+    with AsyncWriter(consumer) as writer:
+      writer.write(1)
+      writer.write(2)
+    eq_(result, [[1,2]])
+
+  def test_multiple_uses(self):
+    result = []
+    def consumer(gen):
+      result.append(list(gen))
+    with AsyncWriter(consumer) as writer:
+      writer.write(1)
+      writer.write(2)
+    with AsyncWriter(consumer) as writer:
+      writer.write(3)
+      writer.write(4)
+    eq_(result, [[1,2],[3,4]])
+
+  @raises(ValueError)
+  def test_nested(self):
+    result = []
+    def consumer(gen):
+      result.append(list(gen))
+    with AsyncWriter(consumer) as _writer:
+      _writer.write(1)
+      with _writer as writer:
+        writer.write(2)
