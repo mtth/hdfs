@@ -31,7 +31,7 @@ Breaking changes:
   the path was already empty).
 * `Client.read` must now be used in a `with` block. This ensures that
   connections are properly closed. Setting `chunk_size` to `0` exposes a
-  seekable file object (useful for decoding, e.g. Avro).
+  file object (useful for decoding, e.g. Avro).
 * Rename `Client.set_permissions` to `Client.set_permission` to make
   `permission` argument uniform across `Client` methods (alway singular,
   consistent with WebHDFS API).

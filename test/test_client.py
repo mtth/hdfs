@@ -202,7 +202,8 @@ class TestResolve(_TestSession):
   def test_create_file_with_reserved_characters(self):
     path = 'fo&o/a?a'
     self.client.write(path, data='hello')
-    eq_(b''.join(self.client.read(path)), b'hello')
+    with self.client.read(path) as reader:
+      eq_(b''.join(reader), b'hello')
 
   def test_create_file_with_percent(self):
     # `%` (`0x25`) is a special case because it seems to cause errors (even
@@ -213,7 +214,8 @@ class TestResolve(_TestSession):
       self.client.write(path, data='hello')
     except HdfsError:
       pass
-    eq_(b''.join(self.client.read(path)), b'hello')
+    with self.client.read(path) as reader:
+      eq_(b''.join(reader), b'hello')
 
 
 class TestWrite(_TestSession):
@@ -476,33 +478,24 @@ class TestRead(_TestSession):
       with open(tpath, 'rb') as reader:
         eq_(reader.read(), b'world')
 
-  def test_as_context_manager(self):
-    self.client.write('foo', 'hello, world!')
-    with temppath() as tpath:
-      with open(tpath, 'wb') as writer:
-        with self.client.read('foo') as reader:
-          for chunk in reader:
-            writer.write(chunk)
-      with open(tpath, 'rb') as reader:
-        eq_(reader.read(), b'hello, world!')
-
   def test_with_progress(self):
-    def callback(path, nbytes, chunk_lengths=[]):
+    def cb(path, nbytes, chunk_lengths=[]):
       chunk_lengths.append(nbytes)
       return chunk_lengths
     self.client.write('foo', 'hello, world!')
     with temppath() as tpath:
       with open(tpath, 'wb') as writer:
-        with self.client.read('foo', chunk_size=5, progress=callback) as reader:
+        with self.client.read('foo', chunk_size=5, progress=cb) as reader:
           for chunk in reader:
             writer.write(chunk)
       with open(tpath, 'rb') as reader:
         eq_(reader.read(), b'hello, world!')
-      eq_(callback('', 0), [5, 10, 13, -1, 0])
+      eq_(cb('', 0), [5, 10, 13, -1, 0])
 
   def _read(self, writer, *args, **kwargs):
-    for chunk in self.client.read(*args, **kwargs):
-      writer.write(chunk)
+    with self.client.read(*args, **kwargs) as reader:
+      for chunk in reader:
+        writer.write(chunk)
 
 
 class TestRename(_TestSession):
