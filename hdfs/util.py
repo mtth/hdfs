@@ -3,7 +3,6 @@
 
 """Utilities."""
 
-from collections import deque
 from contextlib import contextmanager
 from functools import wraps
 from logging.handlers import TimedRotatingFileHandler
@@ -14,7 +13,6 @@ from six.moves.configparser import (NoOptionError, NoSectionError,
 from six.moves.queue import Queue
 from tempfile import gettempdir, mkstemp
 from threading import Thread
-import io
 import logging as lg
 import os
 import os.path as osp
@@ -192,19 +190,42 @@ class AsyncWriter(object):
   def __init__(self, consumer):
     self._consumer = consumer
     self._queue = None
+    self._err = None
 
   def __enter__(self):
     if self._queue:
       raise ValueError('Cannot nest contexts.')
     self._queue = Queue()
-    self._reader = Thread(target=self._consumer, args=(self._reader(), ))
+
+    def consumer(data):
+      """Wrapped consumer that lets us get a child's exception."""
+      try:
+        self._consumer(data)
+      except Exception as err:
+        self._err = err
+
+    def reader(queue):
+      """Generator read by the consumer."""
+      while True:
+        chunk = queue.get()
+        if chunk is None:
+          break
+        yield chunk
+
+    self._reader = Thread(target=consumer, args=(reader(self._queue), ))
     self._reader.start()
     return self
 
   def __exit__(self, exc_type, exc_value, traceback):
     self._queue.put(None)
     self._reader.join()
+    if self._err:
+      raise self._err # Child error.
     self._queue = None
+
+  def flush(self):
+    """Pass-through implementation."""
+    pass
 
   def write(self, chunk):
     """Stream data to the underlying consumer.
@@ -215,13 +236,42 @@ class AsyncWriter(object):
     """
     self._queue.put(chunk)
 
-  def _reader(self):
-    """Generator read by the consumer."""
-    while True:
-      chunk = self._queue.get()
-      if chunk is None:
-        break
-      yield chunk
+
+class SeekableReader(object):
+
+  """Buffered reader.
+
+  :param reader: Non-seekable reader.
+  :param nbytes: Backlog to keep.
+
+  Uses a circular byte array.
+
+  """
+
+  def __init__(self, reader, nbytes):
+    self._reader = reader
+    self._size = nbytes + 1
+    self._buffer = bytearray(self._size)
+    self._start = 0
+    self._end = 0
+
+  def read(self, nbytes):
+    count = (self._end - self._start) % self._size
+    if count:
+      missing = nbytes - count
+      if missing <= 0:
+        chunk = self._buffer[self._start:]
+        self._start = 1
+        return chunk
+      else:
+        pass
+    chunk = self._reader.read(nbytes)
+    # TODO: buffer this chunk.
+    return chunk
+
+  def seek(self, offset, whence=0):
+    # TODO: this.
+    pass
 
 
 @contextmanager

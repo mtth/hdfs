@@ -242,8 +242,8 @@ class TestWrite(_TestSession):
 
   def test_as_context_manager(self):
     with self.client.write('up') as writer:
-      writer.write('hello, ')
-      writer.write('world!')
+      writer.write(b'hello, ')
+      writer.write(b'world!')
     self._check_content('up', b'hello, world!')
 
   @raises(HdfsError)

@@ -119,3 +119,13 @@ class TestAsyncWriter(object):
       _writer.write(1)
       with _writer as writer:
         writer.write(2)
+
+  @raises(HdfsError)
+  def test_raise_child_error(self):
+    def consumer(gen):
+      for value in gen:
+        if value == 2:
+          raise HdfsError('Yo')
+    with AsyncWriter(consumer) as writer:
+      writer.write(1)
+      writer.write(2)
