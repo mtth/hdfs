@@ -51,10 +51,6 @@ class TestLoad(object):
   def test_missing_type(self):
     Client._from_options('MissingClient', {})
 
-  def test_verify(self):
-    ok_(not Client._from_options(None, {'url': '', 'verify': 'false'})._verify)
-    ok_(Client._from_options(None, {'url': '', 'verify': 'yes'})._verify)
-
   def test_timeout(self):
     eq_(Client('')._timeout, None)
     eq_(Client('', timeout=1)._timeout, 1)
@@ -65,12 +61,6 @@ class TestLoad(object):
       Client._from_options(None, {'url': '', 'timeout': '1,2'})._timeout,
       (1,2)
     )
-
-  def test_cert(self):
-    eq_(Client('')._cert, None)
-    eq_(Client('', cert='foo')._cert, 'foo')
-    eq_(Client('', cert='foo,bar')._cert, ('foo', 'bar'))
-    eq_(Client('', cert=('foo', 'bar'))._cert, ('foo', 'bar'))
 
 
 class TestOptions(_TestSession):
@@ -249,6 +239,12 @@ class TestWrite(_TestSession):
     self.client.write('up', 'hello, world!')
     self.client.write('up', 'hello again, world!', overwrite=True)
     self._check_content('up', b'hello again, world!')
+
+  def test_as_context_manager(self):
+    with self.client.write('up') as writer:
+      writer.write('hello, ')
+      writer.write('world!')
+    self._check_content('up', b'hello, world!')
 
   @raises(HdfsError)
   def test_create_and_overwrite_directory(self):

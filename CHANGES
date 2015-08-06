@@ -22,9 +22,11 @@ Version 2.0 (?)
   functions.
 * Change alias suffix in `~/.hdfsrc` (from `_alias` to `.alias`). The old one
   is still supported.
+* Add `autoload.modules` and `autoload.paths` configuration keys.
 
 Breaking changes:
 
+* Add `session` argument to `Client` and remove newly redundant parameters.
 * Change default entry point name to `hdfscli` to avoid clashing with
   Hadoop HDFS script.
 * `Client.delete` returns a boolean indicating success (rather than failing if

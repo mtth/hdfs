@@ -14,6 +14,7 @@ from requests_kerberos import HTTPKerberosAuth, OPTIONAL
 from six import string_types
 from threading import Lock, Semaphore
 from time import sleep, time
+import requests as rq
 import requests_kerberos # For mutual authentication globals.
 
 
@@ -41,6 +42,7 @@ class KerberosClient(Client):
     self._lock = Lock()
     self._sem = Semaphore(int(max_concurrency))
     self._timestamp = time() - self._delay
+    session = kwargs.setdefault('session', rq.Session())
     if isinstance(mutual_auth, string_types):
       try:
         _mutual_auth = getattr(requests_kerberos, mutual_auth)
@@ -48,7 +50,7 @@ class KerberosClient(Client):
         raise HdfsError('Invalid mutual authentication type: %r', mutual_auth)
     else:
       _mutual_auth = mutual_auth
-    kwargs['auth'] = HTTPKerberosAuth(_mutual_auth)
+    session.auth = HTTPKerberosAuth(_mutual_auth)
     super(KerberosClient, self).__init__(url, **kwargs)
 
   def _request(self, method, url, **kwargs):

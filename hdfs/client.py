@@ -83,7 +83,6 @@ class _Request(object):
       return client._request(
         method=self.method,
         url=url,
-        auth=client._auth,
         data=data,
         params=params,
         **self.kwargs
@@ -123,22 +122,11 @@ class Client(object):
 
   :param url: Hostname or IP address of HDFS namenode, prefixed with protocol,
     followed by WebHDFS port on namenode.
-  :param auth: Authentication mechanism (forwarded to the request handler).
-  :param params: Extra parameters forwarded with every request. Useful for
-    example for custom authentication. Parameters specified in the request
-    handler will override these defaults.
   :param proxy: User to proxy as.
   :param root: Root path, this will be prefixed to all HDFS paths passed to the
     client. If the root is relative, the path will be assumed relative to the
     user's home directory.
-  :param timeout: Forwarded to the request handler. How long to wait for the
-    server to send data before giving up, as a float, or a `(connect_timeout,
-    read_timeout)` tuple. If the timeout is reached, an appropriate exception
-    will be raised. See the requests_ documentation for details.
-  :param verify: Forwarded to the request handler. If `True`, the SSL cert will
-    be verified. See the requests_ documentation for details.
-  :param cert: Forwarded to the request handler. Path to client certificate
-    file. See the requests_ documentation for details.
+  :param session: `requests.Session` instance, used to emit all requests.
 
   In general, this client should only be used directly when its subclasses
   (e.g. :class:`InsecureClient`, :class:`TokenClient`, and others provided by
@@ -150,28 +138,21 @@ class Client(object):
 
   __registry__ = {}
 
-  def __init__(
-    self, url, auth=None, params=None, proxy=None, root=None, timeout=None,
-    verify=True, cert=None,
-  ):
+  def __init__(self, url, root=None, proxy=None, timeout=None, session=None):
     self._logger = InstanceLogger(self, _logger)
     self._class_name = self.__class__.__name__ # cache this
     self.root = root
     self.url = url
-    self._auth = auth
-    self._params = params or {}
+    self._session = session or rq.Session()
     if proxy:
-      self._params['doas'] = proxy
+      if not self._session.params:
+        self._session.params = {}
+      self._session.params['doas'] = proxy
     if isinstance(timeout, string_types):
       timeouts = tuple(int(s) for s in timeout.split(','))
       self._timeout = timeouts[0] if len(timeouts) == 1 else timeouts
     else:
       self._timeout = timeout
-    self._verify = Config.parse_boolean(verify)
-    if cert and ',' in cert:
-      self._cert = tuple(s.strip() for s in cert.split(','))
-    else:
-      self._cert = cert
 
   def __repr__(self):
     return '<%s(url=%r)>' % (self._class_name, self.url)
@@ -188,15 +169,10 @@ class Client(object):
       the instance's defaults.
 
     """
-    params = kwargs.setdefault('params', {})
-    for key, value in self._params.items():
-      params.setdefault(key, value)
-    response = rq.request(
+    response = self._session.request(
       method=method,
       url=url,
       timeout=self._timeout,
-      verify=self._verify,
-      cert=self._cert,
       headers={'content-type': 'application/octet-stream'}, # For HttpFS.
       **kwargs
     )
@@ -382,6 +358,7 @@ class Client(object):
     Sample usages:
 
     .. code:: python
+
       from json import dumps
 
       records = [
@@ -397,7 +374,6 @@ class Client(object):
       # Or, passing in a generator directly:
       dumped_records = (dumps(record) for record in records)
       client.write('data/records.jsonl', data=dumped_records)
-
 
     """
     # TODO: Figure out why this function generates a "Connection pool is full,
@@ -425,6 +401,7 @@ class Client(object):
         method='POST' if append else 'PUT',
         url=res.headers['location'],
         data=_data,
+        auth=False, # TODO: Check that this overrides any auth.
       )
 
     if data is None:
@@ -992,8 +969,11 @@ class InsecureClient(Client):
 
   def __init__(self, url, user=None, **kwargs):
     user = user or getuser()
-    kwargs.setdefault('params', {})['user.name'] = user
-    super(InsecureClient, self).__init__(url, **kwargs)
+    session = kwargs.setdefault('session', rq.Session())
+    if not session.params:
+      session.params = {}
+    session.params['user.name'] = user
+    super(InsecureClient, self).__init__(url, session=session, **kwargs)
 
 
 class TokenClient(Client):
@@ -1008,7 +988,10 @@ class TokenClient(Client):
   """
 
   def __init__(self, url, token, **kwargs):
-    kwargs.setdefault('params', {})['delegation'] = token
+    session = kwargs.setdefault('session', rq.Session())
+    if not session.params:
+      session.params = {}
+    session.params['delegation'] = token
     super(TokenClient, self).__init__(url, **kwargs)
 
 

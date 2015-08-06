@@ -63,12 +63,21 @@ download it locally, and finally delete the remote copy.
 
 .. code-block:: python
 
-  from hdfs import TokenClient
+  from hdfs import InsecureClient
 
-  client = TokenClient('http://namenode:port', 'token', root='/user/alice')
-  client.write('hello.md', 'Hello, world!')
-  client.rename('hello.md', 'hello.rst')
-  client.download('hello.rst', 'hello.rst')
+  client = InsecureClient('http://namenode:port')
+  # Create a file on HDFS.
+  with client.write('dat/hello.rst') as writer:
+    writer.write('Hello, ')
+  # Rename it.
+  client.rename('dat/hello.rst', 'hello.rst')
+  # Add some more data to it.
+  with client.write('hello.rst', append=True) as writer:
+    writer.write('world!')
+  # Stream its contents back.
+  with client.read('hello.rst') as reader:
+    contents = b''.join(reader) # b'Hello, world!'
+  # Delete the remote file.
   client.delete('hello.rst')
 
 Refer to the documentation_ for the full API and extensions.
