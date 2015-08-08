@@ -44,11 +44,11 @@ from ..client import Client
 from ..util import HdfsError, catch
 from collections import deque
 from docopt import docopt
-from fastavro import reader, writer
 from io import BytesIO
 from itertools import islice
 from json import dumps
 from random import random
+import fastavro
 import io
 import logging as lg
 import os
@@ -182,7 +182,7 @@ class _AvroReader(object):
       """Record generator over all part-files."""
       for path in self._paths:
         with self._client.read(path, chunk_size=0) as bytes_reader:
-          avro_reader = reader(_SeekableReader(bytes_reader))
+          avro_reader = fastavro.reader(_SeekableReader(bytes_reader))
           if not self.schema:
             yield avro_reader.schema
           for record in avro_reader:
@@ -232,7 +232,7 @@ def write(client, hdfs_path, records, schema, **kwargs):
   """
   # TODO: Add schema inference.
   with client.write(hdfs_path, **kwargs) as bytes_writer:
-    writer(bytes_writer, schema, records)
+    fastavro.writer(bytes_writer, schema, records)
 
 
 @catch(HdfsError)

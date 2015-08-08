@@ -185,7 +185,7 @@ class _Progress(object):
     self._data = {}
 
   def __call__(self, hdfs_path, nbytes):
-    # TODO: improve lock granularity.
+    # TODO: Improve lock granularity.
     with self._lock:
       data = self._data
       if hdfs_path not in data:

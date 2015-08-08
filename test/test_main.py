@@ -142,7 +142,7 @@ class TestMain(_IntegrationTest):
     lg.getLogger().handlers = [] # Clean up handlers.
 
   def test_download(self):
-    pass # TODO
+    pass # TODO: Test downloading a folder.
 
   def test_upload(self):
-    pass # TODO
+    pass # TODO: Test uploading a folder.

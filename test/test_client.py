@@ -245,7 +245,9 @@ class TestWrite(_IntegrationTest):
     eq_(self._read('up'), b'hello, world!')
 
   def test_create_set_permission(self):
-    pass # TODO
+    self.client.write('up', 'hello, world!', permission='722')
+    eq_(self._read('up'), b'hello, world!')
+    eq_(self.client.status('up')['permission'], '722')
 
   @raises(HdfsError)
   def test_create_to_existing_file_without_overwrite(self):
