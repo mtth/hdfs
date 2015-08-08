@@ -3,7 +3,7 @@
 
 """HDFS clients."""
 
-from .util import AsyncWriter, Config, HdfsError, InstanceLogger
+from .util import AsyncWriter, Config, HdfsError
 from contextlib import contextmanager
 from getpass import getuser
 from itertools import repeat
@@ -72,7 +72,7 @@ class _Request(object):
 
     """
 
-    def api_handler(client, hdfs_path, data=None, **params):
+    def api_handler(client, hdfs_path, data=None, strict=True, **params):
       """Wrapper function."""
       url = '%s%s%s' % (
         client.url.rstrip('/'),
@@ -85,6 +85,7 @@ class _Request(object):
         url=url,
         data=data,
         params=params,
+        strict=strict,
         **self.kwargs
       )
 
@@ -139,8 +140,6 @@ class Client(object):
   __registry__ = {}
 
   def __init__(self, url, root=None, proxy=None, timeout=None, session=None):
-    self._logger = InstanceLogger(self, _logger)
-    self._class_name = self.__class__.__name__ # cache this
     self.root = root
     self.url = url
     self._session = session or rq.Session()
@@ -153,13 +152,14 @@ class Client(object):
       self._timeout = timeouts[0] if len(timeouts) == 1 else timeouts
     else:
       self._timeout = timeout
+    _logger.info('Instantiated %r.', self)
 
   def __repr__(self):
-    return '<%s(url=%r)>' % (self._class_name, self.url)
+    return '<%s(url=%r)>' % (self.__class__.__name__, self.url)
 
   # Generic request handler
 
-  def _request(self, method, url, **kwargs):
+  def _request(self, method, url, strict=True, **kwargs):
     """Send request to WebHDFS API.
 
     :param method: HTTP verb.
@@ -176,16 +176,9 @@ class Client(object):
       headers={'content-type': 'application/octet-stream'}, # For HttpFS.
       **kwargs
     )
-    if not response: # non 2XX status code
-      self._logger.warning(
-        '[%s] %s:\n%s', response.status_code,
-        response.request.path_url, response.text
-      )
+    if strict and not response: # Non 2XX status code.
       return _on_error(response)
     else:
-      self._logger.debug(
-        '[%s] %s', response.status_code, response.request.path_url
-      )
       return response
 
   # Raw API endpoints
@@ -227,7 +220,7 @@ class Client(object):
       if not self.root or not psp.isabs(self.root):
         root = self._get_home_directory('/').json()['Path']
         self.root = psp.join(root, self.root) if self.root else root
-        self._logger.debug('Updated root to %r.', self.root)
+        _logger.debug('Updated root to %r.', self.root)
       path = psp.join(self.root, path)
     path = psp.normpath(path)
 
@@ -252,38 +245,38 @@ class Client(object):
     path = re.sub(r'/?#LATEST(?:{(\d+)})?(?=/|$)', expand_latest, path)
     # #LATEST expansion (could cache the pattern, but not worth it)
 
-    self._logger.debug('Resolved path %r to %r.', hdfs_path, path)
+    _logger.debug('Resolved path %r to %r.', hdfs_path, path)
     return quote(path, '/=')
 
-  def content(self, hdfs_path):
-    """Get content summary for a file or folder on HDFS.
+  def content(self, hdfs_path, strict=True):
+    """Get ContentSummary_ for a file or folder on HDFS.
 
     :param hdfs_path: Remote path.
-
-    This method returns a JSON ContentSummary_ object if `hdfs_path` exists and
-    raises :class:`HdfsError` otherwise.
+    :param strict: If `False`, return `None` rather than raise an exception if
+      the path doesn't exist.
 
     .. _ContentSummary: CS_
     .. _CS: http://hadoop.apache.org/docs/r1.0.4/webhdfs.html#ContentSummary
 
     """
-    self._logger.info('Fetching content summary for %s.', hdfs_path)
-    return self._get_content_summary(hdfs_path).json()['ContentSummary']
+    _logger.info('Fetching content summary for %r.', hdfs_path)
+    res = self._get_content_summary(hdfs_path, strict=strict)
+    return res.json()['ContentSummary'] if res else None
 
-  def status(self, hdfs_path):
-    """Get status for a file or folder on HDFS.
+  def status(self, hdfs_path, strict=True):
+    """Get FileStatus_ for a file or folder on HDFS.
 
     :param hdfs_path: Remote path.
-
-    This method returns a JSON FileStatus_ object if `hdfs_path` exists and
-    raises :class:`HdfsError` otherwise.
+    :param strict: If `False`, return `None` rather than raise an exception if
+      the path doesn't exist.
 
     .. _FileStatus: FS_
     .. _FS: http://hadoop.apache.org/docs/r1.0.4/webhdfs.html#FileStatus
 
     """
-    self._logger.info('Fetching status for %s.', hdfs_path)
-    return self._get_file_status(hdfs_path).json()['FileStatus']
+    _logger.info('Fetching status for %r.', hdfs_path)
+    res = self._get_file_status(hdfs_path, strict=strict)
+    return res.json()['FileStatus'] if res else None
 
   def parts(self, hdfs_path, parts=None, status=False):
     """Returns a dictionary of part-files corresponding to a path.
@@ -297,7 +290,7 @@ class Client(object):
     :param status: Also return each file's corresponding FileStatus_.
 
     """
-    self._logger.debug('Fetching parts for %s.', hdfs_path)
+    _logger.debug('Fetching parts for %r.', hdfs_path)
     pattern = re.compile(r'^part-(?:(?:m|r)-|)(\d+)[^/]*$')
     matches = (
       (name, pattern.match(name), s)
@@ -310,13 +303,10 @@ class Client(object):
     )
     if not part_files:
       raise HdfsError('No part-files found in %r.', hdfs_path)
-    self._logger.debug(
-      'Found %s parts for %s: %s.', len(part_files), hdfs_path,
-      ', '.join(t[0] for t in sorted(part_files.values()))
-    )
+    _logger.debug('Found %s part-files for %r.', len(part_files), hdfs_path)
     if parts:
       if isinstance(parts, int):
-        self._logger.debug('Choosing %s parts randomly.', parts)
+        _logger.debug('Choosing %s parts randomly.', parts)
         if parts > len(part_files):
           raise HdfsError('Not enough part-files in %r.', hdfs_path)
         parts = sample(part_files, parts)
@@ -324,16 +314,13 @@ class Client(object):
         infos = list(part_files[p] for p in parts)
       except KeyError as err:
         raise HdfsError('No part-file %r in %r.', err.args[0], hdfs_path)
-      self._logger.info(
-        'Returning %s of %s parts for %s: %s.', len(infos), len(part_files),
-        hdfs_path, ', '.join(sorted(name for name, _ in infos))
+      _logger.info(
+        'Returning %s of %s part-files for %r: %s.', len(infos),
+        len(part_files), hdfs_path, ', '.join(name for name, _ in infos)
       )
     else:
       infos = list(sorted(part_files.values()))
-      self._logger.info(
-        'Returning all %s parts for %s: %s.', len(infos), hdfs_path,
-        ', '.join(name for name, _ in infos)
-      )
+      _logger.info('Returning all %s part-files at %r.', len(infos), hdfs_path)
     return infos if status else [name for name, _ in infos]
 
   def write(self, hdfs_path, data=None, overwrite=False, permission=None,
@@ -383,10 +370,10 @@ class Client(object):
         raise ValueError('Cannot both overwrite and append.')
       if permission or blocksize or replication:
         raise ValueError('Cannot change file properties while appending.')
-      self._logger.info('Appending to %s.', hdfs_path)
+      _logger.info('Appending to %r.', hdfs_path)
       res = self._append_1(hdfs_path, buffersize=buffersize)
     else:
-      self._logger.info('Writing to %s.', hdfs_path)
+      _logger.info('Writing to %r.', hdfs_path)
       res = self._create_1(
         hdfs_path,
         overwrite=overwrite,
@@ -397,11 +384,12 @@ class Client(object):
       )
 
     def consumer(_data):
+      """Thread target."""
       self._request(
         method='POST' if append else 'PUT',
         url=res.headers['location'],
         data=_data,
-        auth=False, # TODO: Check that this overrides any auth.
+        auth=False,
       )
 
     if data is None:
@@ -434,12 +422,12 @@ class Client(object):
     On success, this method returns the remote upload path.
 
     """
-    self._logger.info('Uploading %s to %s.', local_path, hdfs_path)
+    _logger.info('Uploading %r to %r.', local_path, hdfs_path)
 
     def _upload(_path_tuple):
       """Upload a single file."""
       _local_path, _temp_path = _path_tuple
-      self._logger.debug('Uploading %r to %r.', _local_path, _temp_path)
+      _logger.debug('Uploading %r to %r.', _local_path, _temp_path)
 
       def wrap(_reader, _chunk_size, _progress):
         """Generator that can track progress."""
@@ -485,13 +473,13 @@ class Client(object):
     if not temp_path:
       # The remote path already exists, we need to generate a temporary one.
       remote_dpath, remote_name = psp.split(hdfs_path)
-      temp_dir =  temp_dir or remote_dpath
+      temp_dir = temp_dir or remote_dpath
       temp_path = psp.join(
         temp_dir,
         '%s.temp-%s' % (remote_name, int(time.time()))
       )
-      self._logger.debug(
-        'Upload destination %s already exists. Using temporary path %s.',
+      _logger.debug(
+        'Upload destination %r already exists. Using temporary path %r.',
         hdfs_path, temp_path
       )
     # Then we figure out which files we need to upload, and where.
@@ -517,7 +505,7 @@ class Client(object):
       n_threads = len(fpath_tuples)
     else:
       n_threads = min(n_threads, len(fpath_tuples))
-    self._logger.debug(
+    _logger.debug(
       'Uploading %s files using %s thread(s).', len(fpath_tuples), n_threads
     )
     try:
@@ -530,20 +518,20 @@ class Client(object):
       try:
         self.delete(temp_path, recursive=True)
       except Exception:
-        self._logger.exception('Unable to cleanup temporary folder.')
+        _logger.exception('Unable to cleanup temporary folder.')
       finally:
         raise err
     else:
       if temp_path != hdfs_path:
-        self._logger.debug(
-          'Upload of %s complete. Moving from %s to %s.',
+        _logger.debug(
+          'Upload of %r complete. Moving from %r to %r.',
           local_path, temp_path, hdfs_path
         )
         self.delete(hdfs_path, recursive=True)
         self.rename(temp_path, hdfs_path)
       else:
-        self._logger.debug(
-          'Upload of %s to %s complete.', local_path, hdfs_path
+        _logger.debug(
+          'Upload of %r to %r complete.', local_path, hdfs_path
         )
     return hdfs_path
 
@@ -578,7 +566,7 @@ class Client(object):
     """
     if progress and not chunk_size:
       raise HdfsError('Callbacks are only supported with positive chunk size.')
-    self._logger.info('Reading file %s.', hdfs_path)
+    _logger.info('Reading file %r.', hdfs_path)
     res = self._open(
       hdfs_path,
       offset=offset,
@@ -627,13 +615,13 @@ class Client(object):
     On success, this method returns the local download path.
 
     """
-    self._logger.info('Downloading %r to %r.', hdfs_path, local_path)
+    _logger.info('Downloading %r to %r.', hdfs_path, local_path)
     lock = Lock()
 
     def _download(_path_tuple):
       """Download a single file."""
       _remote_path, _temp_path = _path_tuple
-      self._logger.debug('Downloading %r to %r.', _remote_path, _temp_path)
+      _logger.debug('Downloading %r to %r.', _remote_path, _temp_path)
       _dpath = osp.dirname(_temp_path)
       with lock:
         # Prevent race condition when using multiple threads.
@@ -658,8 +646,8 @@ class Client(object):
         temp_dir,
         '%s.temp-%s' % (local_name, int(time.time()))
       )
-      self._logger.debug(
-        'Download destination %s already exists. Using temporary path %s.',
+      _logger.debug(
+        'Download destination %r already exists. Using temporary path %r.',
         local_path, temp_path
       )
     else:
@@ -692,7 +680,7 @@ class Client(object):
       n_threads = len(fpath_tuples)
     else:
       n_threads = min(n_threads, len(fpath_tuples))
-    self._logger.debug(
+    _logger.debug(
       'Downloading %s files using %s thread(s).', len(fpath_tuples), n_threads
     )
     try:
@@ -708,13 +696,13 @@ class Client(object):
         else:
           os.remove(temp_path)
       except Exception:
-        self._logger.exception('Unable to cleanup temporary folder.')
+        _logger.exception('Unable to cleanup temporary folder.')
       finally:
         raise err
     else:
       if temp_path != local_path:
-        self._logger.debug(
-          'Download of %s complete. Moving from %s to %s.',
+        _logger.debug(
+          'Download of %r complete. Moving from %r to %r.',
           hdfs_path, temp_path, local_path
         )
         if osp.isdir(local_path):
@@ -723,8 +711,8 @@ class Client(object):
           os.remove(local_path)
         move(temp_path, local_path)
       else:
-        self._logger.debug(
-          'Download of %s to %s complete.', hdfs_path, local_path
+        _logger.debug(
+          'Download of %s to %r complete.', hdfs_path, local_path
         )
     return local_path
 
@@ -740,7 +728,9 @@ class Client(object):
     no file or directory previously existed at `hdfs_path`.
 
     """
-    self._logger.info('Deleting %s%s.', hdfs_path, ' [R]' if recursive else '')
+    _logger.info(
+      'Deleting %r%s.', hdfs_path, ' recursively' if recursive else ''
+    )
     return self._delete(hdfs_path, recursive=recursive).json()['boolean']
 
   def rename(self, hdfs_src_path, hdfs_dst_path):
@@ -752,7 +742,7 @@ class Client(object):
       a file, this method will raise an :class:`HdfsError`.
 
     """
-    self._logger.info('Renaming %s to %s.', hdfs_src_path, hdfs_dst_path)
+    _logger.info('Renaming %r to %r.', hdfs_src_path, hdfs_dst_path)
     hdfs_dst_path = self.resolve(hdfs_dst_path)
     res = self._rename(hdfs_src_path, destination=hdfs_dst_path)
     if not res.json()['boolean']:
@@ -775,10 +765,10 @@ class Client(object):
       raise ValueError('Must set at least one of owner or group.')
     messages = []
     if owner:
-      messages.append('owner to %s' % (owner, ))
+      messages.append('owner to %r' % (owner, ))
     if group:
-      messages.append('group to %s' % (group, ))
-    self._logger.info('Changing %s of %s.', ', and'.join(messages), hdfs_path)
+      messages.append('group to %r' % (group, ))
+    _logger.info('Changing %s of %r.', ', and'.join(messages), hdfs_path)
     self._set_owner(hdfs_path, owner=owner, group=group)
 
   def set_permission(self, hdfs_path, permission):
@@ -788,8 +778,8 @@ class Client(object):
     :param permission: New octal permissions string of file.
 
     """
-    self._logger.info(
-      'Changing permissions of %s to %s.', hdfs_path, permission
+    _logger.info(
+      'Changing permissions of %r to %r.', hdfs_path, permission
     )
     self._set_permission(hdfs_path, permission=permission)
 
@@ -805,10 +795,10 @@ class Client(object):
       raise ValueError('At least one of time must be specified.')
     msgs = []
     if access_time:
-      msgs.append('access time to %s' % (access_time, ))
+      msgs.append('access time to %r' % (access_time, ))
     if modification_time:
-      msgs.append('modification time to %s' % (modification_time, ))
-    self._logger.info('Updating %s of %s.' % (' and '.join(msgs), hdfs_path))
+      msgs.append('modification time to %r' % (modification_time, ))
+    _logger.info('Updating %s of %r.', ' and '.join(msgs), hdfs_path)
     self._set_times(
       hdfs_path,
       accesstime=access_time,
@@ -823,8 +813,8 @@ class Client(object):
     :param replication: Replication factor.
 
     """
-    self._logger.info(
-      'Setting replication factor to %s for %r.', replication, hdfs_path
+    _logger.info(
+      'Setting replication factor to %r for %r.', replication, hdfs_path
     )
     res = self._set_replication(hdfs_path, replication=replication)
     if not res.json()['boolean']:
@@ -843,7 +833,7 @@ class Client(object):
     meaningful flag.
 
     """
-    self._logger.info('Creating directories at %r.', hdfs_path)
+    _logger.info('Creating directories to %r.', hdfs_path)
     self._mkdirs(hdfs_path, permission=permission)
 
   def checksum(self, hdfs_path):
@@ -852,7 +842,7 @@ class Client(object):
     :param hdfs_path: Remote path. Must point to a file.
 
     """
-    self._logger.info('Getting checksum for %r.', hdfs_path)
+    _logger.info('Getting checksum for %r.', hdfs_path)
     return self._get_file_checksum(hdfs_path).json()['FileChecksum']
 
   def list(self, hdfs_path, status=False):
@@ -863,7 +853,7 @@ class Client(object):
     :param status: Also return each file's corresponding FileStatus_.
 
     """
-    self._logger.info('Listing %s.', hdfs_path)
+    _logger.info('Listing %r.', hdfs_path)
     hdfs_path = self.resolve(hdfs_path)
     statuses = self._list_status(hdfs_path).json()['FileStatuses']['FileStatus']
     if len(statuses) == 1 and (
@@ -892,7 +882,7 @@ class Client(object):
     it contains.
 
     """
-    self._logger.info('Walking %s.', hdfs_path)
+    _logger.info('Walking %r (depth %r).', hdfs_path, depth)
 
     def _walk(dir_path, dir_status, depth):
       """Recursion helper."""
@@ -939,7 +929,7 @@ class Client(object):
       raise HdfsError('Invalid options: %r', options)
 
   @classmethod
-  def from_alias(cls, alias=None, path=None):
+  def from_alias(cls, alias, path=None):
     """Load client associated with configuration alias.
 
     :param alias: Alias name.
@@ -947,9 +937,14 @@ class Client(object):
       current user's home directory.
 
     """
-    path = path or osp.expanduser('~/.hdfsrc')
-    options = Config(path).get_alias(alias)
-    return cls._from_options(options.pop('client', None), options)
+    config = Config(path)
+    _logger.debug('Loading client for alias %r from %r.', alias, config.path)
+    for suffix in ('.alias', '_alias'):
+      section = '%s%s' % (alias, suffix)
+      if config.has_section(section):
+        options = dict(config.items(section))
+        return cls._from_options(options.pop('client', None), options)
+    raise HdfsError('Alias %r not found in %r.', alias, config.path)
 
 
 # Custom client classes

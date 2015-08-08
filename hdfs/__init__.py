@@ -8,7 +8,6 @@ __version__ = '2.0.0'
 import logging as lg
 try:
   from .client import Client, InsecureClient, TokenClient
-  from .ext import * # Import all symbols exported by extensions.
 except ImportError:
   pass # In setup.py.
 

@@ -5,19 +5,16 @@
 
 from contextlib import contextmanager
 from functools import wraps
-from logging.handlers import TimedRotatingFileHandler
 from os import close, remove
 from shutil import rmtree
-from six.moves.configparser import (NoOptionError, NoSectionError,
-  ParsingError, RawConfigParser)
+from six.moves.configparser import ParsingError, RawConfigParser
 from six.moves.queue import Queue
-from tempfile import gettempdir, mkstemp
+from tempfile import mkstemp
 from threading import Thread
 import logging as lg
 import os
 import os.path as osp
 import sys
-import warnings as wr
 
 
 _logger = lg.getLogger(__name__)
@@ -36,53 +33,30 @@ class HdfsError(Exception):
     super(HdfsError, self).__init__(message % args if args else message)
 
 
-class InstanceLogger(lg.LoggerAdapter):
-
-  """Logger adapter that preprends the instance's `repr` to messages.
-
-  :param instance: Instance to prepend messages with.
-  :param logger: Logger instance where messages will be logged.
-  :param extra: Dictionary of contextual information, passed to the formatter.
-
-  """
-
-  def __init__(self, instance, logger, extra=None):
-    # not using super since `LoggerAdapter` is an old-style class in python 2.6
-    lg.LoggerAdapter.__init__(self, logger, extra)
-    self.instance = instance
-
-  def process(self, msg, kwargs):
-    """Transform message.
-
-    :param msg: Original message.
-    :param kwargs: Dictionary of kwargs eventually passed to the formatter.
-
-    """
-    return '%r :: %s' % (self.instance, msg), kwargs
-
-
-class Config(object):
+class Config(RawConfigParser):
 
   """Configuration class.
 
   :param path: path to configuration file. If no file exists at that location,
     the configuration parser will be empty. If not specified, the value of the
     `HDFSCLI_RCPATH` environment variable is used if it exists, otherwise it
-    defaults to `~/.hdfsrc`.
+    defaults to `~/.hdfsclirc`.
 
   """
 
-  default_path = osp.expanduser('~/.hdfsrc')
+  default_path = osp.expanduser('~/.hdfsclirc')
 
   def __init__(self, path=None):
+    RawConfigParser.__init__(self)
     self.path = path or os.getenv('HDFSCLI_RCPATH', self.default_path)
-    self._logger = InstanceLogger(self, _logger)
-    self.parser = RawConfigParser()
     if osp.exists(self.path):
       try:
-        self.parser.read(self.path)
+        self.read(self.path)
       except ParsingError:
         raise HdfsError('Invalid configuration file %r.', self.path)
+      _logger.info('Instantiated configuration from %r.', self.path)
+    else:
+      _logger.info('Instantiated empty configuration.')
 
   def __repr__(self):
     return '<Config(path=%r)>' % (self.path, )
@@ -90,82 +64,28 @@ class Config(object):
   def save(self):
     """Save configuration parser back to file."""
     with open(self.path, 'w') as writer:
-      self.parser.write(writer)
-    self._logger.info('Saved.')
-
-  def get_alias(self, alias=None):
-    """Retrieve alias information from configuration file.
-
-    :param alias: Alias name. If not specified, will use the `default.alias` in
-      the `hdfs` section if provided, else will raise :class:`HdfsError`.
-
-    Raises :class:`HdfsError` if no matching / an invalid alias was found.
-
-    """
-    try:
-      alias = alias or self.parser.get('hdfs', 'default.alias')
-    except (NoOptionError, NoSectionError):
-      raise HdfsError('No alias specified and no default alias found.')
-    for suffix in ('.alias', '_alias'):
-      section = '%s%s' % (alias, suffix)
-      try:
-        options = dict(self.parser.items(section))
-      except NoSectionError:
-        pass # Backwards compatibility.
-      else:
-        return options
-    raise HdfsError('Alias not found: %r.', alias)
-
-  def get_file_handler(self, name):
-    """Create and configure logging file handler.
-
-    :param name: Section name used to find the path to the log file. If no
-      `log` option exists in this section, the path will default to
-      `<name>.log`.
-
-    The default path can be configured via the `default.log` option in the
-    `hdfs` section.
-
-    """
-    try:
-      handler_path = self.parser.get(name, 'log')
-    except (NoOptionError, NoSectionError):
-      handler_path = osp.join(gettempdir(), '%s.log' % (name, ))
-    try:
-      handler = TimedRotatingFileHandler(
-        handler_path,
-        when='midnight', # daily backups
-        backupCount=1,
-        encoding='utf-8',
-      )
-    except IOError:
-      wr.warn('Unable to write to log file at %s.' % (handler_path, ))
-    else:
-      handler_format = (
-        '%(asctime)s | %(levelname)4.4s | %(name)s > %(message)s'
-      )
-      handler.setFormatter(lg.Formatter(handler_format))
-      return handler
+      self.write(writer)
+    _logger.info('Saved.')
 
   @staticmethod
-  def parse_boolean(s):
+  def parse_boolean(value):
     """Parse configuration value into boolean.
 
-    :param s: Element to be parsed.
+    :param value: String element to be parsed.
 
     Behavior is similar to the `RawConfigParser.getboolean` function for
     strings.
 
     """
-    if not s:
+    if not value:
       return False
-    s = str(s).lower()
-    if s in set(['1', 'yes', 'true', 'on']):
+    value = str(value).lower()
+    if value in set(['1', 'yes', 'true', 'on']):
       return True
-    elif s in set(['0', 'no', 'false', 'off']):
+    elif value in set(['0', 'no', 'false', 'off']):
       return False
     else:
-      raise ValueError('Invalid boolean string: %r' % (s, ))
+      raise ValueError('Invalid boolean string: %r' % (value, ))
 
 
 class AsyncWriter(object):
@@ -190,18 +110,24 @@ class AsyncWriter(object):
   def __init__(self, consumer):
     self._consumer = consumer
     self._queue = None
+    self._reader = None
     self._err = None
+    _logger.debug('Instantiated %r.', self)
+
+  def __repr__(self):
+    return '<%s(consumer=%r)>' % (self.__class__.__name__, self._consumer)
 
   def __enter__(self):
     if self._queue:
       raise ValueError('Cannot nest contexts.')
     self._queue = Queue()
+    self._err = None
 
     def consumer(data):
       """Wrapped consumer that lets us get a child's exception."""
       try:
         self._consumer(data)
-      except Exception as err:
+      except Exception as err: # pylint: disable=broad-except
         self._err = err
 
     def reader(queue):
@@ -214,13 +140,17 @@ class AsyncWriter(object):
 
     self._reader = Thread(target=consumer, args=(reader(self._queue), ))
     self._reader.start()
+    _logger.debug('Started child thread.')
     return self
 
   def __exit__(self, exc_type, exc_value, traceback):
+    _logger.debug('Signaling child.')
     self._queue.put(None)
     self._reader.join()
     if self._err:
-      raise self._err # Child error.
+      raise self._err # pylint: disable=raising-bad-type
+    else:
+      _logger.debug('Child terminated without errors.')
     self._queue = None
 
   def flush(self):
@@ -237,48 +167,11 @@ class AsyncWriter(object):
     self._queue.put(chunk)
 
 
-class SeekableReader(object):
-
-  """Buffered reader.
-
-  :param reader: Non-seekable reader.
-  :param nbytes: Backlog to keep.
-
-  Uses a circular byte array.
-
-  """
-
-  def __init__(self, reader, nbytes):
-    self._reader = reader
-    self._size = nbytes + 1
-    self._buffer = bytearray(self._size)
-    self._start = 0
-    self._end = 0
-
-  def read(self, nbytes):
-    count = (self._end - self._start) % self._size
-    if count:
-      missing = nbytes - count
-      if missing <= 0:
-        chunk = self._buffer[self._start:]
-        self._start = 1
-        return chunk
-      else:
-        pass
-    chunk = self._reader.read(nbytes)
-    # TODO: buffer this chunk.
-    return chunk
-
-  def seek(self, offset, whence=0):
-    # TODO: this.
-    pass
-
-
 @contextmanager
-def temppath(dir=None):
+def temppath(dpath=None):
   """Create a temporary path.
 
-  :param dir: Explicit directory name where to create the temporary path. A
+  :param dpath: Explicit directory name where to create the temporary path. A
     system dependent default will be used otherwise (cf. `tempfile.mkstemp`).
 
   Usage::
@@ -290,7 +183,7 @@ def temppath(dir=None):
   afterwards.
 
   """
-  (desc, path) = mkstemp(dir=dir)
+  (desc, path) = mkstemp(dir=dpath)
   close(desc)
   remove(path)
   try:
@@ -354,14 +247,10 @@ def catch(*error_classes):
         return func(*args, **kwargs)
       except error_classes as err:
         _logger.error(err)
-        sys.stderr.write('%s\n' % (err, ))
         sys.exit(1)
-      except Exception as err: # catch all
+      except Exception as err: # pylint: disable=broad-except
         _logger.exception('Unexpected exception.')
-        sys.stderr.write(
-          'Unexpected error: %s\n'
-          'View log for more details.\n' % (err, )
-        )
+        sys.stderr.write('View log for more details.\n')
         sys.exit(1)
     return wrapper
   return decorator

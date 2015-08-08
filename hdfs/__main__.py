@@ -4,9 +4,9 @@
 """HdfsCLI: a command line interface for WebHDFS.
 
 Usage:
-  hdfscli [interactive] [-a ALIAS]
-  hdfscli download [-fsa ALIAS] [-t THREADS] HDFS_PATH LOCAL_PATH
-  hdfscli upload [-sa ALIAS] [-A | -f] [-t THREADS] LOCAL_PATH HDFS_PATH
+  hdfscli [interactive] [-v...] [-a ALIAS]
+  hdfscli download [-fsa ALIAS] [-v...] [-t THREADS] HDFS_PATH LOCAL_PATH
+  hdfscli upload [-sa ALIAS] [-v...] [-A|-f] [-t THREADS] LOCAL_PATH HDFS_PATH
   hdfscli -h | -L | -V
 
 Commands:
@@ -30,11 +30,13 @@ Options:
   -L --log                      Show path to current log file and exit.
   -V --version                  Show version and exit.
   -a ALIAS --alias=ALIAS        Alias, defaults to alias pointed to by
-                                default.alias in ~/.hdfsrc.
+                                default.alias in ~/.hdfsclirc.
   -f --force                    Allow overwriting any existing files.
   -s --silent                   Don't display progress status.
   -t THREADS --threads=THREADS  Number of threads to use for parallelization.
                                 0 allocates a thread per file. [default: 0]
+  -v --verbose                  Enable log output. Can be specified up to three
+                                times (increasing verbosity each time).
 
 Examples:
   hdfscli -a prod /user/foo
@@ -50,11 +52,119 @@ from docopt import docopt
 from hdfs import __version__
 from hdfs.client import Client
 from hdfs.util import Config, HdfsError, catch
+from imp import load_source
+from logging.handlers import TimedRotatingFileHandler
+from tempfile import gettempdir
 from threading import Lock
 import logging as lg
 import os
 import os.path as osp
 import sys
+
+
+class CliConfig(Config):
+
+  """CLI specific configuration.
+
+  :param command: The command to load the configuration for. All options will
+    be looked up in the `[COMMAND]` section.
+  :param verbosity: Stream handler log level: 0 for error, 1 for warnings, 2
+    for info, 3 and above for debug. A negative value will disable logging
+    handlers entirely (useful for tests).
+  :param path: path to configuration file. If no file exists at that location,
+    the configuration parser will be empty. If not specified, the value of the
+    `HDFSCLI_RCPATH` environment variable is used if it exists, otherwise it
+    defaults to `~/.hdfsclirc`.
+
+  """
+
+  def __init__(self, command, verbosity=0, path=None):
+    Config.__init__(self, path=path)
+    self._command = command
+    self._root_logger = lg.getLogger()
+    if verbosity >= 0:
+      self._setup_logging(verbosity)
+    self._load_modules()
+
+  def create_client(self, alias=None):
+    """Load HDFS client.
+
+    :param alias: The client to look up. If not specified, the default alias in
+      the command's section will be used (`default.alias`), or an error will be
+      raised if the key doesn't exist.
+
+    """
+    if not alias:
+      if not self.has_option(self._command, 'default.alias'):
+        raise HdfsError('No alias specified and no default alias found.')
+      alias = self.get(self._command, 'default.alias')
+    return Client.from_alias(alias, path=self.path)
+
+  def get_file_handler(self):
+    """Get current logfile, if any."""
+    handlers = [
+      handler
+      for handler in self._root_logger.handlers
+      if isinstance(handler, lg.FileHandler)
+    ]
+    if handlers:
+      return handlers[0]
+
+  def _load_modules(self):
+    """Load modules to find clients."""
+
+    def _load(suffix, loader):
+      """Generic module loader."""
+      option = 'autoload.%s' % (suffix, )
+      if self.has_option(self._command, option):
+        entries = self.get(self._command, option)
+        for entry in entries.split(','):
+          module = entry.strip()
+          loader(module)
+
+    _load('modules', __import__)
+    _load('paths', lambda path: load_source(
+      osp.splitext(osp.basename(path))[0],
+      path
+    ))
+
+  def _setup_logging(self, verbosity):
+    """Configure logging with optional time-rotating file handler."""
+    # Patch `request_kerberos`'s logger (it's very verbose).
+    lg.getLogger('requests_kerberos.kerberos_').setLevel(lg.INFO)
+    # Setup root logger.
+    self._root_logger.setLevel(lg.DEBUG)
+    # Stderr logging.
+    stream_handler = lg.StreamHandler()
+    if verbosity:
+      stream_level = {1: lg.WARNING, 2: lg.INFO}.get(verbosity, lg.DEBUG)
+    else:
+      stream_level = lg.ERROR
+    stream_handler.setLevel(stream_level)
+    fmt = '%(levelname)s\t%(message)s'
+    stream_handler.setFormatter(lg.Formatter(fmt))
+    self._root_logger.addHandler(stream_handler)
+    # File handling.
+    key = 'log.disable'
+    command = self._command
+    if not self.has_option(command, key) or not self.getboolean(command, key):
+      if self.has_option(command, 'log.path'):
+        path = self.get(command, 'log.path')
+      else:
+        path = osp.join(gettempdir(), '%s.log' % (command, ))
+      file_handler = TimedRotatingFileHandler(
+        path,
+        when='midnight', # daily backups
+        backupCount=1,
+        encoding='utf-8',
+      )
+      fmt = '%(asctime)s\t%(name)-16s\t%(levelname)-5s\t%(message)s'
+      file_handler.setFormatter(lg.Formatter(fmt))
+      if self.has_option(command, 'log.level'):
+        file_handler.setLevel(getattr(lg, self.get(command, 'log.level')))
+      else:
+        file_handler.setLevel(lg.DEBUG)
+      self._root_logger.addHandler(file_handler)
 
 
 class _Progress(object):
@@ -132,34 +242,46 @@ class _Progress(object):
     return cls(nbytes, nfiles)
 
 
-@catch(HdfsError)
-def main():
-  """Entry point."""
-  args = docopt(__doc__, version=__version__)
-  # Set up logging.
-  logger = lg.getLogger('hdfs')
-  logger.setLevel(lg.DEBUG)
-  handler = Config().get_file_handler('hdfscli')
-  if handler:
-    logger.addHandler(handler)
-  # Set up client and fix arguments.
-  client = Client.from_alias(args['--alias'])
-  hdfs_path = args['HDFS_PATH']
-  local_path = args['LOCAL_PATH']
-  force = args['--force']
-  silent = args['--silent']
-  chunk_size = 1 << 16 # 65kB to avoid calling progress too often.
+def parse_arg(args, name, parser, separator=None):
+  """Parse command line argument, raising an appropriate error on failure.
+
+  :param args: Arguments dictionary.
+  :param name: Name of option to look up.
+  :param parser: Function to parse option.
+  :param separator: For parsing lists.
+
+  """
+  value = args[name]
+  if not value:
+    return
   try:
-    n_threads = int(args['--threads'])
+    if separator and separator in value:
+      return [parser(part) for part in value.split(separator) if part]
+    else:
+      return parser(value)
   except ValueError:
-    raise HdfsError('Invalid `--threads` option: %r.', args['--threads'])
-  # Run command.
+    raise HdfsError('Invalid %r option: %r.', name, args[name])
+
+@catch(HdfsError)
+def main(argv=None):
+  """Entry point."""
+  args = docopt(__doc__, argv=argv, version=__version__)
+  config = CliConfig('hdfscli', args['--verbose'])
   if args['--log']:
+    handler = config.get_file_handler()
     if handler:
       sys.stdout.write('%s\n' % (handler.baseFilename, ))
     else:
-      raise HdfsError('No log file active.')
-  elif args['download']:
+      sys.stdout.write('No log file active.\n')
+    sys.exit(0)
+  client = config.create_client(args['--alias'])
+  hdfs_path = args['HDFS_PATH']
+  local_path = args['LOCAL_PATH']
+  n_threads = parse_arg(args, '--threads', int)
+  force = args['--force']
+  silent = args['--silent']
+  chunk_size = 1 << 16 # 65kB to avoid calling progress too often.
+  if args['download']:
     if local_path == '-':
       if not sys.stdout.isatty() and sys.stderr.isatty() and not silent:
         progress = _Progress.from_hdfs_path(client, hdfs_path)
@@ -196,7 +318,7 @@ def main():
       )
     else:
       if append:
-        # TODO: add progress tracking here.
+        # TODO: Add progress tracking here.
         if osp.isfile(local_path):
           with open(local_path) as reader:
             client.write(hdfs_path, reader, append=True)
@@ -216,8 +338,8 @@ def main():
           progress=progress,
         )
   else:
-    logger.setLevel(lg.WARNING) # iPython likes to print all logged messages.
     banner = (
+      '\n'
       'Welcome to the interactive HDFS python shell.\n'
       'The HDFS client is available as `CLIENT`.\n'
     )
@@ -228,6 +350,7 @@ def main():
       from code import interact
       interact(banner=banner, local=namespace)
     else:
+      # import pdb; pdb.set_trace()
       embed(banner1=banner, user_ns=namespace)
 
 if __name__ == '__main__':

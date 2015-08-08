@@ -17,49 +17,12 @@ class TestConfig(object):
         os.environ['HDFSCLI_RCPATH'] = tpath
         with open(tpath, 'w') as writer:
           writer.write('[foo]\nbar=hello')
-        eq_(Config().parser.get('foo', 'bar'), 'hello')
+        eq_(Config().get('foo', 'bar'), 'hello')
     finally:
       if rcpath:
         os['HDFSCLI_RCPATH'] = rcpath
       else:
         os.unsetenv('HDFSCLI_RCPATH')
-
-  def test_get_alias(self):
-    # New format.
-    with temppath() as tpath:
-      with open(tpath, 'w') as writer:
-        writer.write('[foo.alias]\nurl=1\nauth=k\nroot=2\n')
-      config = Config(tpath)
-      eq_(
-        config.get_alias('foo'),
-        {'url': '1', 'auth': 'k', 'root': '2'}
-      )
-    # Old format.
-    with temppath() as tpath:
-      with open(tpath, 'w') as writer:
-        writer.write('[foo_alias]\nurl=1\nauth=k\nroot=2\n')
-      config = Config(tpath)
-      eq_(
-        config.get_alias('foo'),
-        {'url': '1', 'auth': 'k', 'root': '2'}
-      )
-
-  def test_get_alias_defaults(self):
-    with temppath() as tpath:
-      with open(tpath, 'w') as writer:
-        writer.write('[foo_alias]\nurl=1\n')
-      config = Config(tpath)
-      eq_(
-        config.get_alias('foo'),
-        {'url': '1'},
-      )
-
-  @raises(HdfsError)
-  def test_missing_alias(self):
-    with temppath() as tpath:
-      with open(tpath, 'w') as writer:
-        writer.write('[foo_alias]\nurl=1\n')
-      Config(tpath).get_alias('bar')
 
   def test_parse_boolean(self):
     eq_(Config.parse_boolean(True), True)
@@ -98,7 +61,20 @@ class TestAsyncWriter(object):
       writer.write(2)
     eq_(result, [[1,2]])
 
-  def test_multiple_uses(self):
+  def test_multiple_writer_uses(self):
+    result = []
+    def consumer(gen):
+      result.append(list(gen))
+    writer = AsyncWriter(consumer)
+    with writer:
+      writer.write(1)
+      writer.write(2)
+    with writer:
+      writer.write(3)
+      writer.write(4)
+    eq_(result, [[1,2],[3,4]])
+
+  def test_multiple_consumer_uses(self):
     result = []
     def consumer(gen):
       result.append(list(gen))
@@ -121,7 +97,7 @@ class TestAsyncWriter(object):
         writer.write(2)
 
   @raises(HdfsError)
-  def test_raise_child_error(self):
+  def test_child_error(self):
     def consumer(gen):
       for value in gen:
         if value == 2:

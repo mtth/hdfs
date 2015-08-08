@@ -4,7 +4,7 @@
 """Test helpers."""
 
 from six.moves.configparser import NoOptionError, NoSectionError
-from hdfs import * # import all clients
+from hdfs import Client
 from hdfs.util import HdfsError
 from nose.plugins.skip import SkipTest
 from nose.tools import eq_
@@ -13,7 +13,7 @@ import os
 import posixpath as psp
 
 
-class _TestSession(object):
+class _IntegrationTest(object):
 
   """Base class to run tests using remote HDFS.
 
@@ -29,8 +29,9 @@ class _TestSession(object):
 
   """
 
-  delay = 0.5 # delay in seconds between tests
-  root_suffix = '.hdfscli' # also used as default root if none specified
+  client = None
+  delay = 0.5 # Delay in seconds between tests.
+  root_suffix = '.hdfscli' # Also used as default root if none specified.
 
   @classmethod
   def setup_class(cls):
@@ -44,31 +45,24 @@ class _TestSession(object):
         cls.client.root = cls.root_suffix
     elif url:
       cls.client = InsecureClient(url, root=cls.root_suffix)
-    else:
-      cls.client = None
 
   @classmethod
   def teardown_class(cls):
     if cls.client:
-      cls.client._delete('', recursive=True)
+      cls.client.delete('', recursive=True)
 
   def setup(self):
     if not self.client:
       raise SkipTest
     else:
-      self.client._delete('', recursive=True)
+      self.client.delete('', recursive=True)
       sleep(self.delay)
 
   # Helpers.
 
-  def _check_content(self, path, content):
-    eq_(self.client._open(path).content, content)
+  def _read(self, hdfs_path):
+    with self.client.read(hdfs_path) as reader:
+      return b''.join(reader)
 
-  def _file_exists(self, path):
-    try:
-      status = self.client.status(path)
-    except HdfsError:
-      # head doesn't exist
-      return False
-    else:
-      return True
+  def _exists(self, hdfs_path):
+    return bool(self.client.status(hdfs_path, strict=False))

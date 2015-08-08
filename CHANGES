@@ -23,10 +23,14 @@ Version 2.0 (?)
 * Change alias suffix in `~/.hdfsrc` (from `_alias` to `.alias`). The old one
   is still supported.
 * Add `autoload.modules` and `autoload.paths` configuration keys.
+* Add `--verbose` option to CLI, enabling logging at various levels.
+* Add `strict` option to `Client.status` and `Client.content`.
 
 Breaking changes:
 
 * Add `session` argument to `Client` and remove newly redundant parameters.
+* Make `alias` argument mandatory for `Client.from_alias`. Default alias
+  resolution logic is moved to the CLIs.
 * Change default entry point name to `hdfscli` to avoid clashing with
   Hadoop HDFS script.
 * `Client.delete` returns a boolean indicating success (rather than failing if
@@ -52,6 +56,7 @@ Breaking changes:
   default these functions now only return the names of the relevant files and
   folders.
 * Remove `Client.append` method.
+* Don't import symbols exported by extensions.
 
 
 Version 1.4.0 (2015/07/24)

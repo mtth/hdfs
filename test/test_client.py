@@ -6,7 +6,7 @@
 from collections import defaultdict
 from hdfs.client import *
 from hdfs.util import HdfsError, temppath
-from helpers import _TestSession
+from util import _IntegrationTest
 from nose.tools import eq_, nottest, ok_, raises
 from requests.exceptions import ConnectTimeout, ReadTimeout
 from shutil import rmtree
@@ -15,12 +15,6 @@ from tempfile import mkdtemp
 import os
 import os.path as osp
 import posixpath as psp
-import time
-
-
-def status(response):
-  """Helper for requests that return boolean JSON responses."""
-  return response.json()['boolean']
 
 
 class TestLoad(object):
@@ -62,8 +56,31 @@ class TestLoad(object):
       (1,2)
     )
 
+  def test_from_new_alias(self):
+    with temppath() as tpath:
+      with open(tpath, 'w') as writer:
+        writer.write('[foo.alias]\nurl=1\nroot=2\n')
+      client = Client.from_alias('foo', tpath)
+      eq_(client.url, '1')
+      eq_(client.root, '2')
 
-class TestOptions(_TestSession):
+  def test_from_old_alias(self):
+    with temppath() as tpath:
+      with open(tpath, 'w') as writer:
+        writer.write('[foo.alias]\nurl=1\nroot=2\n')
+      client = Client.from_alias('foo', tpath)
+      eq_(client.url, '1')
+      eq_(client.root, '2')
+
+  @raises(HdfsError)
+  def test_from_missing_alias(self):
+    with temppath() as tpath:
+      with open(tpath, 'w') as writer:
+        writer.write('[foo.alias]\nurl=1\n')
+      Client.from_alias('bar', tpath)
+
+
+class TestOptions(_IntegrationTest):
 
   """Test client options."""
 
@@ -77,7 +94,7 @@ class TestOptions(_TestSession):
       raise HdfsError('No timeout.')
 
 
-class TestApi(_TestSession):
+class TestApi(_IntegrationTest):
 
   """Test client raw API interactions."""
 
@@ -96,40 +113,40 @@ class TestApi(_TestSession):
   def test_create_file(self):
     path = 'foo'
     self.client._create(path, data='hello')
-    ok_(self._file_exists(path))
+    ok_(self._exists(path))
 
   def test_create_nested_file(self):
     path = 'foo/bar'
     self.client._create(path, data='hello')
-    ok_(self._file_exists(path))
+    ok_(self._exists(path))
 
   def test_delete_file(self):
     path = 'bar'
     self.client._create(path, data='hello')
-    ok_(status(self.client._delete(path)))
-    ok_(not self._file_exists(path))
+    ok_(self.client._delete(path).json()['boolean'])
+    ok_(not self._exists(path))
 
   def test_delete_missing_file(self):
     path = 'bar2'
-    ok_(not status(self.client._delete(path)))
+    ok_(not self.client._delete(path).json()['boolean'])
 
   def test_rename_file(self):
     paths = ['foo', '%s/bar' % (self.client.root.rstrip('/'), )]
     self.client._create(paths[0], data='hello')
-    ok_(status(self.client._rename(paths[0], destination=paths[1])))
-    ok_(not self._file_exists(paths[0]))
+    ok_(self.client._rename(paths[0], destination=paths[1]).json()['boolean'])
+    ok_(not self._exists(paths[0]))
     eq_(self.client._open(paths[1].rsplit('/', 1)[1]).content, b'hello')
     self.client._delete(paths[1])
 
   def test_rename_file_to_existing(self):
-    paths = ['foo', '%s/bar' % (self.client.root.rstrip('/'), )]
-    self.client._create(paths[0], data='hello')
-    self.client._create(paths[1], data='hi')
+    p = ['foo', '%s/bar' % (self.client.root.rstrip('/'), )]
+    self.client._create(p[0], data='hello')
+    self.client._create(p[1], data='hi')
     try:
-      ok_(not status(self.client._rename(paths[0], destination=paths[1])))
+      ok_(not self.client._rename(p[0], destination=p[1]).json()['boolean'])
     finally:
-      self.client._delete(paths[0])
-      self.client._delete(paths[1])
+      self.client._delete(p[0])
+      self.client._delete(p[1])
 
   def test_open_file(self):
     self.client._create('foo', data='hello')
@@ -146,7 +163,7 @@ class TestApi(_TestSession):
     self.client._get_file_checksum('')
 
 
-class TestResolve(_TestSession):
+class TestResolve(_IntegrationTest):
 
   def test_resolve_relative(self):
     eq_(Client('url', root='/').resolve('bar'), '/bar')
@@ -208,16 +225,16 @@ class TestResolve(_TestSession):
       eq_(b''.join(reader), b'hello')
 
 
-class TestWrite(_TestSession):
+class TestWrite(_IntegrationTest):
 
   def test_create_from_string(self):
     self.client.write('up', 'hello, world!')
-    self._check_content('up', b'hello, world!')
+    eq_(self._read('up'), b'hello, world!')
 
   def test_create_from_generator(self):
     data = (e for e in [b'hello, ', b'world!'])
     self.client.write('up', data)
-    self._check_content('up', b'hello, world!')
+    eq_(self._read('up'), b'hello, world!')
 
   def test_create_from_file_object(self):
     with temppath() as tpath:
@@ -225,7 +242,7 @@ class TestWrite(_TestSession):
         writer.write('hello, world!')
       with open(tpath) as reader:
         self.client.write('up', reader)
-    self._check_content('up', b'hello, world!')
+    eq_(self._read('up'), b'hello, world!')
 
   def test_create_set_permission(self):
     pass # TODO
@@ -238,13 +255,13 @@ class TestWrite(_TestSession):
   def test_create_and_overwrite_file(self):
     self.client.write('up', 'hello, world!')
     self.client.write('up', 'hello again, world!', overwrite=True)
-    self._check_content('up', b'hello again, world!')
+    eq_(self._read('up'), b'hello again, world!')
 
   def test_as_context_manager(self):
     with self.client.write('up') as writer:
       writer.write(b'hello, ')
       writer.write(b'world!')
-    self._check_content('up', b'hello, world!')
+    eq_(self._read('up'), b'hello, world!')
 
   @raises(HdfsError)
   def test_create_and_overwrite_directory(self):
@@ -259,7 +276,7 @@ class TestWrite(_TestSession):
     self.client.write('up/up', 'hello again, world!')
 
 
-class TestAppend(_TestSession):
+class TestAppend(_IntegrationTest):
 
   @classmethod
   def setup_class(cls):
@@ -280,7 +297,7 @@ class TestAppend(_TestSession):
   def test_simple(self):
     self.client.write('ap', 'hello,')
     self.client.write('ap', ' world!', append=True)
-    self._check_content('ap', b'hello, world!')
+    eq_(self._read('ap'), b'hello, world!')
 
   @raises(HdfsError)
   def test_missing_file(self):
@@ -295,14 +312,14 @@ class TestAppend(_TestSession):
     self.client.write('ap', 'hello!', permission='777', append=True)
 
 
-class TestUpload(_TestSession):
+class TestUpload(_IntegrationTest):
 
   def test_upload_file(self):
     with temppath() as tpath:
       with open(tpath, 'w') as writer:
         writer.write('hello, world!')
       self.client.upload('up', tpath)
-    self._check_content('up', b'hello, world!')
+    eq_(self._read('up'), b'hello, world!')
 
   @raises(HdfsError)
   def test_upload_empty_directory(self):
@@ -324,8 +341,8 @@ class TestUpload(_TestSession):
         writer.write('world!')
       self.client._mkdirs('up')
       self.client.upload('up', npath)
-      self._check_content('up/hi/foo', b'hello!')
-      self._check_content('up/hi/bar/baz', b'world!')
+      eq_(self._read('up/hi/foo'), b'hello!')
+      eq_(self._read('up/hi/bar/baz'), b'world!')
     finally:
       rmtree(dpath)
 
@@ -338,8 +355,8 @@ class TestUpload(_TestSession):
       with open(osp.join(dpath, 'bar', 'baz'), 'w') as writer:
         writer.write('world!')
       self.client.upload('up', dpath)
-      self._check_content('up/foo', b'hello!')
-      self._check_content('up/bar/baz', b'world!')
+      eq_(self._read('up/foo'), b'hello!')
+      eq_(self._read('up/bar/baz'), b'world!')
     finally:
       rmtree(dpath)
 
@@ -353,8 +370,8 @@ class TestUpload(_TestSession):
         writer.write('world!')
       self.client.write('up', 'hi')
       self.client.upload('up', dpath, overwrite=True)
-      self._check_content('up/foo', b'hello!')
-      self._check_content('up/bar/baz', b'world!')
+      eq_(self._read('up/foo'), b'hello!')
+      eq_(self._read('up/bar/baz'), b'world!')
     finally:
       rmtree(dpath)
 
@@ -367,7 +384,7 @@ class TestUpload(_TestSession):
       with open(tpath, 'w') as writer:
         writer.write('there')
       self.client.upload('up', tpath, overwrite=True)
-    self._check_content('up', b'there')
+    eq_(self._read('up'), b'there')
 
   @raises(HdfsError)
   def test_upload_overwrite_error(self):
@@ -399,8 +416,8 @@ class TestUpload(_TestSession):
         n_threads=1, # Callback isn't thread-safe.
         progress=callback
       )
-      self._check_content('up/foo', b'hello!')
-      self._check_content('up/bar/baz', b'the world!')
+      eq_(self._read('up/foo'), b'hello!')
+      eq_(self._read('up/bar/baz'), b'the world!')
       eq_(
         callback('', 0),
         {path1: [4, 6, -1], path2: [4, 8, 10, -1], '': [0]}
@@ -409,17 +426,17 @@ class TestUpload(_TestSession):
       rmtree(dpath)
 
 
-class TestDelete(_TestSession):
+class TestDelete(_IntegrationTest):
 
   def test_delete_file(self):
     self.client.write('foo', 'hello, world!')
     ok_(self.client.delete('foo'))
-    ok_(not self._file_exists('foo'))
+    ok_(not self._exists('foo'))
 
   def test_delete_empty_directory(self):
     self.client._mkdirs('foo')
     ok_(self.client.delete('foo'))
-    ok_(not self._file_exists('foo'))
+    ok_(not self._exists('foo'))
 
   def test_delete_missing_file(self):
     ok_(not self.client.delete('foo'))
@@ -427,7 +444,7 @@ class TestDelete(_TestSession):
   def test_delete_non_empty_directory(self):
     self.client.write('de/foo', 'hello, world!')
     ok_(self.client.delete('de', recursive=True))
-    ok_(not self._file_exists('de'))
+    ok_(not self._exists('de'))
 
   @raises(HdfsError)
   def test_delete_non_empty_directory_without_recursive(self):
@@ -435,7 +452,7 @@ class TestDelete(_TestSession):
     self.client.delete('de')
 
 
-class TestRead(_TestSession):
+class TestRead(_IntegrationTest):
 
   def test_read_file(self):
     self.client.write('foo', 'hello, world!')
@@ -494,12 +511,12 @@ class TestRead(_TestSession):
         writer.write(chunk)
 
 
-class TestRename(_TestSession):
+class TestRename(_IntegrationTest):
 
   def test_rename_file(self):
     self.client.write('foo', 'hello, world!')
     self.client.rename('foo', 'bar')
-    self._check_content('bar', b'hello, world!')
+    eq_(self._read('bar'), b'hello, world!')
 
   @raises(HdfsError)
   def test_rename_missing_file(self):
@@ -515,18 +532,10 @@ class TestRename(_TestSession):
     self.client.write('foo', 'hello, world!')
     self.client._mkdirs('bar')
     self.client.rename('foo', 'bar')
-    self._check_content('bar/foo', b'hello, world!')
+    eq_(self._read('bar/foo'), b'hello, world!')
 
 
-class TestDownload(_TestSession):
-
-  def setup(self):
-    super(TestDownload, self).setup()
-    self.parts = {
-      'part-r-00000': 'fee',
-      'part-r-00001': 'faa',
-      'part-r-00002': 'foo',
-    }
+class TestDownload(_IntegrationTest):
 
   @raises(HdfsError)
   def test_missing_dir(self):
@@ -558,26 +567,30 @@ class TestDownload(_TestSession):
       with open(osp.join(fname, partname)) as reader:
         eq_(reader.read(), 'world')
 
-  def test_partitioned_file(self):
-    for name, content in self.parts.items():
+  def _download_partitioned_file(self, n_threads):
+    parts = {
+      'part-r-00000': 'fee',
+      'part-r-00001': 'faa',
+      'part-r-00002': 'foo',
+    }
+    for name, content in parts.items():
       self.client.write('dl/%s' % (name, ), content)
     with temppath() as tpath:
       self.client.download('dl', tpath, n_threads=-1)
-      self.check_contents(tpath)
+      local_parts = os.listdir(tpath)
+      eq_(set(local_parts), set(parts)) # We have all the parts.
+      for part in local_parts:
+        with open(osp.join(tpath, part)) as reader:
+          eq_(reader.read(), parts[part]) # Their content is correct.
 
-  def test_partitioned_file_setting_n_threads(self):
-    for name, content in self.parts.items():
-      self.client.write('dl/%s' % (name, ), content)
-    with temppath() as tpath:
-      self.client.download('dl', tpath, n_threads=2)
-      self.check_contents(tpath)
+  def test_partitioned_file_max_threads(self):
+    self._download_partitioned_file(0)
 
   def test_partitioned_file_sync(self):
-    for name, content in self.parts.items():
-      self.client.write('dl/%s' % (name, ), content)
-    with temppath() as tpath:
-      self.client.download('dl', tpath, n_threads=0)
-      self.check_contents(tpath)
+    self._download_partitioned_file(1)
+
+  def test_partitioned_file_setting_n_threads(self):
+    self._download_partitioned_file(2)
 
   def test_overwrite_file(self):
     with temppath() as tpath:
@@ -670,19 +683,8 @@ class TestDownload(_TestSession):
     with temppath() as tpath:
       self.client.download('foo', tpath)
 
-  # helpers
 
-  def check_contents(self, local_path):
-    local_parts = os.listdir(local_path)
-    eq_(set(local_parts), set(self.parts))
-    # we have all the parts
-    for part in local_parts:
-      with open(osp.join(local_path, part)) as reader:
-        eq_(reader.read(), self.parts[part])
-        # their content is correct
-
-
-class TestStatus(_TestSession):
+class TestStatus(_IntegrationTest):
 
   def test_directory(self):
     self.client._mkdirs('foo')
@@ -700,8 +702,11 @@ class TestStatus(_TestSession):
   def test_missing(self):
     self.client.status('foo')
 
+  def test_missing_non_strict(self):
+    ok_(self.client.status('foo', strict=False) is None)
 
-class TestSetOwner(_TestSession):
+
+class TestSetOwner(_IntegrationTest):
 
   @classmethod
   def setup_class(cls):
@@ -713,7 +718,7 @@ class TestSetOwner(_TestSession):
       except HdfsError as err:
         if 'Non-super user cannot change owner' in str(err):
           cls.client = None
-          # skip these tests if HDFS isn't configured to support them.
+          # Skip these tests if HDFS isn't configured to support them.
         else:
           raise err
 
@@ -754,7 +759,7 @@ class TestSetOwner(_TestSession):
     self.client.set_owner('foo', group='blah')
 
 
-class TestSetPermission(_TestSession):
+class TestSetPermission(_IntegrationTest):
 
   def test_directory(self):
     new_permission = '755'
@@ -775,7 +780,7 @@ class TestSetPermission(_TestSession):
     self.client.set_permission('foo', '755')
 
 
-class TestContent(_TestSession):
+class TestContent(_IntegrationTest):
 
   def test_directory(self):
     self.client.write('foo', 'hello, world!')
@@ -795,8 +800,11 @@ class TestContent(_TestSession):
   def test_missing(self):
     self.client.content('foo')
 
+  def test_missing_non_strict(self):
+    ok_(self.client.content('foo', strict=False) is None)
 
-class TestList(_TestSession):
+
+class TestList(_IntegrationTest):
 
   @raises(HdfsError)
   def test_file(self):
@@ -824,7 +832,7 @@ class TestList(_TestSession):
     eq_(statuses[0], ('bar', status))
 
 
-class TestWalk(_TestSession):
+class TestWalk(_IntegrationTest):
 
   @raises(HdfsError)
   def test_missing(self):
@@ -863,7 +871,8 @@ class TestWalk(_TestSession):
       )
     )
 
-class TestLatestExpansion(_TestSession):
+
+class TestLatestExpansion(_IntegrationTest):
 
   def test_resolve_simple(self):
     self.client.write('bar', 'hello, world!')
@@ -900,7 +909,8 @@ class TestLatestExpansion(_TestSession):
     self.client._mkdirs('bar')
     self.client.resolve('bar/#LATEST')
 
-class TestParts(_TestSession):
+
+class TestParts(_IntegrationTest):
 
   @raises(HdfsError)
   def test_missing(self):
@@ -963,7 +973,8 @@ class TestParts(_TestSession):
     status['pathSuffix'] = fname
     eq_(self.client.parts('foo', status=True), [(fname, status)])
 
-class TestMakeDirs(_TestSession):
+
+class TestMakeDirs(_IntegrationTest):
 
   def test_simple(self):
     self.client.makedirs('foo')
@@ -988,7 +999,8 @@ class TestMakeDirs(_TestSession):
     eq_(self.client.status('foo')['permission'], '733')
     eq_(self.client.status('foo/bar')['permission'], '722')
 
-class TestSetTimes(_TestSession):
+
+class TestSetTimes(_IntegrationTest):
 
   @raises(ValueError)
   def test_none(self):
@@ -1027,7 +1039,8 @@ class TestSetTimes(_TestSession):
     eq_(status['accessTime'], 1)
     eq_(status['modificationTime'], 2)
 
-class TestChecksum(_TestSession):
+
+class TestChecksum(_IntegrationTest):
 
   @raises(HdfsError)
   def test_missing(self):
@@ -1043,7 +1056,8 @@ class TestChecksum(_TestSession):
     checksum = self.client.checksum('foo')
     eq_(set(['algorithm', 'bytes', 'length']), set(checksum))
 
-class TestSetReplication(_TestSession):
+
+class TestSetReplication(_IntegrationTest):
 
   @raises(HdfsError)
   def test_missing(self):
