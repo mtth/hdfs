@@ -4,6 +4,7 @@
 """Test Avro extension."""
 
 from hdfs.util import temppath
+from nose.plugins.skip import SkipTest
 from nose.tools import *
 from util import _IntegrationTest
 import os
@@ -25,6 +26,10 @@ class _AvroTestSession(_IntegrationTest):
 
 
 class TestSeekableReader(object):
+
+  def setup(self):
+    if SKIP:
+      raise SkipTest
 
   def test_normal_read(self):
     with temppath() as tpath:

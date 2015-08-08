@@ -164,7 +164,7 @@ class _AvroReader(object):
 
   def __init__(self, client, hdfs_path, parts=None):
     self.content = client.content(hdfs_path)
-    self.schema = None
+    self._schema = None
     if self.content['directoryCount']:
       # This is a folder.
       self._paths = [
@@ -183,13 +183,13 @@ class _AvroReader(object):
       for path in self._paths:
         with self._client.read(path, chunk_size=0) as bytes_reader:
           avro_reader = fastavro.reader(_SeekableReader(bytes_reader))
-          if not self.schema:
+          if not self._schema:
             yield avro_reader.schema
           for record in avro_reader:
             yield record
 
     self.records = _reader()
-    self.schema = self.records.next() # Prime generator to get schema.
+    self._schema = self.records.next() # Prime generator to get schema.
     return self
 
   def __exit__(self, exc_type, exc_value, traceback):
@@ -197,6 +197,18 @@ class _AvroReader(object):
 
   def __iter__(self):
     return self.records
+
+  @property
+  def schema(self):
+    """Get the underlying file's schema.
+
+    The schema will only be available after entering the reader's corresponding
+    `with` block.
+
+    """
+    if not self._schema:
+      raise HdfsError('Schema not yet inferred.')
+    return self._schema
 
 
 def read(client, hdfs_path, parts=None):

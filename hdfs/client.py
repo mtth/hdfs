@@ -514,7 +514,7 @@ class Client(object):
           _upload(path_tuple)
       else:
         _map_async(n_threads, _upload, fpath_tuples)
-    except Exception as err:
+    except Exception as err: # pylint: disable=broad-except
       try:
         self.delete(temp_path, recursive=True)
       except Exception:
@@ -689,7 +689,7 @@ class Client(object):
           _download(fpath_tuple)
       else:
         _map_async(n_threads, _download, fpath_tuples)
-    except Exception as err:
+    except Exception as err: # pylint: disable=broad-except
       try:
         if osp.isdir(temp_path):
           rmtree(temp_path)
