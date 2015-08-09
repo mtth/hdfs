@@ -29,8 +29,7 @@ Options:
                                 if uploading a single file or from standard in.
   -L --log                      Show path to current log file and exit.
   -V --version                  Show version and exit.
-  -a ALIAS --alias=ALIAS        Alias, defaults to alias pointed to by
-                                default.alias in ~/.hdfsclirc.
+  -a ALIAS --alias=ALIAS        Alias of namenode to connect to.
   -f --force                    Allow overwriting any existing files.
   -s --silent                   Don't display progress status.
   -t THREADS --threads=THREADS  Number of threads to use for parallelization.

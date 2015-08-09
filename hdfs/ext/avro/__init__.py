@@ -16,6 +16,7 @@ Without this extension:
 
 from ...util import HdfsError
 from json import dumps
+from six import string_types
 import fastavro
 import io
 import logging as lg
@@ -26,54 +27,41 @@ import sys
 
 _logger = lg.getLogger(__name__)
 
-# def _write_header(fo, schema, codec, sync_marker):
-#   """Write header, stripping spaces."""
-#   utob = fastavro._writer.utob
-#   header = {
-#     'magic': fastavro._writer.MAGIC,
-#     'meta': {
-#       'avro.codec': utob(codec),
-#       'avro.schema': utob(dumps(schema, separators=(',', ':'))),
-#     },
-#     'sync': sync_marker,
-#   }
-#   fastavro._writer.write_data(fo, header, fastavro._writer.HEADER_SCHEMA)
-
-def _get_type(obj, allow_null=False):
+def _infer_schema(obj):
   """Infer Avro type corresponding to a python object.
 
   :param obj: Python primitive.
-  :param allow_null: Allow null values.
 
   """
-  if allow_null:
-    raise NotImplementedError('TODO')
   if isinstance(obj, bool):
-    schema_type = 'boolean'
+    return 'boolean'
   elif isinstance(obj, string_types):
-    schema_type = 'string'
+    return 'string'
   elif isinstance(obj, int):
-    schema_type = 'int'
+    return 'int'
   elif isinstance(obj, long):
-    schema_type = 'long'
+    return 'long'
   elif isinstance(obj, float):
-    schema_type = 'float'
-  return schema_type # TODO: Add array and record support.
-
-def infer_schema(obj):
-  """Infer schema from dictionary.
-
-  :param obj: Dictionary.
-
-  """
-  return {
-    'type': 'record',
-    'name': 'element',
-    'fields': [
-      {'name': k, 'type': _get_type(v)}
-      for k, v in obj.items()
-    ]
-  }
+    return 'float'
+  elif isinstance(obj, list):
+    if not obj:
+      raise ValueError('Cannot infer type of empty array.')
+    return {
+      'type': 'array',
+      'items': _infer_schema(obj[0])
+    }
+  elif isinstance(obj, dict):
+    if not obj:
+      raise ValueError('Cannot infer type of empty record.')
+    return {
+      'type': 'record',
+      'name': 'elem',
+      'fields': [
+        {'name': k, 'type': _infer_schema(v)}
+        for k, v in obj.items()
+      ]
+    }
+  raise ValueError('Cannot infer type from %s: %r' % (type(obj), obj))
 
 
 class _SeekableReader(object):
@@ -194,8 +182,6 @@ class AvroReader(object):
     return self._schema
 
 
-
-
 class AvroWriter(object):
 
   """Write an Avro file on HDFS from python dictionaries.
@@ -289,7 +275,6 @@ class AvroWriter(object):
       block_writer(fo, buf.getvalue())
       fo.write(self._sync_marker)
       buf.truncate(0)
-      _logger.debug('Dumped block of %s records.', n_block_records)
 
     if self._schema:
       dump_header()
@@ -298,7 +283,7 @@ class AvroWriter(object):
         record = (yield)
         if not n_records:
           if not self._schema:
-            self._schema = None # TODO: Infer schema.
+            self._schema = _infer_schema(record)
             _logger.info('Inferred schema: %s', dumps(self._schema))
             dump_header()
           schema = self._schema

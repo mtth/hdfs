@@ -13,7 +13,8 @@ import os
 import os.path as osp
 
 try:
-  from hdfs.ext.avro import _SeekableReader, AvroReader, AvroWriter
+  from hdfs.ext.avro import (_SeekableReader, _infer_schema, AvroReader,
+    AvroWriter)
 except ImportError:
   SKIP = True
 else:
@@ -81,7 +82,31 @@ class TestSeekableReader(object):
 
 class TestInferSchema(object):
 
-  pass # TODO
+  def test_flat_record(self):
+    eq_(
+      _infer_schema({'foo': 1, 'bar': 'hello'}),
+      {
+        'type': 'record',
+        'name': 'elem',
+        'fields': [
+          {'type': 'int', 'name': 'foo'},
+          {'type': 'string', 'name': 'bar'},
+        ]
+      }
+    )
+
+  def test_array(self):
+    eq_(
+      _infer_schema({'foo': 1, 'bar': ['hello']}),
+      {
+        'type': 'record',
+        'name': 'elem',
+        'fields': [
+          {'type': 'int', 'name': 'foo'},
+          {'type': {'type': 'array', 'items': 'string'}, 'name': 'bar'},
+        ]
+      }
+    )
 
 
 class TestRead(_AvroIntegrationTest):
@@ -126,3 +151,10 @@ class TestWriter(_AvroIntegrationTest):
     with AvroWriter(self.client, 'weather.avro', schema=self.schema) as writer:
       for record in self.records:
         writer.write(record)
+
+  def test_infer_schema(self):
+    with AvroWriter(self.client, 'weather.avro') as writer:
+      for record in self.records:
+        writer.write(record)
+    with AvroReader(self.client, 'weather.avro') as reader:
+      eq_(list(reader), self.records)

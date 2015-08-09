@@ -23,9 +23,9 @@ Arguments:
 Options:
   -F FREQ --freq=FREQ           Probability of sampling a record.
   -L --log                      Show path to current log file and exit.
-  -S SCHEMA --schema=SCHEMA     Schema for serializeing records. If not passed,
+  -S SCHEMA --schema=SCHEMA     Schema for serializing records. If not passed,
                                 it will be inferred from the first record.
-  -a ALIAS --alias=ALIAS        Alias.
+  -a ALIAS --alias=ALIAS        Alias of namenode to connect to.
   -f --force                    Overwrite any existing file.
   -h --help                     Show this message and exit.
   -n NUM --num=NUM              Cap number of records to output.
@@ -41,7 +41,8 @@ Options:
 Examples:
   hdfscli-avro schema /data/impressions.avro
   hdfscli-avro read -a dev snapshot.avro >snapshot.jsonl
-  hdfscli-avro read -f 0.1 -p 2,3 clicks.avro
+  hdfscli-avro read -F 0.1 -p 2,3 clicks.avro
+  hdfscli-avro write -f positives.avro <positives.jsonl -S "$(cat schema.avsc)"
 
 """
 
