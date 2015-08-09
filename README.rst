@@ -103,6 +103,7 @@ Python shell integration (using IPython_ if available):
 .. code-block:: bash
 
   $ hdfscli --alias=dev
+
   Welcome to the interactive HDFS python shell.
   The HDFS client is available as `CLIENT`.
 
@@ -127,17 +128,16 @@ Sample configuration defining two aliases, `dev` and `prod`:
 
 .. code-block:: cfg
 
-  [hdfs]
+  [hdfscli]
   default.alias = dev # Used when no alias is specified at the command line.
 
   [dev.alias]
-  url = http://url.to.dev.namenode:port
+  url = http://dev.namenode:port
 
   [prod.alias]
-  url = https://url.to.prod.namenode:port
+  url = https://prod.namenode:port
   client = KerberosClient
   root = /jobs/
-  verify = false
 
 All options other than `url` can be omitted. `client` determines which class to 
 use (defaulting to the generic `Client`), and the remaining options are passed 

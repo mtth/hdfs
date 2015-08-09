@@ -10,19 +10,19 @@ from util import _IntegrationTest
 import os
 
 try:
-  from hdfs.ext.avro import _SeekableReader, read, write
+  from hdfs.ext.avro import _SeekableReader, AvroReader, AvroWriter
 except ImportError:
   SKIP = True
 else:
   SKIP = False
 
 
-class _AvroTestSession(_IntegrationTest):
+class _AvroIntegrationTest(_IntegrationTest):
 
   @classmethod
   def setup_class(cls):
     if not SKIP:
-      super(_AvroTestSession, cls).setup_class()
+      super(_AvroIntegrationTest, cls).setup_class()
 
 
 class TestSeekableReader(object):
@@ -60,12 +60,12 @@ class TestInferSchema(object):
   pass
 
 
-class TestRead(_AvroTestSession):
+class TestRead(_AvroIntegrationTest):
 
   pass
 
 
-class TestWriter(_AvroTestSession):
+class TestWriter(_AvroIntegrationTest):
 
   @nottest
   def test_write_inferring_schema(self):
@@ -102,7 +102,7 @@ class TestWriter(_AvroTestSession):
       {'station': '011990-99999', 'temp': -11, 'time': 1433273379},
       {'station': '012650-99999', 'temp': 111, 'time': 1433275478},
     ]
-    write(self.client, 'weather.avro', records, schema=schema)
-    with read(self.client, 'weather.avro') as reader:
+    write_avro(self.client, 'weather.avro', records, schema=schema)
+    with read_avro(self.client, 'weather.avro') as reader:
       eq_(reader.schema, schema)
       eq_(list(reader), records)

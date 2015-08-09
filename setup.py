@@ -38,7 +38,7 @@ setup(
     'six>=1.9.0',
   ],
   extras_require={
-    'avro': ['avro'],
+    'avro': ['fastavro'],
     'kerberos': ['requests-kerberos'],
     'dataframe': ['numpy', 'pandas>=0.14.1', 'fastavro'],
   },
