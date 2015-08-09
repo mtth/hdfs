@@ -87,7 +87,6 @@ class TestInferSchema(object):
       _infer_schema({'foo': 1, 'bar': 'hello'}),
       {
         'type': 'record',
-        'name': 'elem',
         'fields': [
           {'type': 'int', 'name': 'foo'},
           {'type': 'string', 'name': 'bar'},
@@ -100,7 +99,6 @@ class TestInferSchema(object):
       _infer_schema({'foo': 1, 'bar': ['hello']}),
       {
         'type': 'record',
-        'name': 'elem',
         'fields': [
           {'type': 'int', 'name': 'foo'},
           {'type': {'type': 'array', 'items': 'string'}, 'name': 'bar'},

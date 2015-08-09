@@ -16,7 +16,7 @@ Without this extension:
 
 from ...util import HdfsError
 from json import dumps
-from six import string_types
+from six import integer_types, string_types
 import fastavro
 import io
 import logging as lg
@@ -32,15 +32,19 @@ def _infer_schema(obj):
 
   :param obj: Python primitive.
 
+  There are multiple limitations with this functions, among which:
+
+  + Nullable fields aren't supported.
+  + Only Avro integers will be inferred, so some values may overflow.
+  + Records are unnamed.
+
   """
   if isinstance(obj, bool):
     return 'boolean'
   elif isinstance(obj, string_types):
     return 'string'
-  elif isinstance(obj, int):
+  elif isinstance(obj, integer_types): # Python 3 doesn't have `long`.
     return 'int'
-  elif isinstance(obj, long):
-    return 'long'
   elif isinstance(obj, float):
     return 'float'
   elif isinstance(obj, list):
@@ -55,7 +59,6 @@ def _infer_schema(obj):
       raise ValueError('Cannot infer type of empty record.')
     return {
       'type': 'record',
-      'name': 'elem',
       'fields': [
         {'name': k, 'type': _infer_schema(v)}
         for k, v in obj.items()
@@ -86,6 +89,7 @@ class _SeekableReader(object):
     self._saught = False
 
   def read(self, nbytes):
+    """Read bytes, caching the read if the size matches."""
     buf = self._buffer
     if self._saught:
       assert buf
@@ -107,6 +111,7 @@ class _SeekableReader(object):
     return chunk
 
   def seek(self, offset, whence):
+    """Go back using the cached bytes."""
     assert offset == - self._size
     assert whence == os.SEEK_CUR
     assert self._buffer
@@ -146,6 +151,7 @@ class AvroReader(object):
       # This is a single file.
       self._paths = [hdfs_path]
     self._client = client
+    self._records = None
 
   def __enter__(self):
 
@@ -159,15 +165,15 @@ class AvroReader(object):
           for record in avro_reader:
             yield record
 
-    self.records = _reader()
-    self._schema = next(self.records) # Prime generator to get schema.
+    self._records = _reader()
+    self._schema = next(self._records) # Prime generator to get schema.
     return self
 
   def __exit__(self, exc_type, exc_value, traceback):
-    self.records.close()
+    self._records.close()
 
   def __iter__(self):
-    return self.records
+    return self._records
 
   @property
   def schema(self):
@@ -199,7 +205,7 @@ class AvroWriter(object):
 
     with AvroWriter(client, 'data.avro') as writer:
       for record in records:
-        writer.send(record)
+        writer.write(record)
 
   """
 
@@ -293,7 +299,7 @@ class AvroWriter(object):
         if buf.tell() >= sync_interval:
           dump_data()
           n_block_records = 0
-    except GeneratorExit: # No more records.
+    except GeneratorExit:
       if buf.tell():
         dump_data()
       fo.flush()
