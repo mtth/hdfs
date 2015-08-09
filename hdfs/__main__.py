@@ -52,7 +52,6 @@ from . import __version__
 from .client import Client
 from .util import Config, HdfsError, catch
 from docopt import docopt
-from imp import load_source
 from logging.handlers import TimedRotatingFileHandler
 from tempfile import gettempdir
 from threading import Lock
@@ -84,7 +83,6 @@ class CliConfig(Config):
     self._root_logger = lg.getLogger()
     if verbosity >= 0:
       self._setup_logging(verbosity)
-    self._load_modules()
 
   def create_client(self, alias=None):
     """Load HDFS client.
@@ -95,9 +93,9 @@ class CliConfig(Config):
 
     """
     if not alias:
-      if not self.has_option(self._command, 'default.alias'):
+      if not self.has_option(self.global_section, 'default.alias'):
         raise HdfsError('No alias specified and no default alias found.')
-      alias = self.get(self._command, 'default.alias')
+      alias = self.get(self.global_section, 'default.alias')
     return Client.from_alias(alias, path=self.path)
 
   def get_file_handler(self):
@@ -109,24 +107,6 @@ class CliConfig(Config):
     ]
     if handlers:
       return handlers[0]
-
-  def _load_modules(self):
-    """Load modules to find clients."""
-
-    def _load(suffix, loader):
-      """Generic module loader."""
-      option = 'autoload.%s' % (suffix, )
-      if self.has_option(self._command, option):
-        entries = self.get(self._command, option)
-        for entry in entries.split(','):
-          module = entry.strip()
-          loader(module)
-
-    _load('modules', __import__)
-    _load('paths', lambda path: load_source(
-      osp.splitext(osp.basename(path))[0],
-      path
-    ))
 
   def _setup_logging(self, verbosity):
     """Configure logging with optional time-rotating file handler."""
@@ -146,12 +126,12 @@ class CliConfig(Config):
     self._root_logger.addHandler(stream_handler)
     # File handling.
     key = 'log.disable'
-    command = self._command
-    if not self.has_option(command, key) or not self.getboolean(command, key):
-      if self.has_option(command, 'log.path'):
-        path = self.get(command, 'log.path')
+    section = '%s.command' % (self._command, )
+    if not self.has_option(section, key) or not self.getboolean(section, key):
+      if self.has_option(section, 'log.path'):
+        path = self.get(section, 'log.path')
       else:
-        path = osp.join(gettempdir(), '%s.log' % (command, ))
+        path = osp.join(gettempdir(), '%s.log' % (section, ))
       file_handler = TimedRotatingFileHandler(
         path,
         when='midnight', # daily backups
@@ -160,8 +140,8 @@ class CliConfig(Config):
       )
       fmt = '%(asctime)s\t%(name)-16s\t%(levelname)-5s\t%(message)s'
       file_handler.setFormatter(lg.Formatter(fmt))
-      if self.has_option(command, 'log.level'):
-        file_handler.setLevel(getattr(lg, self.get(command, 'log.level')))
+      if self.has_option(section, 'log.level'):
+        file_handler.setLevel(getattr(lg, self.get(section, 'log.level')))
       else:
         file_handler.setLevel(lg.DEBUG)
       self._root_logger.addHandler(file_handler)
@@ -263,7 +243,7 @@ def parse_arg(args, name, parser, separator=None):
     raise HdfsError('Invalid %r option: %r.', name, args[name])
 
 @catch(HdfsError)
-def main(argv=None):
+def main(argv=None, client=None):
   """Entry point."""
   args = docopt(__doc__, argv=argv, version=__version__)
   config = CliConfig('hdfscli', args['--verbose'])
@@ -274,7 +254,7 @@ def main(argv=None):
     else:
       sys.stdout.write('No log file active.\n')
     sys.exit(0)
-  client = config.create_client(args['--alias'])
+  client = client or config.create_client(args['--alias']) # Hook for testing.
   hdfs_path = args['HDFS_PATH']
   local_path = args['LOCAL_PATH']
   n_threads = parse_arg(args, '--threads', int)

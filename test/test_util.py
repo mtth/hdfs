@@ -3,8 +3,10 @@
 
 """Test Hdfs client interactions with HDFS."""
 
+from hdfs.client import Client
 from hdfs.util import *
 from nose.tools import eq_, raises
+from string import Template
 import os
 
 
@@ -32,6 +34,43 @@ class TestConfig(object):
     eq_(Config.parse_boolean('true'), True)
     eq_(Config.parse_boolean('yes'), True)
     eq_(Config.parse_boolean(None), False)
+
+  def _write_client_module(self, path, class_name):
+    template = osp.join(osp.dirname(__file__), 'dat', 'client_template.py')
+    with open(template) as reader:
+      contents = Template(reader.read()).substitute({
+        'class_name': class_name,
+      })
+    with open(path, 'w') as writer:
+      writer.write(contents)
+
+  def test_autoload_client_from_path(self):
+    with temppath() as module_path:
+      self._write_client_module(module_path, 'PathClient')
+      with temppath() as config_path:
+        config = Config(config_path)
+        config.add_section(config.global_section)
+        config.set(config.global_section, 'autoload.paths', module_path)
+        config._autoload()
+        client = Client._from_options('PathClient', {'url': ''})
+        eq_(client.one, 1)
+
+  def test_autoload_client_from_module(self):
+    with temppath() as module_dpath:
+      os.mkdir(module_dpath)
+      sys.path.append(module_dpath)
+      module_fpath = osp.join(module_dpath, 'mclient.py')
+      self._write_client_module(module_fpath, 'ModuleClient')
+      try:
+        with temppath() as config_path:
+          config = Config(config_path)
+          config.add_section(config.global_section)
+          config.set(config.global_section, 'autoload.modules', 'mclient')
+          config._autoload()
+          client = Client._from_options('ModuleClient', {'url': ''})
+          eq_(client.one, 1)
+      finally:
+        sys.path.remove(module_dpath)
 
 
 class TestHuman(object):
@@ -105,3 +144,14 @@ class TestAsyncWriter(object):
     with AsyncWriter(consumer) as writer:
       writer.write(1)
       writer.write(2)
+
+  @raises(HdfsError)
+  def test_parent_error(self):
+    def consumer(gen):
+      for value in gen:
+        pass
+    def invalid(w):
+      w.write(1)
+      raise HdfsError('Ya')
+    with AsyncWriter(consumer) as writer:
+      invalid(writer)

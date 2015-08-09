@@ -7,8 +7,8 @@ from hdfs.__main__ import *
 from hdfs.util import Config, temppath
 from logging.handlers import TimedRotatingFileHandler
 from nose.tools import eq_, ok_, raises
-from string import Template
 from util import _IntegrationTest
+import filecmp
 import logging as lg
 import sys
 
@@ -58,8 +58,8 @@ class TestCliConfig(object):
   def test_create_client_with_default_alias(self):
     with temppath() as tpath:
       config = Config(path=tpath)
-      config.add_section('cmd')
-      config.set('cmd', 'default.alias', 'dev')
+      config.add_section(config.global_section)
+      config.set(config.global_section, 'default.alias', 'dev')
       section = 'dev.alias'
       config.add_section(section)
       config.set(section, 'url', 'http://host:port')
@@ -80,69 +80,36 @@ class TestCliConfig(object):
     try:
       with temppath() as tpath:
         config = Config(path=tpath)
-        config.add_section('cmd')
-        config.set('cmd', 'log.disable', 'true')
+        config.add_section('cmd.command')
+        config.set('cmd.command', 'log.disable', 'true')
         config.save()
         cli_config = CliConfig('cmd', path=tpath)
         ok_(not cli_config.get_file_handler())
     finally:
       lg.getLogger().handlers = [] # Clean up handlers.
 
-  def _write_client_module(self, path, class_name):
-    template = osp.join(osp.dirname(__file__), 'dat', 'client_template.py')
-    with open(template) as reader:
-      contents = Template(reader.read()).substitute({
-        'class_name': class_name,
-      })
-    with open(path, 'w') as writer:
-      writer.write(contents)
-
-  def test_load_client_from_path(self):
-    with temppath() as module_path:
-      self._write_client_module(module_path, 'PathClient')
-      with temppath() as config_path:
-        config = Config(path=config_path)
-        config.add_section('cmd')
-        config.set('cmd', 'autoload.paths', module_path)
-        section = 'dev.alias'
-        config.add_section(section)
-        config.set(section, 'client', 'PathClient')
-        config.set(section, 'url', 'http://host:port')
-        config.save()
-        cli_config = CliConfig('cmd', path=config_path, verbosity=-1)
-        client = cli_config.create_client('dev')
-        eq_(client.one, 1)
-
-  def test_load_client_from_module(self):
-    with temppath() as module_dpath:
-      os.mkdir(module_dpath)
-      sys.path.append(module_dpath)
-      module_fpath = osp.join(module_dpath, 'module_client.py')
-      self._write_client_module(module_fpath, 'ModuleClient')
-      try:
-        with temppath() as config_path:
-          config = Config(path=config_path)
-          config.add_section('cmd')
-          config.set('cmd', 'autoload.modules', 'module_client')
-          section = 'dev.alias'
-          config.add_section(section)
-          config.set(section, 'client', 'ModuleClient')
-          config.set(section, 'url', 'http://host:port')
-          config.save()
-          cli_config = CliConfig('cmd', path=config_path, verbosity=-1)
-          client = cli_config.create_client('dev')
-          eq_(client.one, 1)
-      finally:
-        sys.path.remove(module_dpath)
-
 
 class TestMain(_IntegrationTest):
+
+  dpath = osp.join(osp.dirname(__file__), 'dat')
 
   def teardown(self):
     lg.getLogger().handlers = [] # Clean up handlers.
 
+  def _dircmp(self, dpath):
+    dircmp = filecmp.dircmp(self.dpath, dpath)
+    ok_(not dircmp.left_only)
+    ok_(not dircmp.right_only)
+    ok_(not dircmp.diff_files)
+
   def test_download(self):
-    pass # TODO: Test downloading a folder.
+    self.client.upload('foo', self.dpath)
+    with temppath() as tpath:
+      main(['download', 'foo', tpath, '--silent'], self.client)
+      self._dircmp(tpath)
 
   def test_upload(self):
-    pass # TODO: Test uploading a folder.
+    main(['upload', self.dpath, 'bar', '--silent'], self.client)
+    with temppath() as tpath:
+      self.client.download('bar', tpath)
+      self._dircmp(tpath)

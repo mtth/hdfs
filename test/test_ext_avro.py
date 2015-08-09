@@ -3,11 +3,14 @@
 
 """Test Avro extension."""
 
-from hdfs.util import temppath
+from hdfs.util import HdfsError, temppath
+from json import loads
 from nose.plugins.skip import SkipTest
 from nose.tools import *
 from util import _IntegrationTest
+import filecmp
 import os
+import os.path as osp
 
 try:
   from hdfs.ext.avro import _SeekableReader, AvroReader, AvroWriter
@@ -19,10 +22,31 @@ else:
 
 class _AvroIntegrationTest(_IntegrationTest):
 
+  dpath = osp.join(osp.dirname(__file__), 'dat')
+  schema = None
+  records = None
+  sync_marker = None
+
   @classmethod
   def setup_class(cls):
-    if not SKIP:
-      super(_AvroIntegrationTest, cls).setup_class()
+    if SKIP:
+      return
+    super(_AvroIntegrationTest, cls).setup_class()
+    with open(osp.join(cls.dpath, 'weather.avsc')) as reader:
+      cls.schema = loads(reader.read())
+    with open(osp.join(cls.dpath, 'weather.jsonl')) as reader:
+      cls.records = [loads(line) for line in reader]
+    with open(osp.join(cls.dpath, 'weather.avro'), 'rb') as reader:
+      reader.seek(-16, os.SEEK_END) # Sync marker always last 16 bytes.
+      cls.sync_marker = reader.read()
+
+  @classmethod
+  def _get_data_bytes(cls, fpath):
+    # Get Avro bytes, skipping header (order of schema fields is undefined).
+    with open(fpath, 'rb') as reader:
+      content = reader.read()
+      sync_pos = content.find(cls.sync_marker)
+      return content[sync_pos + 16:]
 
 
 class TestSeekableReader(object):
@@ -57,52 +81,49 @@ class TestSeekableReader(object):
 
 class TestInferSchema(object):
 
-  pass
+  pass # TODO
 
 
 class TestRead(_AvroIntegrationTest):
 
-  pass
+  def test_read(self):
+    self.client.upload('weather.avro', osp.join(self.dpath, 'weather.avro'))
+    with AvroReader(self.client, 'weather.avro') as reader:
+      eq_(list(reader), self.records)
 
 
 class TestWriter(_AvroIntegrationTest):
 
-  @nottest
-  def test_write_inferring_schema(self):
-    with self.writer as writer:
-      self.writer.records.send({'foo': 'value1'})
-      self.writer.records.send({'foo': 'value2', 'bar': 'that'})
-    data = self.client._open('aw.avro').content
-    ok_('foo' in data)
-    ok_('value1' in data)
-    ok_('value2' in data)
-    ok_(not 'that' in data)
+  def test_write(self):
+    writer = AvroWriter(
+      self.client,
+      'weather.avro',
+      schema=self.schema,
+      sync_marker=self.sync_marker
+    )
+    with writer:
+      for record in self.records:
+        writer.write(record)
+    with temppath() as tpath:
+      self.client.download('weather.avro', tpath)
+      eq_(
+        self._get_data_bytes(osp.join(self.dpath, 'weather.avro')),
+        self._get_data_bytes(tpath)
+      )
 
-  @nottest
-  def test_invalid_schema(self):
-    with self.writer as writer:
-      self.writer.records.send({'foo': 'value1'})
-      self.writer.records.send({'bar': 'value2'})
+  def test_write_empty(self):
+    writer = AvroWriter(self.client, 'empty.avro', schema=self.schema)
+    with writer:
+      pass
+    with AvroReader(self.client, 'empty.avro') as reader:
+      eq_(reader.schema, self.schema)
+      eq_(list(reader), [])
 
-  def test_write_read(self):
-    schema = {
-      'doc': 'A weather reading.',
-      'name': 'Weather',
-      'namespace': 'test',
-      'type': 'record',
-      'fields': [
-        {'name': 'station', 'type': 'string'},
-        {'name': 'time', 'type': 'long'},
-        {'name': 'temp', 'type': 'int'},
-      ],
-    }
-    records = [
-      {'station': '011990-99999', 'temp': 0, 'time': 1433269388},
-      {'station': '011990-99999', 'temp': 22, 'time': 1433270389},
-      {'station': '011990-99999', 'temp': -11, 'time': 1433273379},
-      {'station': '012650-99999', 'temp': 111, 'time': 1433275478},
-    ]
-    write_avro(self.client, 'weather.avro', records, schema=schema)
-    with read_avro(self.client, 'weather.avro') as reader:
-      eq_(reader.schema, schema)
-      eq_(list(reader), records)
+
+  @raises(HdfsError)
+  def test_write_overwrite_error(self):
+    # To check that the background `AsyncWriter` thread doesn't hang.
+    self.client.makedirs('weather.avro')
+    with AvroWriter(self.client, 'weather.avro', schema=self.schema) as writer:
+      for record in self.records:
+        writer.write(record)

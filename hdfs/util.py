@@ -5,7 +5,7 @@
 
 from contextlib import contextmanager
 from functools import wraps
-from os import close, remove
+from imp import load_source
 from shutil import rmtree
 from six.moves.configparser import ParsingError, RawConfigParser
 from six.moves.queue import Queue
@@ -44,7 +44,8 @@ class Config(RawConfigParser):
 
   """
 
-  default_path = osp.expanduser('~/.hdfsclirc')
+  default_path = osp.expanduser('~/.hdfscli.cfg')
+  global_section = 'global'
 
   def __init__(self, path=None):
     RawConfigParser.__init__(self)
@@ -54,6 +55,8 @@ class Config(RawConfigParser):
         self.read(self.path)
       except ParsingError:
         raise HdfsError('Invalid configuration file %r.', self.path)
+      else:
+        self._autoload()
       _logger.info('Instantiated configuration from %r.', self.path)
     else:
       _logger.info('Instantiated empty configuration.')
@@ -66,6 +69,24 @@ class Config(RawConfigParser):
     with open(self.path, 'w') as writer:
       self.write(writer)
     _logger.info('Saved.')
+
+  def _autoload(self):
+    """Load modules to find clients."""
+
+    def _load(suffix, loader):
+      """Generic module loader."""
+      option = 'autoload.%s' % (suffix, )
+      if self.has_option(self.global_section, option):
+        entries = self.get(self.global_section, option)
+        for entry in entries.split(','):
+          module = entry.strip()
+          loader(module)
+
+    _load('modules', __import__)
+    _load('paths', lambda path: load_source(
+      osp.splitext(osp.basename(path))[0],
+      path
+    ))
 
   @staticmethod
   def parse_boolean(value):
@@ -126,9 +147,13 @@ class AsyncWriter(object):
     def consumer(data):
       """Wrapped consumer that lets us get a child's exception."""
       try:
+        _logger.debug('Starting consumer.')
         self._consumer(data)
       except Exception as err: # pylint: disable=broad-except
+        _logger.debug('Exception in child.')
         self._err = err
+      finally:
+        _logger.debug('Finished consumer.')
 
     def reader(queue):
       """Generator read by the consumer."""
@@ -144,9 +169,12 @@ class AsyncWriter(object):
     return self
 
   def __exit__(self, exc_type, exc_value, traceback):
-    _logger.debug('Signaling child.')
-    self._queue.put(None)
-    self._reader.join()
+    if exc_value:
+      _logger.debug('Exception in parent.')
+    if self._reader and self._reader.is_alive():
+      _logger.debug('Signaling child.')
+      self._queue.put(None)
+      self._reader.join()
     if self._err:
       raise self._err # pylint: disable=raising-bad-type
     else:
@@ -184,8 +212,8 @@ def temppath(dpath=None):
 
   """
   (desc, path) = mkstemp(dir=dpath)
-  close(desc)
-  remove(path)
+  os.close(desc)
+  os.remove(path)
   try:
     _logger.debug('Created temporary path at %s.', path)
     yield path
@@ -195,7 +223,7 @@ def temppath(dpath=None):
         rmtree(path)
         _logger.debug('Deleted temporary directory at %s.', path)
       else:
-        remove(path)
+        os.remove(path)
         _logger.debug('Deleted temporary file at %s.', path)
     else:
       _logger.debug('No temporary file or directory to delete at %s.', path)

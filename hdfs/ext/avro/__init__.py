@@ -15,11 +15,29 @@ Without this extension:
 """
 
 from ...util import HdfsError
+from json import dumps
 import fastavro
+import io
 import logging as lg
 import os
 import posixpath as psp
+import sys
 
+
+_logger = lg.getLogger(__name__)
+
+# def _write_header(fo, schema, codec, sync_marker):
+#   """Write header, stripping spaces."""
+#   utob = fastavro._writer.utob
+#   header = {
+#     'magic': fastavro._writer.MAGIC,
+#     'meta': {
+#       'avro.codec': utob(codec),
+#       'avro.schema': utob(dumps(schema, separators=(',', ':'))),
+#     },
+#     'sync': sync_marker,
+#   }
+#   fastavro._writer.write_data(fo, header, fastavro._writer.HEADER_SCHEMA)
 
 def _get_type(obj, allow_null=False):
   """Infer Avro type corresponding to a python object.
@@ -176,6 +194,8 @@ class AvroReader(object):
     return self._schema
 
 
+
+
 class AvroWriter(object):
 
   """Write an Avro file on HDFS from python dictionaries.
@@ -197,35 +217,33 @@ class AvroWriter(object):
 
   """
 
-  def __init__(self, client, hdfs_path, schema=None, **kwargs):
-    self._writer = client.write(hdfs_path, **kwargs)
+  def __init__(self, client, hdfs_path, schema=None, codec=None,
+    sync_interval=None, sync_marker=None, **kwargs):
+    self._hdfs_path = hdfs_path
+    self._fo = client.write(hdfs_path, **kwargs)
     self._schema = schema
+    self._codec = codec or 'null'
+    self._sync_interval = sync_interval or 1000 * fastavro._writer.SYNC_SIZE
+    self._sync_marker = sync_marker or os.urandom(fastavro._writer.SYNC_SIZE)
+    self._writer = None
+    _logger.info('Instantiated %r.', self)
+
+  def __repr__(self):
+    return '<AvroWriter(hdfs_path=%r)>' % (self._hdfs_path, )
 
   def __enter__(self):
-    self._writer.__enter__()
+    self._writer = self._write(self._fo.__enter__())
+    try:
+      self._writer.send(None) # Prime coroutine.
+    except Exception: # pylint: disable=broad-except
+      if not self._fo.__exit__(*sys.exc_info()):
+        raise
+    else:
+      return self
 
-    def _writer(schema=self._schema):
-      """Records coroutine."""
-      writer = None
-      try:
-        while True:
-          obj = (yield)
-      except GeneratorExit: # No more records.
-        pass
-        if writer:
-          writer.flush() # make sure everything has been written to the buffer
-          buf.seek(0)
-          self._client.write(hdfs_path, buf, overwrite=overwrite)
-      finally:
-        if writer:
-          writer.close()
-
-    self._records = _writer()
-    self._records.send(None) # Prime coroutine.
-    return self
-
-  def __exit__(self, exc_type, exc_value, traceback):
-    return self._writer.__exit__(exc_type, exc_value, traceback)
+  def __exit__(self, *exc_info):
+    self._writer.close()
+    return self._fo.__exit__(*exc_info)
 
   @property
   def schema(self):
@@ -234,10 +252,64 @@ class AvroWriter(object):
       raise HdfsError('Schema not yet inferred.')
     return self._schema
 
-  def send(self, record):
+  def write(self, record):
     """Store a record.
 
     :param record: Record object to store.
 
     """
     self._writer.send(record)
+
+  def _write(self, fo):
+    """Coroutine to write to a file object."""
+    buf = fastavro._writer.MemoryIO()
+    block_writer = fastavro._writer.BLOCK_WRITERS[self._codec]
+    n_records = 0
+    n_block_records = 0
+
+    # Cache a few variables.
+    sync_interval = self._sync_interval
+    write_data = fastavro._writer.write_data
+    write_long = fastavro._writer.write_long
+
+    def dump_header():
+      """Write header."""
+      fastavro._writer.write_header(
+        fo,
+        self._schema,
+        self._codec,
+        self._sync_marker
+      )
+      _logger.debug('Wrote header. Sync marker: %r', self._sync_marker)
+      fastavro._writer.acquaint_schema(self._schema)
+
+    def dump_data():
+      """Write contents of memory buffer to file object."""
+      write_long(fo, n_block_records)
+      block_writer(fo, buf.getvalue())
+      fo.write(self._sync_marker)
+      buf.truncate(0)
+      _logger.debug('Dumped block of %s records.', n_block_records)
+
+    if self._schema:
+      dump_header()
+    try:
+      while True:
+        record = (yield)
+        if not n_records:
+          if not self._schema:
+            self._schema = None # TODO: Infer schema.
+            _logger.info('Inferred schema: %s', dumps(self._schema))
+            dump_header()
+          schema = self._schema
+        write_data(buf, record, schema)
+        n_block_records += 1
+        n_records += 1
+        if buf.tell() >= sync_interval:
+          dump_data()
+          n_block_records = 0
+    except GeneratorExit: # No more records.
+      if buf.tell():
+        dump_data()
+      fo.flush()
+      _logger.info('Finished writing %s records.', n_records)
