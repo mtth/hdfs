@@ -48,10 +48,10 @@ HdfsCLI exits with return status 1 if an error occurred and 0 otherwise.
 
 """
 
+from . import __version__
+from .client import Client
+from .util import Config, HdfsError, catch
 from docopt import docopt
-from hdfs import __version__
-from hdfs.client import Client
-from hdfs.util import Config, HdfsError, catch
 from imp import load_source
 from logging.handlers import TimedRotatingFileHandler
 from tempfile import gettempdir

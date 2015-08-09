@@ -1,59 +1,24 @@
 #!/usr/bin/env python
 # encoding: utf-8
 
-"""HdfsCLI Avro: an Avro extension for HdfsCLI.
+"""Avro extension.
 
-Usage:
-  hdfscli-avro schema [-a ALIAS] [-v...] HDFS_PATH
-  hdfscli-avro read [-a ALIAS] [-v...] [-f FREQ|-n NUM] [-p PARTS] HDFS_PATH
-  hdfscli-avro -h | -L
+TODO
 
-Commands:
-  schema                        Pretty print schema.
-  read                          Read Avro records as JSON.
+Without this extension:
 
-Arguments:
-  HDFS_PATH                     Remote path to Avro file or directory
-                                containing Avro part-files.
+.. code-block:: python
 
-Options:
-  -L --log                      Show path to current log file and exit.
-  -a ALIAS --alias=ALIAS        Alias.
-  -f FREQ --freq=FREQ           Probability of sampling a record.
-  -h --help                     Show this message and exit.
-  -n NUM --num=NUM              Cap number of records to output.
-  -p PARTS --parts=PARTS        Part-files to read. Specify a number to
-                                randomly select that many, or a comma-separated
-                                list of numbers to read only these. Use a
-                                number followed by a comma (e.g. `1,`) to get a
-                                unique part-file. The default is to read all
-                                part-files.
-  -v --verbose                  Enable log output. Can be specified up to three
-                                times (increasing verbosity each time).
-
-Examples:
-  hdfscli-avro schema /data/impressions.avro
-  hdfscli-avro read -a dev snapshot.avro >snapshot.jsonl
-  hdfscli-avro read -f 0.1 -p 2,3 clicks.avro
+  with client.write(hdfs_path) as bytes_writer:
+    fastavro.writer(bytes_writer, schema, records)
 
 """
 
-from __future__ import absolute_import
-from ..__main__ import CliConfig, parse_arg
-from ..client import Client
-from ..util import HdfsError, catch
-from collections import deque
-from docopt import docopt
-from io import BytesIO
-from itertools import islice
-from json import dumps
-from random import random
+from ...util import HdfsError
 import fastavro
-import io
 import logging as lg
 import os
 import posixpath as psp
-import sys
 
 
 def _get_type(obj, allow_null=False):
@@ -142,7 +107,7 @@ class _SeekableReader(object):
     self._saught = True
 
 
-class _AvroReader(object):
+class AvroReader(object):
 
   """Lazy remote Avro file reader.
 
@@ -154,7 +119,7 @@ class _AvroReader(object):
 
   .. code-block:: python
 
-    with _AvroReader(client, 'foo.avro') as reader:
+    with AvroReader(client, 'foo.avro') as reader:
       schema = reader.schema # The remote file's Avro schema.
       content = reader.content # Content metadata (e.g. size).
       for record in reader:
@@ -211,27 +176,8 @@ class _AvroReader(object):
     return self._schema
 
 
-def read(client, hdfs_path, parts=None):
-  """Read an Avro file from HDFS into python dictionaries.
+class AvroWriter(object):
 
-  :param client: :class:`~hdfs.client.Client` instance.
-  :param hdfs_path: Remote path.
-  :param parts: Cf. :meth:`~hdfs.client.Client.parts`.
-
-  Sample usage:
-
-  .. code::
-
-    with read(client, 'data.avro') as reader:
-      schema = reader.schema # The remote file's Avro schema.
-      content = reader.content # Content metadata (e.g. size).
-      for record in reader:
-        pass # The records.
-
-  """
-  return _AvroReader(client, hdfs_path, parts=parts)
-
-def write(client, hdfs_path, records, schema, **kwargs):
   """Write an Avro file on HDFS from python dictionaries.
 
   :param client: :class:`hdfs.client.Client` instance.
@@ -241,39 +187,57 @@ def write(client, hdfs_path, records, schema, **kwargs):
     generate schemas in most cases.
   :param \*\*kwargs: Keyword arguments forwarded to :meth:`Client.write`.
 
+  Usage:
+
+  .. code::
+
+    with AvroWriter(client, 'data.avro') as writer:
+      for record in records:
+        writer.send(record)
+
   """
-  # TODO: Add schema inference.
-  with client.write(hdfs_path, **kwargs) as bytes_writer:
-    fastavro.writer(bytes_writer, schema, records)
 
+  def __init__(self, client, hdfs_path, schema=None, **kwargs):
+    self._writer = client.write(hdfs_path, **kwargs)
+    self._schema = schema
 
-@catch(HdfsError)
-def main():
-  """Entry point."""
-  args = docopt(__doc__)
-  config = CliConfig('hdfscli-avro', args['--verbose'])
-  client = config.create_client(args['--alias'])
-  if args['--log']:
-    handler = config.get_file_handler()
-    if handler:
-      sys.stdout.write('%s\n' % (handler.baseFilename, ))
-    else:
-      sys.stdout.write('No log file active.\n')
-    sys.exit(0)
-  parts = parse_arg(args, '--parts', int, ',')
-  with read(client, args['HDFS_PATH'], parts) as reader:
-    if args['schema']:
-      sys.stdout.write('%s\n' % (dumps(reader.schema, indent=2), ))
-    elif args['read']:
-      num = parse_arg(args, '--num', int)
-      freq = parse_arg(args, '--freq', float)
-      if freq:
-        for record in reader:
-          if random() <= freq:
-            sys.stdout.write('%s\n' % (dumps(record), ))
-      else:
-        for record in islice(reader, num):
-          sys.stdout.write('%s\n' % (dumps(record), ))
+  def __enter__(self):
+    self._writer.__enter__()
 
-if __name__ == '__main__':
-  main()
+    def _writer(schema=self._schema):
+      """Records coroutine."""
+      writer = None
+      try:
+        while True:
+          obj = (yield)
+      except GeneratorExit: # No more records.
+        pass
+        if writer:
+          writer.flush() # make sure everything has been written to the buffer
+          buf.seek(0)
+          self._client.write(hdfs_path, buf, overwrite=overwrite)
+      finally:
+        if writer:
+          writer.close()
+
+    self._records = _writer()
+    self._records.send(None) # Prime coroutine.
+    return self
+
+  def __exit__(self, exc_type, exc_value, traceback):
+    return self._writer.__exit__(exc_type, exc_value, traceback)
+
+  @property
+  def schema(self):
+    """Avro schema."""
+    if not self._schema:
+      raise HdfsError('Schema not yet inferred.')
+    return self._schema
+
+  def send(self, record):
+    """Store a record.
+
+    :param record: Record object to store.
+
+    """
+    self._writer.send(record)

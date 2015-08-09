@@ -6,6 +6,21 @@
 Namely, it adds a new :class:`~hdfs.client.Client` subclass,
 :class:`KerberosClient`, which handles authentication appropriately.
 
+Usage:
+
+.. code-block:: cfg
+
+  from hdfs.ext.kerberos import KerberosClient
+
+  client = KerberosClient('http://host:port')
+
+To activate for a CLI:
+
+.. code-block:: cfg
+
+  [hdfscli] # Or the command to activate this for (e.g. hdfscli-avro).
+  autoload.modules = hdfs.ext.kerberos
+
 """
 
 from ..client import Client
