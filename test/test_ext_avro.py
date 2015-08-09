@@ -61,8 +61,8 @@ class TestSeekableReader(object):
         writer.write('abcd')
       with open(tpath) as reader:
         sreader = _SeekableReader(reader)
-        eq_(sreader.read(3), b'abc')
-        eq_(sreader.read(2), b'd')
+        eq_(sreader.read(3), 'abc')
+        eq_(sreader.read(2), 'd')
         ok_(not sreader.read(1))
 
   def test_buffered_read(self):
@@ -71,11 +71,11 @@ class TestSeekableReader(object):
         writer.write('abcdefghi')
       with open(tpath) as reader:
         sreader = _SeekableReader(reader, 3)
-        eq_(sreader.read(1), b'a')
-        eq_(sreader.read(3), b'bcd')
+        eq_(sreader.read(1), 'a')
+        eq_(sreader.read(3), 'bcd')
         sreader.seek(-3, os.SEEK_CUR)
-        eq_(sreader.read(2), b'bc')
-        eq_(sreader.read(6), b'defghi')
+        eq_(sreader.read(2), 'bc')
+        eq_(sreader.read(6), 'defghi')
         ok_(not sreader.read(1))
 
 
@@ -112,8 +112,7 @@ class TestWriter(_AvroIntegrationTest):
       )
 
   def test_write_empty(self):
-    writer = AvroWriter(self.client, 'empty.avro', schema=self.schema)
-    with writer:
+    with AvroWriter(self.client, 'empty.avro', schema=self.schema):
       pass
     with AvroReader(self.client, 'empty.avro') as reader:
       eq_(reader.schema, self.schema)

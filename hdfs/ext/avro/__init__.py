@@ -172,7 +172,7 @@ class AvroReader(object):
             yield record
 
     self.records = _reader()
-    self._schema = self.records.next() # Prime generator to get schema.
+    self._schema = next(self.records) # Prime generator to get schema.
     return self
 
   def __exit__(self, exc_type, exc_value, traceback):
