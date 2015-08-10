@@ -131,7 +131,7 @@ class AvroReader(object):
   """
 
   def __init__(self, client, hdfs_path, parts=None):
-    self.content = client.content(hdfs_path)
+    self.content = client.content(hdfs_path) #: Content summary of Avro file.
     self._schema = None
     if self.content['directoryCount']:
       # This is a folder.
@@ -195,11 +195,12 @@ class AvroWriter(object):
   :param sync_interval: Number of bytes after which a block will be written.
   :param sync_marker: 16 byte tag used for synchronization. If not specified,
     one will be generated at random.
-  :param \*\*kwargs: Keyword arguments forwarded to :meth:`Client.write`.
+  :param \*\*kwargs: Keyword arguments forwarded to
+    :meth:`hdfs.client.Client.write`.
 
   Usage:
 
-  .. code-block::
+  .. code-block:: python
 
     with AvroWriter(client, 'data.avro') as writer:
       for record in records:

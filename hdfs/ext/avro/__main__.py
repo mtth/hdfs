@@ -53,9 +53,22 @@ from ...__main__ import CliConfig, parse_arg
 from ...util import HdfsError, catch
 from docopt import docopt
 from itertools import islice
-from json import dumps, loads
+from json import JSONEncoder, dumps, loads
 from random import random
 import sys
+
+
+class _Encoder(JSONEncoder):
+
+  """Custom encoder to support bytes and fixed strings.
+
+  :param \*\*kwargs: Keyword arguments forwarded to the base constructor.
+
+  """
+
+  def __init__(self, **kwargs):
+    kwargs.update({'check_circular': False, 'encoding': 'ISO-8859-1'})
+    super(_Encoder, self).__init__(**kwargs)
 
 
 @catch(HdfsError)
@@ -96,10 +109,10 @@ def main():
         if freq:
           for record in reader:
             if random() <= freq:
-              sys.stdout.write('%s\n' % (dumps(record), ))
+              sys.stdout.write('%s\n' % (dumps(record, cls=_Encoder), ))
         else:
           for record in islice(reader, num):
-            sys.stdout.write('%s\n' % (dumps(record), ))
+            sys.stdout.write('%s\n' % (dumps(record, cls=_Encoder), ))
 
 if __name__ == '__main__':
   main()
