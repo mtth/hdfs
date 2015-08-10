@@ -8,7 +8,6 @@ from json import loads
 from nose.plugins.skip import SkipTest
 from nose.tools import *
 from util import _IntegrationTest
-import filecmp
 import os
 import os.path as osp
 
@@ -19,35 +18,6 @@ except ImportError:
   SKIP = True
 else:
   SKIP = False
-
-
-class _AvroIntegrationTest(_IntegrationTest):
-
-  dpath = osp.join(osp.dirname(__file__), 'dat')
-  schema = None
-  records = None
-  sync_marker = None
-
-  @classmethod
-  def setup_class(cls):
-    if SKIP:
-      return
-    super(_AvroIntegrationTest, cls).setup_class()
-    with open(osp.join(cls.dpath, 'weather.avsc')) as reader:
-      cls.schema = loads(reader.read())
-    with open(osp.join(cls.dpath, 'weather.jsonl')) as reader:
-      cls.records = [loads(line) for line in reader]
-    with open(osp.join(cls.dpath, 'weather.avro'), 'rb') as reader:
-      reader.seek(-16, os.SEEK_END) # Sync marker always last 16 bytes.
-      cls.sync_marker = reader.read()
-
-  @classmethod
-  def _get_data_bytes(cls, fpath):
-    # Get Avro bytes, skipping header (order of schema fields is undefined).
-    with open(fpath, 'rb') as reader:
-      content = reader.read()
-      sync_pos = content.find(cls.sync_marker)
-      return content[sync_pos + 16:]
 
 
 class TestSeekableReader(object):
@@ -113,6 +83,35 @@ class TestInferSchema(object):
     )
 
 
+class _AvroIntegrationTest(_IntegrationTest):
+
+  dpath = osp.join(osp.dirname(__file__), 'dat')
+  schema = None
+  records = None
+  sync_marker = None
+
+  @classmethod
+  def setup_class(cls):
+    if SKIP:
+      return
+    super(_AvroIntegrationTest, cls).setup_class()
+    with open(osp.join(cls.dpath, 'weather.avsc')) as reader:
+      cls.schema = loads(reader.read())
+    with open(osp.join(cls.dpath, 'weather.jsonl')) as reader:
+      cls.records = [loads(line) for line in reader]
+    with open(osp.join(cls.dpath, 'weather.avro'), 'rb') as reader:
+      reader.seek(-16, os.SEEK_END) # Sync marker always last 16 bytes.
+      cls.sync_marker = reader.read()
+
+  @classmethod
+  def _get_data_bytes(cls, fpath):
+    # Get Avro bytes, skipping header (order of schema fields is undefined).
+    with open(fpath, 'rb') as reader:
+      content = reader.read()
+      sync_pos = content.find(cls.sync_marker)
+      return content[sync_pos + 16:]
+
+
 class TestRead(_AvroIntegrationTest):
 
   def test_read(self):
@@ -146,7 +145,6 @@ class TestWriter(_AvroIntegrationTest):
     with AvroReader(self.client, 'empty.avro') as reader:
       eq_(reader.schema, self.schema)
       eq_(list(reader), [])
-
 
   @raises(HdfsError)
   def test_write_overwrite_error(self):

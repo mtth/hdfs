@@ -2,7 +2,7 @@
 
 
 HdfsCLI |build_image| |pypi_image|
-----------------------------------
+==================================
 
 .. |build_image| image:: https://travis-ci.org/mtth/hdfs.png?branch=master
   :target: https://travis-ci.org/mtth/hdfs
