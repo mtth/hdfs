@@ -6,7 +6,7 @@
 Usage:
   hdfscli-avro schema [-a ALIAS] [-v...] HDFS_PATH
   hdfscli-avro read [-a ALIAS] [-v...] [-F FREQ|-n NUM] [-p PARTS] HDFS_PATH
-  hdfscli-avro write [-fa ALIAS] [-v...] [-S SCHEMA] HDFS_PATH
+  hdfscli-avro write [-fa ALIAS] [-v...] [-C CODEC] [-S SCHEMA] HDFS_PATH
   hdfscli-avro -h | -L
 
 Commands:
@@ -21,6 +21,8 @@ Arguments:
                                 containing Avro part-files.
 
 Options:
+  -C CODEC --codec=CODEC        Compression codec. Available values are among:
+                                null, deflate, snappy. [default: null]
   -F FREQ --freq=FREQ           Probability of sampling a record.
   -L --log                      Show path to current log file and exit.
   -S SCHEMA --schema=SCHEMA     Schema for serializing records. If not passed,
@@ -77,6 +79,7 @@ def main():
       args['HDFS_PATH'],
       overwrite=overwrite,
       schema=parse_arg(args, '--schema', loads),
+      codec=args['--codec'],
     )
     with writer:
       records = (loads(line) for line in sys.stdin)

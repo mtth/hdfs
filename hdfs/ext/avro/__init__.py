@@ -197,6 +197,10 @@ class AvroWriter(object):
   :param records: Generator of records to write.
   :param schema: Avro schema. See :func:`infer_schema` for an easy way to
     generate schemas in most cases.
+  :param codec: Compression codec.
+  :param sync_interval: Number of bytes after which a block will be written.
+  :param sync_marker: 16 byte tag used for synchronization. If not specified,
+    one will be generated at random.
   :param \*\*kwargs: Keyword arguments forwarded to :meth:`Client.write`.
 
   Usage:
