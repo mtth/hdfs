@@ -1,16 +1,8 @@
 #!/usr/bin/env python
 # encoding: utf-8
+# pylint: disable=protected-access
 
-"""Avro extension.
-
-TODO
-
-Without this extension:
-
-.. code-block:: python
-
-  with client.write(hdfs_path) as bytes_writer:
-    fastavro.writer(bytes_writer, schema, records)
+"""Extension for reading and writing Avro files directly from HDFS.
 
 """
 
@@ -172,7 +164,9 @@ class AvroReader(object):
   def __exit__(self, exc_type, exc_value, traceback):
     self._records.close()
 
-  def __iter__(self):
+  def __iter__(self): # pylint: disable=non-iterator-returned
+    if not self._records:
+      raise HdfsError('Iteration is only supported inside a `with` block.')
     return self._records
 
   @property
@@ -195,8 +189,8 @@ class AvroWriter(object):
   :param client: :class:`hdfs.client.Client` instance.
   :param hdfs_path: Remote path.
   :param records: Generator of records to write.
-  :param schema: Avro schema. See :func:`infer_schema` for an easy way to
-    generate schemas in most cases.
+  :param schema: Avro schema. If not specified, will be inferred from the first
+    record sent. There are however limitations regarding what can be inferred.
   :param codec: Compression codec.
   :param sync_interval: Number of bytes after which a block will be written.
   :param sync_marker: 16 byte tag used for synchronization. If not specified,
@@ -205,11 +199,18 @@ class AvroWriter(object):
 
   Usage:
 
-  .. code::
+  .. code-block::
 
     with AvroWriter(client, 'data.avro') as writer:
       for record in records:
         writer.write(record)
+
+  Without this extension:
+
+  .. code-block:: python
+
+    with client.write(hdfs_path) as bytes_writer:
+      fastavro.writer(bytes_writer, schema, records)
 
   """
 

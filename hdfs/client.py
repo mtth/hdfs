@@ -344,7 +344,7 @@ class Client(object):
 
     Sample usages:
 
-    .. code:: python
+    .. code-block:: python
 
       from json import dumps
 
@@ -555,7 +555,7 @@ class Client(object):
 
     This method must be called using a `with` block:
 
-    .. code:: python
+    .. code-block:: python
 
       with client.read('foo') as reader:
         for chunk in reader:

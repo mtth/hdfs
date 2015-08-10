@@ -9,16 +9,13 @@ Kerberos
 
 .. automodule:: hdfs.ext.kerberos
     :members:
+    :show-inheritance:
 
 
 Avro
 ----
 
-.. autoclass:: hdfs.ext.avro.AvroReader
-    :members:
-    :show-inheritance:
-
-.. autoclass:: hdfs.ext.avro.AvroWriter
+.. automodule:: hdfs.ext.avro
     :members:
     :show-inheritance:
 

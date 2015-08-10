@@ -119,7 +119,7 @@ class AsyncWriter(object):
   file-like writer objects. This can make it possible to combine different APIs
   together more easily. For example, to send streaming requests:
 
-  .. code:: python
+  .. code-block:: python
 
     import requests as rq
 

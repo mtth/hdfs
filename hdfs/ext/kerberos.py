@@ -3,29 +3,30 @@
 
 """This extension provides support for clusters using Kerberos authentication.
 
-Namely, it adds a new :class:`~hdfs.client.Client` subclass,
+Namely, it adds a new :class:`hdfs.client.Client` subclass,
 :class:`KerberosClient`, which handles authentication appropriately.
 
 Usage:
 
-.. code-block:: cfg
+.. code-block:: python
 
   from hdfs.ext.kerberos import KerberosClient
 
   client = KerberosClient('http://host:port')
 
-To activate for a CLI:
+To activate, add the following inside `~/.hdfscli.cfg` (or wherever your
+configuration file is located):
 
 .. code-block:: cfg
 
-  [hdfscli] # Or the command to activate this for (e.g. hdfscli-avro).
+  [global]
   autoload.modules = hdfs.ext.kerberos
 
 """
 
 from ..client import Client
 from ..util import HdfsError
-from requests_kerberos import HTTPKerberosAuth, OPTIONAL
+from requests_kerberos import HTTPKerberosAuth
 from six import string_types
 from threading import Lock, Semaphore
 from time import sleep, time
@@ -53,7 +54,7 @@ class KerberosClient(Client):
 
   _delay = 0.001 # Seconds.
 
-  def __init__(self, url, mutual_auth=OPTIONAL, max_concurrency=1, **kwargs):
+  def __init__(self, url, mutual_auth='OPTIONAL', max_concurrency=1, **kwargs):
     self._lock = Lock()
     self._sem = Semaphore(int(max_concurrency))
     self._timestamp = time() - self._delay

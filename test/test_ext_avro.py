@@ -82,8 +82,12 @@ class TestSeekableReader(object):
 
 class TestInferSchema(object):
 
+  def _assert_schemas_equal(self, schema1, schema2):
+    ok_('fields' in schema1 and 'fields' in schema2)
+    eq_(sorted(schema1['fields']), sorted(schema2['fields']))
+
   def test_flat_record(self):
-    eq_(
+    self._assert_schemas_equal(
       _infer_schema({'foo': 1, 'bar': 'hello'}),
       {
         'type': 'record',
@@ -95,7 +99,7 @@ class TestInferSchema(object):
     )
 
   def test_array(self):
-    eq_(
+    self._assert_schemas_equal(
       _infer_schema({'foo': 1, 'bar': ['hello']}),
       {
         'type': 'record',
