@@ -71,8 +71,8 @@ class CliConfig(Config):
     handlers entirely (useful for tests).
   :param path: path to configuration file. If no file exists at that location,
     the configuration parser will be empty. If not specified, the value of the
-    `HDFSCLI_RCPATH` environment variable is used if it exists, otherwise it
-    defaults to `~/.hdfsclirc`.
+    `HDFSCLI_CONFIG` environment variable is used if it exists, otherwise it
+    defaults to `~/.hdfscli.cfg`.
 
   """
 

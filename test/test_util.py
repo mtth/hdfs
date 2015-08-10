@@ -13,18 +13,18 @@ import os
 class TestConfig(object):
 
   def test_rcpath(self):
-    rcpath = os.getenv('HDFSCLI_RCPATH')
+    rcpath = os.getenv('HDFSCLI_CONFIG')
     try:
       with temppath() as tpath:
-        os.environ['HDFSCLI_RCPATH'] = tpath
+        os.environ['HDFSCLI_CONFIG'] = tpath
         with open(tpath, 'w') as writer:
           writer.write('[foo]\nbar=hello')
         eq_(Config().get('foo', 'bar'), 'hello')
     finally:
       if rcpath:
-        os['HDFSCLI_RCPATH'] = rcpath
+        os['HDFSCLI_CONFIG'] = rcpath
       else:
-        os.unsetenv('HDFSCLI_RCPATH')
+        os.unsetenv('HDFSCLI_CONFIG')
 
   def test_parse_boolean(self):
     eq_(Config.parse_boolean(True), True)

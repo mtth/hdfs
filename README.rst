@@ -52,6 +52,13 @@ another name by specifying the `HDFSCLI_ENTRY_POINT` environment variable:
   $ HDFSCLI_ENTRY_POINT=hdfs pip install hdfs
 
 
+.. _pip: http://www.pip-installer.org/en/latest/
+.. _pandas: http://pandas.pydata.org/
+.. _WebHDFS: http://hadoop.apache.org/docs/current/hadoop-project-dist/hadoop-hdfs/WebHDFS.html
+
+
+.. QUICKSTART
+
 Quickstart
 ----------
 
@@ -80,7 +87,9 @@ download it locally, and finally delete the remote copy.
   # Delete the remote file.
   client.delete('hello.rst')
 
-Refer to the documentation_ for the full API and extensions.
+Refer to the documentation__ for the full API and extensions.
+
+__ http://hdfscli.readthedocs.org/
 
 
 CLI
@@ -98,7 +107,9 @@ aliases):
   $ # Write a single file to HDFS.
   $ hdfscli upload --alias=dev weights.json models/
 
-Python shell integration (using IPython_ if available):
+Python shell integration (using IPython__ if available):
+
+__ http://ipython.org/
 
 .. code-block:: bash
 
@@ -120,7 +131,7 @@ Configuration
 *************
 
 You can configure which clusters to connect to by writing your own 
-configuration at `~/.hdfsrc` (or elsewhere by setting the `HDFSCLI_RCPATH` 
+configuration at `~/.hdfscli.cfg` (or elsewhere by setting the `HDFSCLI_CONFIG` 
 environment variable correspondingly). This will also enable the 
 `Client.from_alias` method.
 
@@ -128,21 +139,25 @@ Sample configuration defining two aliases, `dev` and `prod`:
 
 .. code-block:: cfg
 
-  [hdfscli]
+  [global]
   default.alias = dev # Used when no alias is specified at the command line.
+  autoload.modules = hdfs.ext.kerberos # Load Kerberos extension.
 
   [dev.alias]
+  client = InsecureClient
   url = http://dev.namenode:port
 
   [prod.alias]
-  url = https://prod.namenode:port
   client = KerberosClient
+  url = https://prod.namenode:port
   root = /jobs/
 
 All options other than `url` can be omitted. `client` determines which class to 
 use (defaulting to the generic `Client`), and the remaining options are passed 
 as named arguments to the appropriate constructor.
 
+
+.. TESTING
 
 Testing
 -------
@@ -158,9 +173,4 @@ running tests:
 See `scripts/` for helpers to set up a suitable HDFS cluster.
 
 
-.. _documentation: http://hdfscli.readthedocs.org/
-.. _pip: http://www.pip-installer.org/en/latest/
-.. _pandas: http://pandas.pydata.org/
-.. _WebHDFS: http://hadoop.apache.org/docs/current/hadoop-project-dist/hadoop-hdfs/WebHDFS.html
 .. _HttpFS: http://hadoop.apache.org/docs/current/hadoop-hdfs-httpfs/
-.. _IPython: http://ipython.org/

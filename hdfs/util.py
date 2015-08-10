@@ -39,8 +39,8 @@ class Config(RawConfigParser):
 
   :param path: path to configuration file. If no file exists at that location,
     the configuration parser will be empty. If not specified, the value of the
-    `HDFSCLI_RCPATH` environment variable is used if it exists, otherwise it
-    defaults to `~/.hdfsclirc`.
+    `HDFSCLI_CONFIG` environment variable is used if it exists, otherwise it
+    defaults to `~/.hdfscli.cfg`.
 
   """
 
@@ -49,7 +49,7 @@ class Config(RawConfigParser):
 
   def __init__(self, path=None):
     RawConfigParser.__init__(self)
-    self.path = path or os.getenv('HDFSCLI_RCPATH', self.default_path)
+    self.path = path or os.getenv('HDFSCLI_CONFIG', self.default_path)
     if osp.exists(self.path):
       try:
         self.read(self.path)

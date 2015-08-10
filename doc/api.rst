@@ -4,14 +4,41 @@
 API
 ===
 
-hdfs.client
------------
+Client
+------
 
 .. automodule:: hdfs.client
     :members:
     :show-inheritance:
 
-hdfs.util
+
+Extensions
+----------
+
+Kerberos
+********
+
+.. automodule:: hdfs.ext.kerberos
+    :members:
+    :show-inheritance:
+
+
+Avro
+****
+
+.. automodule:: hdfs.ext.avro
+    :members:
+    :show-inheritance:
+
+
+Dataframe
+*********
+
+.. automodule:: hdfs.ext.dataframe
+    :members:
+
+
+Utilities
 ---------
 
 .. automodule:: hdfs.util

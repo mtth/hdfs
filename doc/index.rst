@@ -1,17 +1,22 @@
 .. default-role:: code
 
-HdfsCLI
-=======
-
 .. include:: ../README.rst
-  :start-line: 12
+  :end-before: QUICKSTART
 
-.. The above is necessary since it seems included headers don't count towards 
-   their hierarchy.
+
+Table of contents
+-----------------
 
 .. toctree::
   :maxdepth: 2
 
-  index
+  quickstart
   api
-  extensions
+
+
+Tables and indices
+------------------
+
+* :ref:`genindex`
+* :ref:`modindex`
+* :ref:`search`
