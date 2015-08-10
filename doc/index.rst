@@ -1,4 +1,10 @@
+.. default-role:: code
+
+HdfsCLI
+=======
+
 .. include:: ../README.rst
+  :start-line: 12
 
 
 Table of contents
