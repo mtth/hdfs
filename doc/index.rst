@@ -6,9 +6,8 @@ HdfsCLI
 .. include:: ../README.rst
   :start-line: 12
 
-
-Table of contents
------------------
+.. The above is necessary since it seems included headers don't count towards 
+   their hierarchy.
 
 .. toctree::
   :maxdepth: 2
@@ -16,11 +15,3 @@ Table of contents
   index
   api
   extensions
-
-
-Indices and tables
-------------------
-
-* :ref:`genindex`
-* :ref:`modindex`
-* :ref:`search`
