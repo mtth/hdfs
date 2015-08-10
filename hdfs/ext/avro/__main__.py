@@ -22,7 +22,7 @@ Arguments:
 
 Options:
   -C CODEC --codec=CODEC        Compression codec. Available values are among:
-                                null, deflate, snappy. [default: null]
+                                null, deflate, snappy. [default: deflate]
   -F FREQ --freq=FREQ           Probability of sampling a record.
   -L --log                      Show path to current log file and exit.
   -S SCHEMA --schema=SCHEMA     Schema for serializing records. If not passed,
@@ -67,7 +67,11 @@ class _Encoder(JSONEncoder):
   """
 
   def __init__(self, **kwargs):
-    kwargs.update({'check_circular': False, 'encoding': 'ISO-8859-1'})
+    kwargs.update({
+      'check_circular': False,
+      'encoding': 'ISO-8859-1',
+      'separators': (',', ':'),
+    })
     super(_Encoder, self).__init__(**kwargs)
 
 
@@ -104,15 +108,18 @@ def main():
       if args['schema']:
         sys.stdout.write('%s\n' % (dumps(reader.schema, indent=2), ))
       elif args['read']:
+        encoder = _Encoder()
         num = parse_arg(args, '--num', int)
         freq = parse_arg(args, '--freq', float)
         if freq:
           for record in reader:
             if random() <= freq:
-              sys.stdout.write('%s\n' % (dumps(record, cls=_Encoder), ))
+              sys.stdout.write(encoder.encode(record))
+              sys.stdout.write('\n')
         else:
           for record in islice(reader, num):
-            sys.stdout.write('%s\n' % (dumps(record, cls=_Encoder), ))
+            sys.stdout.write(encoder.encode(record))
+            sys.stdout.write('\n')
 
 if __name__ == '__main__':
   main()
