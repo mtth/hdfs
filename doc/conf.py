@@ -16,7 +16,7 @@ import os
 import sys
 import mock
 
-MOCK_MODULES = ['numpy', 'pandas', 'requests_kerberos']
+MOCK_MODULES = ['fastavro', 'pandas', 'requests_kerberos']
 for mod_name in MOCK_MODULES:
   sys.modules[mod_name] = mock.Mock()
 

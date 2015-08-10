@@ -83,8 +83,10 @@ class TestSeekableReader(object):
 class TestInferSchema(object):
 
   def _assert_schemas_equal(self, schema1, schema2):
+    # Only works for flat records.
     ok_('fields' in schema1 and 'fields' in schema2)
-    eq_(sorted(schema1['fields']), sorted(schema2['fields']))
+    fields = lambda schema: sorted(schema['fields'], key=lambda f: f['name'])
+    eq_(fields(schema1), fields(schema2))
 
   def test_flat_record(self):
     self._assert_schemas_equal(
