@@ -62,7 +62,7 @@ class _IntegrationTest(object):
 
   def _read(self, hdfs_path):
     with self.client.read(hdfs_path) as reader:
-      return b''.join(reader)
+      return reader.read()
 
   def _exists(self, hdfs_path):
     return bool(self.client.status(hdfs_path, strict=False))
