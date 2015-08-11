@@ -3,7 +3,8 @@
 
 """Test helpers."""
 
-from hdfs import Client, InsecureClient
+from hdfs import InsecureClient
+from hdfs.config import Config
 from hdfs.util import HdfsError
 from nose.plugins.skip import SkipTest
 from nose.tools import eq_
@@ -11,6 +12,16 @@ from six.moves.configparser import NoOptionError, NoSectionError
 from time import sleep
 import os
 import posixpath as psp
+
+
+def save_config(config, path=None):
+  """Save configuration to file.
+
+  :param config: :class:`~hdfs.config.Config` instance.
+
+  """
+  with open(path or config.path, 'w') as writer:
+    config.write(writer)
 
 
 class _IntegrationTest(object):
@@ -38,7 +49,7 @@ class _IntegrationTest(object):
     alias = os.getenv('HDFSCLI_TEST_ALIAS')
     url = os.getenv('HDFSCLI_TEST_URL')
     if alias:
-      cls.client = Client.from_alias(alias)
+      cls.client = Config().get_client(alias)
       if cls.client.root:
         cls.client.root = psp.join(cls.client.root, cls.root_suffix)
       else:

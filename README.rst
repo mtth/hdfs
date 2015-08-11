@@ -137,8 +137,7 @@ Configuration
 
 You can configure which clusters to connect to by writing your own 
 configuration at `~/.hdfscli.cfg` (or elsewhere by setting the `HDFSCLI_CONFIG` 
-environment variable correspondingly). This will also enable the 
-`Client.from_alias` method.
+environment variable correspondingly).
 
 Sample configuration defining two aliases, `dev` and `prod`:
 

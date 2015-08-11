@@ -4,7 +4,7 @@
 """Test CLI."""
 
 from hdfs.__main__ import *
-from hdfs.util import Config, temppath
+from hdfs.util import temppath
 from logging.handlers import TimedRotatingFileHandler
 from nose.tools import eq_, ok_, raises
 from util import _IntegrationTest
@@ -29,64 +29,6 @@ class TestParseArg(object):
   def test_parse_int_list(self):
     eq_(parse_arg({'foo': '1,'}, 'foo', int, ','), [1])
     eq_(parse_arg({'foo': '1,2'}, 'foo', int, ','), [1,2])
-
-
-class TestCliConfig(object):
-
-  def test_create_client_with_alias(self):
-    with temppath() as tpath:
-      config = Config(path=tpath)
-      section = 'dev.alias'
-      config.add_section(section)
-      config.set(section, 'url', 'http://host:port')
-      config.save()
-      cli_config = CliConfig('cmd', path=tpath, verbosity=-1)
-      cli_config.create_client(alias='dev')
-
-  @raises(HdfsError)
-  def test_create_client_with_missing_alias(self):
-    with temppath() as tpath:
-      cli_config = CliConfig('cmd', path=tpath, verbosity=-1)
-      cli_config.create_client(alias='dev')
-
-  @raises(HdfsError)
-  def test_create_client_with_no_alias_without_default(self):
-    with temppath() as tpath:
-      cli_config = CliConfig('cmd', path=tpath, verbosity=-1)
-      cli_config.create_client()
-
-  def test_create_client_with_default_alias(self):
-    with temppath() as tpath:
-      config = Config(path=tpath)
-      config.add_section(config.global_section)
-      config.set(config.global_section, 'default.alias', 'dev')
-      section = 'dev.alias'
-      config.add_section(section)
-      config.set(section, 'url', 'http://host:port')
-      config.save()
-      cli_config = CliConfig('cmd', path=tpath, verbosity=-1)
-      cli_config.create_client()
-
-  def test_get_file_handler(self):
-    try:
-      with temppath() as tpath:
-        cli_config = CliConfig('cmd', path=tpath)
-        handler = cli_config.get_file_handler()
-        ok_(isinstance(handler, TimedRotatingFileHandler))
-    finally:
-      lg.getLogger().handlers = [] # Clean up handlers.
-
-  def test_disable_file_logging(self):
-    try:
-      with temppath() as tpath:
-        config = Config(path=tpath)
-        config.add_section('cmd.command')
-        config.set('cmd.command', 'log.disable', 'true')
-        config.save()
-        cli_config = CliConfig('cmd', path=tpath)
-        ok_(not cli_config.get_file_handler())
-    finally:
-      lg.getLogger().handlers = [] # Clean up handlers.
 
 
 class TestMain(_IntegrationTest):

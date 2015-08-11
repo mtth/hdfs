@@ -5,9 +5,7 @@
 
 from contextlib import contextmanager
 from functools import wraps
-from imp import load_source
 from shutil import rmtree
-from six.moves.configparser import ParsingError, RawConfigParser
 from six.moves.queue import Queue
 from tempfile import mkstemp
 from threading import Thread
@@ -31,82 +29,6 @@ class HdfsError(Exception):
 
   def __init__(self, message, *args):
     super(HdfsError, self).__init__(message % args if args else message)
-
-
-class Config(RawConfigParser):
-
-  """Configuration class.
-
-  :param path: path to configuration file. If no file exists at that location,
-    the configuration parser will be empty. If not specified, the value of the
-    `HDFSCLI_CONFIG` environment variable is used if it exists, otherwise it
-    defaults to `~/.hdfscli.cfg`.
-
-  """
-
-  default_path = osp.expanduser('~/.hdfscli.cfg')
-  global_section = 'global'
-
-  def __init__(self, path=None):
-    RawConfigParser.__init__(self)
-    self.path = path or os.getenv('HDFSCLI_CONFIG', self.default_path)
-    if osp.exists(self.path):
-      try:
-        self.read(self.path)
-      except ParsingError:
-        raise HdfsError('Invalid configuration file %r.', self.path)
-      else:
-        self._autoload()
-      _logger.info('Instantiated configuration from %r.', self.path)
-    else:
-      _logger.info('Instantiated empty configuration.')
-
-  def __repr__(self):
-    return '<Config(path=%r)>' % (self.path, )
-
-  def save(self):
-    """Save configuration parser back to file."""
-    with open(self.path, 'w') as writer:
-      self.write(writer)
-    _logger.info('Saved.')
-
-  def _autoload(self):
-    """Load modules to find clients."""
-
-    def _load(suffix, loader):
-      """Generic module loader."""
-      option = 'autoload.%s' % (suffix, )
-      if self.has_option(self.global_section, option):
-        entries = self.get(self.global_section, option)
-        for entry in entries.split(','):
-          module = entry.strip()
-          loader(module)
-
-    _load('modules', __import__)
-    _load('paths', lambda path: load_source(
-      osp.splitext(osp.basename(path))[0],
-      path
-    ))
-
-  @staticmethod
-  def parse_boolean(value):
-    """Parse configuration value into boolean.
-
-    :param value: String element to be parsed.
-
-    Behavior is similar to the `RawConfigParser.getboolean` function for
-    strings.
-
-    """
-    if not value:
-      return False
-    value = str(value).lower()
-    if value in set(['1', 'yes', 'true', 'on']):
-      return True
-    elif value in set(['0', 'no', 'false', 'off']):
-      return False
-    else:
-      raise ValueError('Invalid boolean string: %r' % (value, ))
 
 
 class AsyncWriter(object):

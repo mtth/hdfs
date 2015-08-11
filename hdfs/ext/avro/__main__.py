@@ -49,7 +49,7 @@ Examples:
 """
 
 from . import AvroReader, AvroWriter
-from ...__main__ import CliConfig, parse_arg
+from ...__main__ import configure_client, parse_arg
 from ...util import HdfsError, catch
 from docopt import docopt
 from itertools import islice
@@ -76,18 +76,18 @@ class _Encoder(JSONEncoder):
 
 
 @catch(HdfsError)
-def main():
-  """Entry point."""
-  args = docopt(__doc__)
-  config = CliConfig('hdfscli-avro', args['--verbose'])
-  client = config.create_client(args['--alias'])
-  if args['--log']:
-    handler = config.get_file_handler()
-    if handler:
-      sys.stdout.write('%s\n' % (handler.baseFilename, ))
-    else:
-      sys.stdout.write('No log file active.\n')
-    sys.exit(0)
+def main(argv=None, client=None):
+  """Entry point.
+
+  :param argv: Arguments list.
+  :param client: For testing.
+
+  """
+  args = docopt(__doc__, argv=argv)
+  if not client:
+    client = configure_client('hdfscli-avro', args)
+  elif args['--log']:
+    raise ValueError('Logging is only available when no client is specified.')
   overwrite = args['--force']
   parts = parse_arg(args, '--parts', int, ',')
   if args['write']:

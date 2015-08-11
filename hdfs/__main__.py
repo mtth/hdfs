@@ -48,11 +48,9 @@ HdfsCLI exits with return status 1 if an error occurred and 0 otherwise.
 """
 
 from . import __version__
-from .client import Client
-from .util import Config, HdfsError, catch
+from .config import Config
+from .util import HdfsError, catch
 from docopt import docopt
-from logging.handlers import TimedRotatingFileHandler
-from tempfile import gettempdir
 from threading import Lock
 import logging as lg
 import os
@@ -60,90 +58,59 @@ import os.path as osp
 import sys
 
 
-class CliConfig(Config):
+def parse_arg(args, name, parser, separator=None):
+  """Parse command line argument, raising an appropriate error on failure.
 
-  """CLI specific configuration.
-
-  :param command: The command to load the configuration for. All options will
-    be looked up in the `[COMMAND]` section.
-  :param verbosity: Stream handler log level: 0 for error, 1 for warnings, 2
-    for info, 3 and above for debug. A negative value will disable logging
-    handlers entirely (useful for tests).
-  :param path: path to configuration file. If no file exists at that location,
-    the configuration parser will be empty. If not specified, the value of the
-    `HDFSCLI_CONFIG` environment variable is used if it exists, otherwise it
-    defaults to `~/.hdfscli.cfg`.
+  :param args: Arguments dictionary.
+  :param name: Name of option to look up.
+  :param parser: Function to parse option.
+  :param separator: For parsing lists.
 
   """
+  value = args[name]
+  if not value:
+    return
+  try:
+    if separator and separator in value:
+      return [parser(part) for part in value.split(separator) if part]
+    else:
+      return parser(value)
+  except ValueError:
+    raise HdfsError('Invalid %r option: %r.', name, args[name])
 
-  def __init__(self, command, verbosity=0, path=None):
-    Config.__init__(self, path=path)
-    self._command = command
-    self._root_logger = lg.getLogger()
-    if verbosity >= 0:
-      self._setup_logging(verbosity)
+def configure_client(command, args):
+  """Instantiate configuration from arguments dictionary.
 
-  def create_client(self, alias=None):
-    """Load HDFS client.
+  :param args: Arguments returned by `docopt`.
 
-    :param alias: The client to look up. If not specified, the default alias in
-      the command's section will be used (`default.alias`), or an error will be
-      raised if the key doesn't exist.
+  If the `--log` argument is set, this method will print active file handler
+  paths and exit the process.
 
-    """
-    if not alias:
-      if not self.has_option(self.global_section, 'default.alias'):
-        raise HdfsError('No alias specified and no default alias found.')
-      alias = self.get(self.global_section, 'default.alias')
-    return Client.from_alias(alias, path=self.path)
-
-  def get_file_handler(self):
-    """Get current logfile, if any."""
-    handlers = [
-      handler
-      for handler in self._root_logger.handlers
+  """
+  config = Config()
+  levels = {0: lg.ERROR, 1: lg.WARNING, 2: lg.INFO}
+  level = levels.get(args['--verbose'], lg.DEBUG)
+  handlers = config.get_command_handlers(command, stream_log_level=level)
+  if args['--log']:
+    paths = [
+      handler.baseFilename
+      for handler in handlers
       if isinstance(handler, lg.FileHandler)
     ]
-    if handlers:
-      return handlers[0]
-
-  def _setup_logging(self, verbosity):
-    """Configure logging with optional time-rotating file handler."""
-    # Patch `request_kerberos`'s logger (it's very verbose).
-    lg.getLogger('requests_kerberos.kerberos_').setLevel(lg.INFO)
-    # Setup root logger.
-    self._root_logger.setLevel(lg.DEBUG)
-    # Stderr logging.
-    stream_handler = lg.StreamHandler()
-    if verbosity:
-      stream_level = {1: lg.WARNING, 2: lg.INFO}.get(verbosity, lg.DEBUG)
+    if paths:
+      for path in paths:
+        sys.stdout.write('%s\n' % (path, ))
     else:
-      stream_level = lg.ERROR
-    stream_handler.setLevel(stream_level)
-    fmt = '%(levelname)s\t%(message)s'
-    stream_handler.setFormatter(lg.Formatter(fmt))
-    self._root_logger.addHandler(stream_handler)
-    # File handling.
-    key = 'log.disable'
-    section = '%s.command' % (self._command, )
-    if not self.has_option(section, key) or not self.getboolean(section, key):
-      if self.has_option(section, 'log.path'):
-        path = self.get(section, 'log.path')
-      else:
-        path = osp.join(gettempdir(), '%s.log' % (section, ))
-      file_handler = TimedRotatingFileHandler(
-        path,
-        when='midnight', # daily backups
-        backupCount=1,
-        encoding='utf-8',
-      )
-      fmt = '%(asctime)s\t%(name)-16s\t%(levelname)-5s\t%(message)s'
-      file_handler.setFormatter(lg.Formatter(fmt))
-      if self.has_option(section, 'log.level'):
-        file_handler.setLevel(getattr(lg, self.get(section, 'log.level')))
-      else:
-        file_handler.setLevel(lg.DEBUG)
-      self._root_logger.addHandler(file_handler)
+      sys.stdout.write('No log file active.\n')
+    sys.exit(0)
+  logger = lg.getLogger()
+  logger.setLevel(lg.DEBUG)
+  lg.getLogger('requests_kerberos.kerberos_').setLevel(lg.INFO)
+  # TODO: Filter only at handler level.
+  for handler in handlers:
+    logger.addHandler(handler)
+
+  return config.get_client(args['--alias'])
 
 
 class _Progress(object):
@@ -220,40 +187,19 @@ class _Progress(object):
       raise HdfsError('No file found at: %s', local_path)
     return cls(nbytes, nfiles)
 
-
-def parse_arg(args, name, parser, separator=None):
-  """Parse command line argument, raising an appropriate error on failure.
-
-  :param args: Arguments dictionary.
-  :param name: Name of option to look up.
-  :param parser: Function to parse option.
-  :param separator: For parsing lists.
-
-  """
-  value = args[name]
-  if not value:
-    return
-  try:
-    if separator and separator in value:
-      return [parser(part) for part in value.split(separator) if part]
-    else:
-      return parser(value)
-  except ValueError:
-    raise HdfsError('Invalid %r option: %r.', name, args[name])
-
 @catch(HdfsError)
 def main(argv=None, client=None):
-  """Entry point."""
+  """Entry point.
+
+  :param argv: Arguments list.
+  :param client: For testing.
+
+  """
   args = docopt(__doc__, argv=argv, version=__version__)
-  config = CliConfig('hdfscli', args['--verbose'])
-  if args['--log']:
-    handler = config.get_file_handler()
-    if handler:
-      sys.stdout.write('%s\n' % (handler.baseFilename, ))
-    else:
-      sys.stdout.write('No log file active.\n')
-    sys.exit(0)
-  client = client or config.create_client(args['--alias']) # Hook for testing.
+  if not client:
+    client = configure_client('hdfscli', args)
+  elif args['--log']:
+    raise ValueError('Logging is only available when no client is specified.')
   hdfs_path = args['HDFS_PATH']
   local_path = args['LOCAL_PATH']
   n_threads = parse_arg(args, '--threads', int)

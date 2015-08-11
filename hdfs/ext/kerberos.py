@@ -56,6 +56,8 @@ class KerberosClient(Client):
   _delay = 0.001 # Seconds.
 
   def __init__(self, url, mutual_auth='OPTIONAL', max_concurrency=1, **kwargs):
+    # Note the handling of options passed in as strings to support
+    # instantiation via the configuration file.
     self._lock = Lock()
     self._sem = Semaphore(int(max_concurrency))
     self._timestamp = time() - self._delay

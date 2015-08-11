@@ -22,7 +22,7 @@ class TestLoad(object):
   """Test client loader."""
 
   def test_bare(self):
-    client = Client._from_options(None, {'url': 'foo'})
+    client = Client.from_options({'url': 'foo'})
     ok_(isinstance(client, Client))
 
   def test_new_type(self):
@@ -30,54 +30,26 @@ class TestLoad(object):
       def __init__(self, url, bar):
         super(NewClient, self).__init__(url)
         self.bar = bar
-    client = Client._from_options('NewClient', {'url': 'bar', 'bar': 2})
+    client = Client.from_options({'url': 'bar', 'bar': 2}, 'NewClient')
     eq_(client.bar, 2)
 
   @raises(HdfsError)
   def test_missing_options(self):
-    Client._from_options('KerberosClient', {})
+    Client.from_options({}, 'KerberosClient')
 
   @raises(HdfsError)
   def test_invalid_options(self):
-    Client._from_options(None, {'foo': 123})
+    Client.from_options({'foo': 123})
 
   @raises(HdfsError)
   def test_missing_type(self):
-    Client._from_options('MissingClient', {})
+    Client.from_options({}, 'MissingClient')
 
   def test_timeout(self):
     eq_(Client('')._timeout, None)
     eq_(Client('', timeout=1)._timeout, 1)
     eq_(Client('', timeout=(1,2))._timeout, (1,2))
-    eq_(Client._from_options(None, {'url': ''})._timeout, None)
-    eq_(Client._from_options(None, {'url': '', 'timeout': '1'})._timeout, 1)
-    eq_(
-      Client._from_options(None, {'url': '', 'timeout': '1,2'})._timeout,
-      (1,2)
-    )
-
-  def test_from_new_alias(self):
-    with temppath() as tpath:
-      with open(tpath, 'w') as writer:
-        writer.write('[foo.alias]\nurl=1\nroot=2\n')
-      client = Client.from_alias('foo', tpath)
-      eq_(client.url, '1')
-      eq_(client.root, '2')
-
-  def test_from_old_alias(self):
-    with temppath() as tpath:
-      with open(tpath, 'w') as writer:
-        writer.write('[foo.alias]\nurl=1\nroot=2\n')
-      client = Client.from_alias('foo', tpath)
-      eq_(client.url, '1')
-      eq_(client.root, '2')
-
-  @raises(HdfsError)
-  def test_from_missing_alias(self):
-    with temppath() as tpath:
-      with open(tpath, 'w') as writer:
-        writer.write('[foo.alias]\nurl=1\n')
-      Client.from_alias('bar', tpath)
+    eq_(Client.from_options({'url': ''})._timeout, None)
 
 
 class TestOptions(_IntegrationTest):

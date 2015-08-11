@@ -3,7 +3,7 @@
 
 """HDFS clients."""
 
-from .util import AsyncWriter, Config, HdfsError
+from .util import AsyncWriter, HdfsError
 from contextlib import contextmanager
 from getpass import getuser
 from itertools import repeat
@@ -127,11 +127,18 @@ class Client(object):
   :param root: Root path, this will be prefixed to all HDFS paths passed to the
     client. If the root is relative, the path will be assumed relative to the
     user's home directory.
+  :param timeout: Connection timeouts, forwarded to the request handler. How
+    long to wait for the server to send data before giving up, as a float, or a
+    `(connect_timeout, read_timeout)` tuple. If the timeout is reached, an
+    appropriate exception will be raised. See the requests_ documentation for
+    details.
   :param session: `requests.Session` instance, used to emit all requests.
 
   In general, this client should only be used directly when its subclasses
   (e.g. :class:`InsecureClient`, :class:`TokenClient`, and others provided by
   extensions) do not provide enough flexibility.
+
+  Finally, 
 
   .. _requests: http://docs.python-requests.org/en/latest/api/#requests.request
 
@@ -147,11 +154,7 @@ class Client(object):
       if not self._session.params:
         self._session.params = {}
       self._session.params['doas'] = proxy
-    if isinstance(timeout, string_types):
-      timeouts = tuple(int(s) for s in timeout.split(','))
-      self._timeout = timeouts[0] if len(timeouts) == 1 else timeouts
-    else:
-      self._timeout = timeout
+    self._timeout = timeout
     _logger.info('Instantiated %r.', self)
 
   def __repr__(self):
@@ -611,14 +614,16 @@ class Client(object):
     :param temp_dir: Directory under which the files will first be downloaded
       when `overwrite=True` and the final destination path already exists. Once
       the download successfully completes, it will be swapped in.
-    :param \*\*kwargs: Keyword arguments forwarded to :meth:`read`. If a
-      `progress` argument is passed and threading is used, care must be taken
-      to ensure correct behavior.
+    :param \*\*kwargs: Keyword arguments forwarded to :meth:`read`. If no
+      `chunk_size` argument is passed, a default value of 64 kB will be used.
+      If a `progress` argument is passed and threading is used, care must be
+      taken to ensure correct behavior.
 
     On success, this method returns the local download path.
 
     """
     _logger.info('Downloading %r to %r.', hdfs_path, local_path)
+    kwargs.setdefault('chunk_size', 2 ** 16)
     lock = Lock()
 
     def _download(_path_tuple):
@@ -912,42 +917,28 @@ class Client(object):
       for infos in _walk(hdfs_path, s, depth):
         yield infos
 
-  # Class loaders
+  # Class loader.
 
   @classmethod
-  def _from_options(cls, class_name, options):
+  def from_options(cls, options, class_name='Client'):
     """Load client from options.
 
-    :param class_name: Client class name. Pass `None` for the base
-      :class:`Client` class.
     :param options: Options dictionary.
+    :param class_name: Client class name. Defaults to the base :class:`Client`
+      class.
+
+    This method provides a single entry point to instantiate any registered
+    :class:`Client` subclass. To register a subclass, simply load its
+    containing module. If using the CLI, you can use the `autoload.modules` and
+    `autoload.paths` options.
 
     """
-    class_name = class_name or 'Client'
     try:
       return cls.__registry__[class_name](**options)
     except KeyError:
       raise HdfsError('Unknown client class: %r', class_name)
     except TypeError:
       raise HdfsError('Invalid options: %r', options)
-
-  @classmethod
-  def from_alias(cls, alias, path=None):
-    """Load client associated with configuration alias.
-
-    :param alias: Alias name.
-    :param path: Path to configuration file. Defaults to `.hdfsrc` in the
-      current user's home directory.
-
-    """
-    config = Config(path)
-    _logger.debug('Loading client for alias %r from %r.', alias, config.path)
-    for suffix in ('.alias', '_alias'):
-      section = '%s%s' % (alias, suffix)
-      if config.has_section(section):
-        options = dict(config.items(section))
-        return cls._from_options(options.pop('client', None), options)
-    raise HdfsError('Alias %r not found in %r.', alias, config.path)
 
 
 # Custom client classes
