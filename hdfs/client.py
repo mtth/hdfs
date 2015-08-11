@@ -398,7 +398,7 @@ class Client(object):
       consumer(data)
 
   def upload(self, hdfs_path, local_path, overwrite=False, n_threads=1,
-    temp_dir=None, chunk_size=1024, progress=None, **kwargs):
+    temp_dir=None, chunk_size=2 ** 16, progress=None, **kwargs):
     """Upload a file or directory to HDFS.
 
     :param hdfs_path: Target HDFS path. If it already exists and is a
@@ -422,6 +422,8 @@ class Client(object):
     On success, this method returns the remote upload path.
 
     """
+    if not chunk_size:
+      raise ValueError('Upload chunk size must be positive.')
     _logger.info('Uploading %r to %r.', local_path, hdfs_path)
 
     def _upload(_path_tuple):
@@ -537,7 +539,7 @@ class Client(object):
 
   @contextmanager
   def read(self, hdfs_path, offset=0, length=None, buffer_size=None,
-    chunk_size=1024, progress=None):
+    chunk_size=None, progress=None):
     """Read a file from HDFS.
 
     :param hdfs_path: HDFS path.
@@ -546,20 +548,21 @@ class Client(object):
       file.
     :param buffer_size: Size of the buffer in bytes used for transferring the
       data. Defaults the the value set in the HDFS configuration.
-    :param chunk_size: Interval in bytes at which the generator will yield. If
-      set to `0`, a file-like object will be returned instead of a generator.
+    :param chunk_size: If set to a positive number, the context manager will
+      return a generator yielding every `chunk_size` bytes instead of a
+      file-like object.
     :param progress: Callback function to track progress, called every
-      `chunk_size` bytes. It will be passed two arguments, the path to the
-      file being uploaded and the number of bytes transferred so far. On
-      completion, it will be called once with `-1` as second argument.
+      `chunk_size` bytes (not available if the chunk size isn't specified). It
+      will be passed two arguments, the path to the file being uploaded and the
+      number of bytes transferred so far. On completion, it will be called once
+      with `-1` as second argument.
 
     This method must be called using a `with` block:
 
     .. code-block:: python
 
       with client.read('foo') as reader:
-        for chunk in reader:
-          pass
+        content = reader.read()
 
     This ensures that connections are always properly closed.
 

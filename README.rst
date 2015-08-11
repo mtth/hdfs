@@ -73,17 +73,22 @@ download it locally, and finally delete the remote copy.
   from hdfs import InsecureClient
 
   client = InsecureClient('http://namenode:port')
+
   # Create a file on HDFS.
   with client.write('dat/hello.rst') as writer:
     writer.write('Hello, ')
+
   # Rename it.
   client.rename('dat/hello.rst', 'hello.rst')
+
   # Add some more data to it.
   with client.write('hello.rst', append=True) as writer:
     writer.write('world!')
+
   # Stream its contents back.
   with client.read('hello.rst') as reader:
-    contents = b''.join(reader) # b'Hello, world!'
+    contents = reader.read() # == b'Hello, world!'
+
   # Delete the remote file.
   client.delete('hello.rst')
 

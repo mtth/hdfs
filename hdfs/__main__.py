@@ -259,8 +259,8 @@ def main(argv=None, client=None):
   n_threads = parse_arg(args, '--threads', int)
   force = args['--force']
   silent = args['--silent']
-  chunk_size = 1 << 16 # 65kB to avoid calling progress too often.
   if args['download']:
+    chunk_size = 2 ** 16
     if local_path == '-':
       if not sys.stdout.isatty() and sys.stderr.isatty() and not silent:
         progress = _Progress.from_hdfs_path(client, hdfs_path)
@@ -313,7 +313,6 @@ def main(argv=None, client=None):
           local_path,
           overwrite=force,
           n_threads=n_threads,
-          chunk_size=chunk_size,
           progress=progress,
         )
   else:
@@ -329,7 +328,6 @@ def main(argv=None, client=None):
       from code import interact
       interact(banner=banner, local=namespace)
     else:
-      # import pdb; pdb.set_trace()
       embed(banner1=banner, user_ns=namespace)
 
 if __name__ == '__main__':

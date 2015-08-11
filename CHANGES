@@ -36,8 +36,10 @@ Breaking changes:
 * `Client.delete` returns a boolean indicating success (rather than failing if
   the path was already empty).
 * `Client.read` must now be used in a `with` block. This ensures that
-  connections are properly closed. Setting `chunk_size` to `0` exposes a
-  file object (useful for decoding, e.g. Avro).
+  connections are properly closed. The context manager now returns a file like
+  object (useful for composing with other functions, e.g. to decode Avro).
+  Setting `chunk_size` to a positive value will make it return a generator
+  similar to the previous behavior.
 * Rename `Client.set_permissions` to `Client.set_permission` to make
   `permission` argument uniform across `Client` methods (alway singular,
   consistent with WebHDFS API).
