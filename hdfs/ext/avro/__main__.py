@@ -87,7 +87,7 @@ def main(argv=None, client=None):
   if not client:
     client = configure_client('hdfscli-avro', args)
   elif args['--log']:
-    raise ValueError('Logging is only available when no client is specified.')
+    raise HdfsError('Logging is only available when no client is specified.')
   overwrite = args['--force']
   parts = parse_arg(args, '--parts', int, ',')
   if args['write']:
@@ -103,7 +103,7 @@ def main(argv=None, client=None):
       for record in records:
         writer.write(record)
   else:
-    reader = AvroReader(client, args['HDFS_PATH'], parts)
+    reader = AvroReader(client, args['HDFS_PATH'], parts=parts)
     with reader:
       if args['schema']:
         sys.stdout.write('%s\n' % (dumps(reader.schema, indent=2), ))

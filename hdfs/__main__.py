@@ -199,7 +199,7 @@ def main(argv=None, client=None):
   if not client:
     client = configure_client('hdfscli', args)
   elif args['--log']:
-    raise ValueError('Logging is only available when no client is specified.')
+    raise HdfsError('Logging is only available when no client is specified.')
   hdfs_path = args['HDFS_PATH']
   local_path = args['LOCAL_PATH']
   n_threads = parse_arg(args, '--threads', int)

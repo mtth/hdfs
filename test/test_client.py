@@ -182,7 +182,7 @@ class TestResolve(_IntegrationTest):
     path = 'fo&o/a?a'
     self.client.write(path, data='hello')
     with self.client.read(path) as reader:
-      eq_(b''.join(reader), b'hello')
+      eq_(reader.read(), b'hello')
 
   def test_create_file_with_percent(self):
     # `%` (`0x25`) is a special case because it seems to cause errors (even
@@ -194,7 +194,7 @@ class TestResolve(_IntegrationTest):
     except HdfsError:
       pass
     with self.client.read(path) as reader:
-      eq_(b''.join(reader), b'hello')
+      eq_(reader.read(), b'hello')
 
 
 class TestWrite(_IntegrationTest):
@@ -430,40 +430,34 @@ class TestRead(_IntegrationTest):
 
   def test_read_file(self):
     self.client.write('foo', 'hello, world!')
-    with temppath() as tpath:
-      with open(tpath, 'wb') as writer:
-        self._read(writer, 'foo')
-      with open(tpath, 'rb') as reader:
-        eq_(reader.read(), b'hello, world!')
+    with self.client.read('foo') as reader:
+      eq_(reader.read(), b'hello, world!')
 
   @raises(HdfsError)
   def test_read_directory(self):
     self.client._mkdirs('foo')
-    with temppath() as tpath:
-      with open(tpath, 'wb') as writer:
-        self._read(writer, 'foo')
+    with self.client.read('foo') as reader:
+      pass
 
   @raises(HdfsError)
   def test_read_missing_file(self):
-    with temppath() as tpath:
-      with open(tpath, 'wb') as writer:
-        self._read(writer, 'foo')
+    with self.client.read('foo') as reader:
+      pass
 
   def test_read_file_from_offset(self):
     self.client.write('foo', 'hello, world!')
-    with temppath() as tpath:
-      with open(tpath, 'wb') as writer:
-        self._read(writer, 'foo', offset=7)
-      with open(tpath, 'rb') as reader:
-        eq_(reader.read(), b'world!')
+    with self.client.read('foo', offset=7) as reader:
+      eq_(reader.read(), b'world!')
 
   def test_read_file_from_offset_with_limit(self):
     self.client.write('foo', 'hello, world!')
-    with temppath() as tpath:
-      with open(tpath, 'wb') as writer:
-        self._read(writer, 'foo', offset=7, length=5)
-      with open(tpath, 'rb') as reader:
-        eq_(reader.read(), b'world')
+    with self.client.read('foo', offset=7, length=5) as reader:
+      eq_(reader.read(), b'world')
+
+  def test_read_file_with_chunk_size(self):
+    self.client.write('foo', 'hello, world!')
+    with self.client.read('foo', chunk_size=5) as reader:
+      eq_(list(reader), [b'hello', b', wor', b'ld!'])
 
   def test_with_progress(self):
     def cb(path, nbytes, chunk_lengths=[]):
@@ -478,11 +472,6 @@ class TestRead(_IntegrationTest):
       with open(tpath, 'rb') as reader:
         eq_(reader.read(), b'hello, world!')
       eq_(cb('', 0), [5, 10, 13, -1, 0])
-
-  def _read(self, writer, *args, **kwargs):
-    with self.client.read(*args, **kwargs) as reader:
-      for chunk in reader:
-        writer.write(chunk)
 
 
 class TestRename(_IntegrationTest):
