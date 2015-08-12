@@ -138,8 +138,6 @@ class Client(object):
   (e.g. :class:`InsecureClient`, :class:`TokenClient`, and others provided by
   extensions) do not provide enough flexibility.
 
-  Finally, 
-
   .. _requests: http://docs.python-requests.org/en/latest/api/#requests.request
 
   """

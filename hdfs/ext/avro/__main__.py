@@ -66,13 +66,22 @@ class _Encoder(JSONEncoder):
 
   """
 
+  encoding = 'ISO-8859-1'
+
   def __init__(self, **kwargs):
     kwargs.update({
       'check_circular': False,
-      'encoding': 'ISO-8859-1',
       'separators': (',', ':'),
     })
+    if sys.version_info[0] == 2:
+      kwargs['encoding'] = self.encoding
     super(_Encoder, self).__init__(**kwargs)
+
+  def default(self, obj):
+    """This should only ever be run in python 3."""
+    if isinstance(obj, bytes):
+      return obj.decode(self.encoding)
+    return JSONEncoder.default(obj)
 
 
 @catch(HdfsError)

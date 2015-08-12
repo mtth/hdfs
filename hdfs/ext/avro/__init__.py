@@ -206,13 +206,6 @@ class AvroWriter(object):
       for record in records:
         writer.write(record)
 
-  Without this extension:
-
-  .. code-block:: python
-
-    with client.write(hdfs_path) as bytes_writer:
-      fastavro.writer(bytes_writer, schema, records)
-
   """
 
   def __init__(self, client, hdfs_path, schema=None, codec=None,
