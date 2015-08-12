@@ -144,6 +144,10 @@ class AvroReader(object):
       self._paths = [hdfs_path]
     self._client = client
     self._records = None
+    _logger.debug('Instantiated %r.', self)
+
+  def __repr__(self):
+    return '<AvroReader(paths=%r)>' % (self._paths, )
 
   def __enter__(self):
 
@@ -153,7 +157,9 @@ class AvroReader(object):
         with self._client.read(path) as bytes_reader:
           avro_reader = fastavro.reader(_SeekableReader(bytes_reader))
           if not self._schema:
-            yield avro_reader.schema
+            schema = avro_reader.schema
+            _logger.debug('Read schema from %r.', path)
+            yield schema
           for record in avro_reader:
             yield record
 
@@ -163,6 +169,7 @@ class AvroReader(object):
 
   def __exit__(self, exc_type, exc_value, traceback):
     self._records.close()
+    _logger.debug('Closed records iterator for %r.', self)
 
   def __iter__(self): # pylint: disable=non-iterator-returned
     if not self._records:
@@ -223,6 +230,9 @@ class AvroWriter(object):
     return '<AvroWriter(hdfs_path=%r)>' % (self._hdfs_path, )
 
   def __enter__(self):
+    if self._writer:
+      raise HdfsError('Avro writer cannot be reused.')
+    _logger.debug('Opening underlying writer.')
     self._writer = self._write(self._fo.__enter__())
     try:
       self._writer.send(None) # Prime coroutine.
@@ -233,8 +243,11 @@ class AvroWriter(object):
       return self
 
   def __exit__(self, *exc_info):
-    self._writer.close()
-    return self._fo.__exit__(*exc_info)
+    try:
+      self._writer.close()
+      _logger.debug('Closed underlying writer.')
+    finally:
+      return self._fo.__exit__(*exc_info)
 
   @property
   def schema(self):
@@ -248,7 +261,11 @@ class AvroWriter(object):
 
     :param record: Record object to store.
 
+    Only available inside the `with` block.
+
     """
+    if not self._writer:
+      raise HdfsError('Avro writer not available outside context block.')
     self._writer.send(record)
 
   def _write(self, fo):

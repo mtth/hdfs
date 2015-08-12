@@ -8,6 +8,7 @@ from hdfs.config import Config
 from hdfs.util import HdfsError
 from nose.plugins.skip import SkipTest
 from nose.tools import eq_
+from requests.exceptions import ConnectionError
 from six.moves.configparser import NoOptionError, NoSectionError
 from time import sleep
 import os
@@ -66,8 +67,32 @@ class _IntegrationTest(object):
     if not self.client:
       raise SkipTest
     else:
-      self.client.delete('', recursive=True)
-      sleep(self.delay)
+      try:
+        self.client.delete('', recursive=True)
+        # Wrapped inside a `ConnectionError` block because this causes failures
+        # when trying to reuse some streamed connections when they aren't fully
+        # read (even though it is closed explicitely, it acts differently than
+        # when all its content has been read), but only on HttpFS. A test which
+        # needs this for example is `test_ext_avro.py:TestMain.test_schema`.
+        # This seems related to this issue:
+        # https://github.com/kennethreitz/requests/issues/1915 (even on more
+        # recent versions of `requests` though).
+        #
+        # Here is a simple test case that will pass on WebHDFS but fail on
+        # HttpFS:
+        #
+        # .. code:: python
+        #
+        #   client = Config().get_client('test-webhdfs')
+        #   client.write('foo', 'hello')
+        #   with client.read('foo') as reader:
+        #     pass # Will succeed if this is replaced by `reader.read()`.
+        #   client.delete('foo')
+        #
+      except ConnectionError:
+        self.client.delete('', recursive=True) # Retry.
+      finally:
+        sleep(self.delay)
 
   # Helpers.
 

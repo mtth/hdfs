@@ -598,6 +598,7 @@ class Client(object):
         yield res.raw
     finally:
       res.close()
+      _logger.debug('Closed response for reading file %r.', hdfs_path)
 
   def download(self, hdfs_path, local_path, overwrite=False, n_threads=1,
     temp_dir=None, **kwargs):

@@ -81,7 +81,7 @@ class _Encoder(JSONEncoder):
     """This should only ever be run in python 3."""
     if isinstance(obj, bytes):
       return obj.decode(self.encoding)
-    return JSONEncoder.default(obj)
+    return JSONEncoder.default(self, obj)
 
 
 @catch(HdfsError)
