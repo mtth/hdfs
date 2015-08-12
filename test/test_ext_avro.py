@@ -4,16 +4,18 @@
 """Test Avro extension."""
 
 from hdfs.util import HdfsError, temppath
-from json import loads
+from json import dumps, load, loads
 from nose.plugins.skip import SkipTest
-from nose.tools import *
+from nose.tools import eq_, ok_, raises
 from util import _IntegrationTest
 import os
 import os.path as osp
+import sys
 
 try:
   from hdfs.ext.avro import (_SeekableReader, _infer_schema, AvroReader,
     AvroWriter)
+  from hdfs.ext.avro.__main__ import main
 except ImportError:
   SKIP = True
 else:
@@ -88,7 +90,6 @@ class _AvroIntegrationTest(_IntegrationTest):
   dpath = osp.join(osp.dirname(__file__), 'dat')
   schema = None
   records = None
-  sync_marker = None
 
   @classmethod
   def setup_class(cls):
@@ -99,17 +100,18 @@ class _AvroIntegrationTest(_IntegrationTest):
       cls.schema = loads(reader.read())
     with open(osp.join(cls.dpath, 'weather.jsonl')) as reader:
       cls.records = [loads(line) for line in reader]
-    with open(osp.join(cls.dpath, 'weather.avro'), 'rb') as reader:
-      reader.seek(-16, os.SEEK_END) # Sync marker always last 16 bytes.
-      cls.sync_marker = reader.read()
 
   @classmethod
   def _get_data_bytes(cls, fpath):
-    # Get Avro bytes, skipping header (order of schema fields is undefined).
+    # Get Avro bytes, skipping header (order of schema fields is undefined) and
+    # sync marker. This assumes that the file can be written in a single block.
     with open(fpath, 'rb') as reader:
+      reader.seek(-16, os.SEEK_END) # Sync marker always last 16 bytes.
+      sync_marker = reader.read()
+      reader.seek(0)
       content = reader.read()
-      sync_pos = content.find(cls.sync_marker)
-      return content[sync_pos + 16:]
+      sync_pos = content.find(sync_marker)
+      return content[sync_pos + 16:-16]
 
 
 class TestRead(_AvroIntegrationTest):
@@ -127,7 +129,6 @@ class TestWriter(_AvroIntegrationTest):
       self.client,
       'weather.avro',
       schema=self.schema,
-      sync_marker=self.sync_marker
     )
     with writer:
       for record in self.records:
@@ -160,3 +161,86 @@ class TestWriter(_AvroIntegrationTest):
         writer.write(record)
     with AvroReader(self.client, 'weather.avro') as reader:
       eq_(list(reader), self.records)
+
+
+class TestMain(_AvroIntegrationTest):
+
+  def test_schema(self):
+    self.client.upload('weather.avro', osp.join(self.dpath, 'weather.avro'))
+    with temppath() as tpath:
+      with open(tpath, 'w') as writer:
+        main(['schema', 'weather.avro'], client=self.client, stdout=writer)
+      with open(tpath) as reader:
+        schema = load(reader)
+      eq_(self.schema, schema)
+
+  def test_read(self):
+    self.client.upload('weather.avro', osp.join(self.dpath, 'weather.avro'))
+    with temppath() as tpath:
+      with open(tpath, 'w') as writer:
+        main(
+          ['read', 'weather.avro', '--num', '2'],
+          client=self.client,
+          stdout=writer
+        )
+      with open(tpath) as reader:
+        records = [loads(line) for line in reader]
+      eq_(records, self.records[:2])
+
+  def test_read_part_file(self):
+    data = {
+      'part-m-00000.avro': [{'name': 'jane'}, {'name': 'bob'}],
+      'part-m-00001.avro': [{'name': 'john'}, {'name': 'liz'}],
+    }
+    for fname, records in data.items():
+      with AvroWriter(self.client, 'data.avro/%s' % (fname, )) as writer:
+        for record in records:
+          writer.write(record)
+    with temppath() as tpath:
+      with open(tpath, 'w') as writer:
+        main(
+          ['read', 'data.avro', '--parts', '1,'],
+          client=self.client,
+          stdout=writer
+        )
+      with open(tpath) as reader:
+        records = [loads(line) for line in reader]
+      eq_(records, data['part-m-00001.avro'])
+
+  def test_write(self):
+    with open(osp.join(self.dpath, 'weather.jsonl')) as reader:
+      main(
+        [
+          'write', 'weather.avro',
+          '--schema', dumps(self.schema),
+          '--codec', 'null',
+        ],
+        client=self.client,
+        stdin=reader
+      )
+    with temppath() as tpath:
+      self.client.download('weather.avro', tpath)
+      eq_(
+        self._get_data_bytes(tpath),
+        self._get_data_bytes(osp.join(self.dpath, 'weather.avro'))
+      )
+
+  def test_write_codec(self):
+    with open(osp.join(self.dpath, 'weather.jsonl')) as reader:
+      main(
+        [
+          'write', 'weather.avro',
+          '--schema', dumps(self.schema),
+          '--codec', 'deflate',
+        ],
+        client=self.client,
+        stdin=reader
+      )
+    # Correct content.
+    with AvroReader(self.client, 'weather.avro') as reader:
+      records = list(reader)
+    eq_(records, self.records)
+    # Different size (might not be smaller, since very small file).
+    compressed_size = self.client.content('weather.avro')['length']
+    uncompressed_size = osp.getsize(osp.join(self.dpath, 'weather.avro'))
+    ok_(compressed_size != uncompressed_size)

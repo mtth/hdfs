@@ -76,7 +76,7 @@ class _Encoder(JSONEncoder):
 
 
 @catch(HdfsError)
-def main(argv=None, client=None):
+def main(argv=None, client=None, stdin=sys.stdin, stdout=sys.stdout):
   """Entry point.
 
   :param argv: Arguments list.
@@ -99,14 +99,14 @@ def main(argv=None, client=None):
       codec=args['--codec'],
     )
     with writer:
-      records = (loads(line) for line in sys.stdin)
+      records = (loads(line) for line in stdin)
       for record in records:
         writer.write(record)
   else:
     reader = AvroReader(client, args['HDFS_PATH'], parts=parts)
     with reader:
       if args['schema']:
-        sys.stdout.write('%s\n' % (dumps(reader.schema, indent=2), ))
+        stdout.write('%s\n' % (dumps(reader.schema, indent=2), ))
       elif args['read']:
         encoder = _Encoder()
         num = parse_arg(args, '--num', int)
@@ -114,12 +114,12 @@ def main(argv=None, client=None):
         if freq:
           for record in reader:
             if random() <= freq:
-              sys.stdout.write(encoder.encode(record))
-              sys.stdout.write('\n')
+              stdout.write(encoder.encode(record))
+              stdout.write('\n')
         else:
           for record in islice(reader, num):
-            sys.stdout.write(encoder.encode(record))
-            sys.stdout.write('\n')
+            stdout.write(encoder.encode(record))
+            stdout.write('\n')
 
 if __name__ == '__main__':
   main()

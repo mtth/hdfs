@@ -520,10 +520,11 @@ class Client(object):
       else:
         _map_async(n_threads, _upload, fpath_tuples)
     except Exception as err: # pylint: disable=broad-except
+      _logger.exception('Error while uploading. Attempting cleanup.')
       try:
         self.delete(temp_path, recursive=True)
       except Exception:
-        _logger.exception('Unable to cleanup temporary folder.')
+        _logger.error('Unable to cleanup temporary folder.')
       finally:
         raise err
     else:
@@ -698,13 +699,14 @@ class Client(object):
       else:
         _map_async(n_threads, _download, fpath_tuples)
     except Exception as err: # pylint: disable=broad-except
+      _logger.exception('Error while downloading. Attempting cleanup.')
       try:
         if osp.isdir(temp_path):
           rmtree(temp_path)
         else:
           os.remove(temp_path)
       except Exception:
-        _logger.exception('Unable to cleanup temporary folder.')
+        _logger.error('Unable to cleanup temporary folder.')
       finally:
         raise err
     else:
