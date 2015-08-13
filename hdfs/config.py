@@ -5,6 +5,7 @@
 
 from .client import Client
 from .util import HdfsError
+from functools import wraps
 from imp import load_source
 from logging.handlers import TimedRotatingFileHandler
 from six.moves.configparser import ParsingError, RawConfigParser
@@ -12,6 +13,7 @@ from tempfile import gettempdir
 import logging as lg
 import os
 import os.path as osp
+import sys
 
 
 _logger = lg.getLogger(__name__)
@@ -25,16 +27,25 @@ class Config(RawConfigParser):
     the configuration parser will be empty. If not specified, the value of the
     `HDFSCLI_CONFIG` environment variable is used if it exists, otherwise it
     defaults to `~/.hdfscli.cfg`.
+  :param stream_log_level: Stream handler log level, attached to the root
+    logger. A false-ish value will disable this handler. This is particularly
+    useful with the :func:`catch` which reports exceptions as log messages.
 
   """
 
   default_path = osp.expanduser('~/.hdfscli.cfg')
   global_section = 'global'
 
-  def __init__(self, path=None):
+  def __init__(self, path=None, stream_log_level=None):
     RawConfigParser.__init__(self)
     self._clients = {}
     self.path = path or os.getenv('HDFSCLI_CONFIG', self.default_path)
+    if stream_log_level:
+      stream_handler = lg.StreamHandler()
+      stream_handler.setLevel(stream_log_level)
+      fmt = '%(levelname)s\t%(message)s'
+      stream_handler.setFormatter(lg.Formatter(fmt))
+      lg.getLogger().addHandler(stream_handler)
     if osp.exists(self.path):
       try:
         self.read(self.path)
@@ -84,31 +95,21 @@ class Config(RawConfigParser):
         raise HdfsError('Alias %r not found in %r.', alias, self.path)
     return self._clients[alias]
 
-  def get_command_handlers(self, command, stream_log_level=None):
-    """Configure and return log handlers.
+  def get_log_file_handler(self, command):
+    """Configure and return log handler.
 
     :param command: The command to load the configuration for. All options will
       be looked up in the `[COMMAND.command]` section. This is currently only
       used for configuring the file handler for logging.
-    :param stream_log_level: Stream handler log level. A false-ish value will
-      disable this handler.
 
     """
-    # TODO: Clean up this messy function.
-    handlers = []
-    if stream_log_level:
-      stream_handler = lg.StreamHandler()
-      stream_handler.setLevel(stream_log_level)
-      fmt = '%(levelname)s\t%(message)s'
-      stream_handler.setFormatter(lg.Formatter(fmt))
-      handlers.append(stream_handler)
     section = '%s.command' % (command, )
     path = osp.join(gettempdir(), '%s.log' % (command, ))
     level = lg.DEBUG
     if self.has_section(section):
       key = 'log.disable'
       if self.has_option(section, key) and self.getboolean(section, key):
-        return handlers
+        return None
       if self.has_option(section, 'log.path'):
         path = self.get(section, 'log.path') # Override default path.
       if self.has_option(section, 'log.level'):
@@ -122,8 +123,7 @@ class Config(RawConfigParser):
     fmt = '%(asctime)s\t%(name)-16s\t%(levelname)-5s\t%(message)s'
     file_handler.setFormatter(lg.Formatter(fmt))
     file_handler.setLevel(level)
-    handlers.append(file_handler)
-    return handlers
+    return file_handler
 
   def _autoload(self):
     """Load modules to find clients."""
@@ -135,10 +135,42 @@ class Config(RawConfigParser):
         entries = self.get(self.global_section, option)
         for entry in entries.split(','):
           module = entry.strip()
-          loader(module)
+          try:
+            loader(module)
+          except Exception: # pylint: disable=broad-except
+            _logger.exception(
+              'Unable to load %r defined at %r.',
+              module, self.path
+            )
+            sys.exit(1)
+
 
     _load('modules', __import__)
     _load('paths', lambda path: load_source(
       osp.splitext(osp.basename(path))[0],
       path
     ))
+
+def catch(*error_classes):
+  """Returns a decorator that catches errors and prints messages to stderr.
+
+  :param \*error_classes: Error classes.
+
+  Also exits with status 1 if any errors are caught.
+
+  """
+  def decorator(func):
+    """Decorator."""
+    @wraps(func)
+    def wrapper(*args, **kwargs):
+      """Wrapper. Finally."""
+      try:
+        return func(*args, **kwargs)
+      except error_classes as err:
+        _logger.error(err)
+        sys.exit(1)
+      except Exception: # pylint: disable=broad-except
+        _logger.exception('Unexpected exception.')
+        sys.exit(1)
+    return wrapper
+  return decorator

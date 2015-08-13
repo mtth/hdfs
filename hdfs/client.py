@@ -10,7 +10,7 @@ from itertools import repeat
 from multiprocessing.pool import ThreadPool
 from random import sample
 from shutil import move, rmtree
-from six import add_metaclass, string_types
+from six import add_metaclass
 from six.moves.urllib.parse import quote
 from threading import Lock
 import logging as lg

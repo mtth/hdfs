@@ -4,7 +4,6 @@
 """Utilities."""
 
 from contextlib import contextmanager
-from functools import wraps
 from shutil import rmtree
 from six.moves.queue import Queue
 from tempfile import mkstemp
@@ -12,7 +11,6 @@ from threading import Thread
 import logging as lg
 import os
 import os.path as osp
-import sys
 
 
 _logger = lg.getLogger(__name__)
@@ -179,28 +177,3 @@ def htime(time):
     if time < multiplier:
       return '%4.1f%s' % (time, suffix)
     time /= multiplier
-
-def catch(*error_classes):
-  """Returns a decorator that catches errors and prints messages to stderr.
-
-  :param \*error_classes: Error classes.
-
-  Also exits with status 1 if any errors are caught.
-
-  """
-  def decorator(func):
-    """Decorator."""
-    @wraps(func)
-    def wrapper(*args, **kwargs):
-      """Wrapper. Finally."""
-      try:
-        return func(*args, **kwargs)
-      except error_classes as err:
-        _logger.error(err)
-        sys.exit(1)
-      except Exception as err: # pylint: disable=broad-except
-        _logger.exception('Unexpected exception.')
-        sys.stderr.write('View log for more details.\n')
-        sys.exit(1)
-    return wrapper
-  return decorator

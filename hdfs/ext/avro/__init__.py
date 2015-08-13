@@ -247,7 +247,7 @@ class AvroWriter(object):
       self._writer.close()
       _logger.debug('Closed underlying writer.')
     finally:
-      return self._fo.__exit__(*exc_info)
+      self._fo.__exit__(*exc_info)
 
   @property
   def schema(self):

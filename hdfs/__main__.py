@@ -48,8 +48,8 @@ HdfsCLI exits with return status 1 if an error occurred and 0 otherwise.
 """
 
 from . import __version__
-from .config import Config
-from .util import HdfsError, catch
+from .config import Config, catch
+from .util import HdfsError
 from docopt import docopt
 from threading import Lock
 import logging as lg
@@ -87,29 +87,20 @@ def configure_client(command, args):
   paths and exit the process.
 
   """
-  config = Config()
-  levels = {0: lg.ERROR, 1: lg.WARNING, 2: lg.INFO}
-  level = levels.get(args['--verbose'], lg.DEBUG)
-  handlers = config.get_command_handlers(command, stream_log_level=level)
-  if args['--log']:
-    paths = [
-      handler.baseFilename
-      for handler in handlers
-      if isinstance(handler, lg.FileHandler)
-    ]
-    if paths:
-      for path in paths:
-        sys.stdout.write('%s\n' % (path, ))
-    else:
-      sys.stdout.write('No log file active.\n')
-    sys.exit(0)
   logger = lg.getLogger()
   logger.setLevel(lg.DEBUG)
   lg.getLogger('requests_kerberos.kerberos_').setLevel(lg.INFO)
   # TODO: Filter only at handler level.
-  for handler in handlers:
-    logger.addHandler(handler)
-
+  levels = {0: lg.ERROR, 1: lg.WARNING, 2: lg.INFO}
+  config = Config(stream_log_level=levels.get(args['--verbose'], lg.DEBUG))
+  handler = config.get_log_file_handler(command)
+  if args['--log']:
+    if handler:
+      sys.stdout.write('%s\n' % (handler.baseFilename, ))
+    else:
+      sys.stdout.write('No log file active.\n')
+    sys.exit(0)
+  logger.addHandler(handler)
   return config.get_client(args['--alias'])
 
 

@@ -50,7 +50,8 @@ Examples:
 
 from . import AvroReader, AvroWriter
 from ...__main__ import configure_client, parse_arg
-from ...util import HdfsError, catch
+from ...config import catch
+from ...util import HdfsError
 from docopt import docopt
 from itertools import islice
 from json import JSONEncoder, dumps, loads
@@ -77,11 +78,11 @@ class _Encoder(JSONEncoder):
       kwargs['encoding'] = self.encoding
     super(_Encoder, self).__init__(**kwargs)
 
-  def default(self, obj):
+  def default(self, obj): # pylint: disable=method-hidden
     """This should only ever be run in python 3."""
     if isinstance(obj, bytes):
       return obj.decode(self.encoding)
-    return JSONEncoder.default(self, obj)
+    return super(_Encoder, self).default(self, obj)
 
 
 @catch(HdfsError)

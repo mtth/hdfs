@@ -40,7 +40,7 @@ setup(
   extras_require={
     'avro': ['fastavro'],
     'kerberos': ['requests-kerberos'],
-    'dataframe': ['numpy', 'pandas>=0.14.1', 'fastavro'],
+    'dataframe': ['pandas>=0.14.1', 'fastavro'],
   },
   entry_points={'console_scripts': [
     '%s = hdfs.__main__:main' % (ENTRY_POINT, ),
