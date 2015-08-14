@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # encoding: utf-8
 
-"""HDFS clients."""
+"""WebHDFS API clients."""
 
 from .util import AsyncWriter, HdfsError
 from contextlib import contextmanager

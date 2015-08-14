@@ -1,9 +1,9 @@
 #!/usr/bin/env python
 # encoding: utf-8
 
-"""This extension provides support for clusters using Kerberos authentication.
+"""Support for clusters using Kerberos authentication.
 
-Namely, it adds a new :class:`hdfs.client.Client` subclass,
+This extension adds a new :class:`hdfs.client.Client` subclass,
 :class:`KerberosClient`, which handles authentication appropriately.
 
 To activate, add the following inside `~/.hdfscli.cfg` (or wherever your
@@ -14,8 +14,8 @@ configuration file is located):
   [global]
   autoload.modules = hdfs.ext.kerberos
 
-You can also import the class directly (this will however not expose the class
-to the various CLIs):
+We can also import the new client class directly (this will however not expose
+it to the CLI):
 
 .. code-block:: python
 
@@ -48,8 +48,7 @@ class KerberosClient(Client):
     will be unable to authenticate.
   :param \*\*kwargs: Keyword arguments passed to the base class' constructor.
 
-  To avoid replay errors, a timeout of 1 ms is enforced between requests using
-  this client.
+  To avoid replay errors, a timeout of 1 ms is enforced between requests.
 
   """
 

@@ -4,6 +4,7 @@
 API
 ===
 
+
 Client
 ------
 
@@ -14,6 +15,9 @@ Client
 
 Extensions
 ----------
+
+The following extensions are currently available:
+
 
 Kerberos
 ********

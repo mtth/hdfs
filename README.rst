@@ -44,20 +44,6 @@ so simply suffix the package name with the desired extensions:
 
   $ pip install hdfs[avro,dataframe,kerberos]
 
-By default the command line entry point will be named `hdfscli`. You can choose 
-another name by specifying the `HDFSCLI_ENTRY_POINT` environment variable:
-
-.. code-block:: bash
-
-  $ HDFSCLI_ENTRY_POINT=hdfs pip install hdfs
-
-
-.. _pip: http://www.pip-installer.org/en/latest/
-.. _pandas: http://pandas.pydata.org/
-.. _WebHDFS: http://hadoop.apache.org/docs/current/hadoop-project-dist/hadoop-hdfs/WebHDFS.html
-
-
-.. QUICKSTART
 
 Quickstart
 ----------
@@ -93,8 +79,6 @@ download it locally, and finally delete the remote copy.
   client.delete('hello.rst')
 
 Refer to the documentation__ for the full API and extensions.
-
-__ http://hdfscli.readthedocs.org/
 
 
 CLI
@@ -161,8 +145,6 @@ use (defaulting to the generic `Client`), and the remaining options are passed
 as named arguments to the appropriate constructor.
 
 
-.. TESTING
-
 Testing
 -------
 
@@ -178,3 +160,7 @@ See `scripts/` for helpers to set up a suitable HDFS cluster.
 
 
 .. _HttpFS: http://hadoop.apache.org/docs/current/hadoop-hdfs-httpfs/
+.. _pip: http://www.pip-installer.org/en/latest/
+.. _pandas: http://pandas.pydata.org/
+.. _WebHDFS: http://hadoop.apache.org/docs/current/hadoop-project-dist/hadoop-hdfs/WebHDFS.html
+.. _documentation: http://hdfscli.readthedocs.org/

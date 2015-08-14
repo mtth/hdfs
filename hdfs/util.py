@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # encoding: utf-8
 
-"""Utilities."""
+"""Common utilities."""
 
 from contextlib import contextmanager
 from shutil import rmtree

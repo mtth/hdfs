@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # encoding: utf-8
 
-"""Configuration module used by CLIs."""
+"""CLI configuration module."""
 
 from .client import Client
 from .util import HdfsError

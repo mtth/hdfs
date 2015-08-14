@@ -1,17 +1,17 @@
 .. default-role:: code
 
+HdfsCLI
+=======
 
-.. include:: ../README.rst
-  :end-before: QUICKSTART
 
-
-Table of contents
------------------
+User guide
+----------
 
 .. toctree::
   :maxdepth: 2
 
   quickstart
+  advanced
   api
 
 
