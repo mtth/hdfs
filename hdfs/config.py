@@ -71,9 +71,9 @@ class Config(RawConfigParser):
   def get_client(self, alias=None):
     """Load HDFS client.
 
-    :param alias: The client to look up. If not specified, the default alias in
-      the command's section will be used (`default.alias`), or an error will be
-      raised if the key doesn't exist.
+    :param alias: The client to look up. If not specified, the default alias be
+      used (`default.alias` option in the `global` section) if available and an
+      error will be raised otherwise.
 
     Further calls to this method for the same alias will return the same client
     instance (in particular, any option changes to this alias will not be taken
@@ -92,7 +92,7 @@ class Config(RawConfigParser):
         section = '%s%s' % (alias, suffix)
         if self.has_section(section):
           options = dict(self.items(section))
-          class_name = options.pop('client', 'Client')
+          class_name = options.pop('client', 'InsecureClient')
           # Massage options.
           if 'timeout' in options:
             timeout = tuple(int(s) for s in options['timeout'].split(','))

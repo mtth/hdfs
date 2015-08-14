@@ -2,9 +2,7 @@
 # encoding: utf-8
 # pylint: disable=protected-access
 
-"""Extension for reading and writing Avro files directly from HDFS.
-
-"""
+"""Extension for reading and writing Avro files directly from HDFS."""
 
 from ...util import HdfsError
 from json import dumps

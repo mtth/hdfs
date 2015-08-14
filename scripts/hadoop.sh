@@ -1,6 +1,22 @@
 #!/usr/bin/env bash
 
 # Hadoop utilities to setup a standalone HDFS cluster for integration tests.
+#
+# The following commands will download Hadoop locally and start a single node
+# HDFS cluster:
+#
+# ```bash
+# $ export HADOOP_HOME="$(./scripts/hadoop.sh download)"
+# $ export HADOOP_CONF_DIR="$(./scripts/hadoop.sh config)"
+# $ ./scripts/hadoop.sh start
+# ```
+#
+# Later, to stop it:
+#
+# ```bash
+# $ ./scripts/hadoop.sh stop
+# ```
+#
 
 set -o nounset
 set -o errexit

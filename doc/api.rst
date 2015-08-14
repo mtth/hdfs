@@ -1,8 +1,10 @@
 .. default-role:: code
 
 
-API
-===
+.. _api_reference:
+
+API reference
+=============
 
 
 Client
@@ -18,6 +20,8 @@ Extensions
 
 The following extensions are currently available:
 
+
+.. _kerberos_extension:
 
 Kerberos
 ********
@@ -40,6 +44,14 @@ Dataframe
 
 .. automodule:: hdfs.ext.dataframe
     :members:
+
+
+Configuration
+-------------
+
+.. autoclass:: hdfs.config.Config
+    :members:
+    :show-inheritance:
 
 
 Utilities

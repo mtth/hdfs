@@ -6,8 +6,8 @@
 Usage:
   hdfscli [interactive] [-v...] [-a ALIAS]
   hdfscli download [-fsa ALIAS] [-v...] [-t THREADS] HDFS_PATH LOCAL_PATH
-  hdfscli upload [-sa ALIAS] [-v...] [-A|-f] [-t THREADS] LOCAL_PATH HDFS_PATH
-  hdfscli -h | -L | -V
+  hdfscli upload [-sa ALIAS] [-v...] [-A | -f] [-t THREADS] LOCAL_PATH HDFS_PATH
+  hdfscli -L | -V | -h
 
 Commands:
   download                      Download a file or folder from HDFS. If a

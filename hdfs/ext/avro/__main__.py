@@ -5,9 +5,9 @@
 
 Usage:
   hdfscli-avro schema [-a ALIAS] [-v...] HDFS_PATH
-  hdfscli-avro read [-a ALIAS] [-v...] [-F FREQ|-n NUM] [-p PARTS] HDFS_PATH
+  hdfscli-avro read [-a ALIAS] [-v...] [-F FREQ | -n NUM] [-p PARTS] HDFS_PATH
   hdfscli-avro write [-fa ALIAS] [-v...] [-C CODEC] [-S SCHEMA] HDFS_PATH
-  hdfscli-avro -h | -L
+  hdfscli-avro -L | -h
 
 Commands:
   schema                        Pretty print schema.
