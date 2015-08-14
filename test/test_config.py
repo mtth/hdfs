@@ -116,7 +116,7 @@ class TestConfig(object):
   def test_get_file_handler(self):
     with temppath() as tpath:
       config = Config(tpath)
-      handler = config.get_log_file_handler('cmd')
+      handler = config.get_log_handler('cmd')
       ok_(isinstance(handler, TimedRotatingFileHandler))
 
   def test_disable_file_logging(self):
@@ -126,4 +126,5 @@ class TestConfig(object):
       config.set('cmd.command', 'log.disable', 'true')
       save_config(config)
       config = Config(tpath)
-      ok_(not config.get_log_file_handler('cmd'))
+      handler = config.get_log_handler('cmd')
+      ok_(not isinstance(handler, TimedRotatingFileHandler))

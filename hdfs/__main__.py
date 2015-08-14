@@ -48,7 +48,7 @@ HdfsCLI exits with return status 1 if an error occurred and 0 otherwise.
 """
 
 from . import __version__
-from .config import Config, catch
+from .config import Config, NullHandler, catch
 from .util import HdfsError
 from docopt import docopt
 from threading import Lock
@@ -93,12 +93,12 @@ def configure_client(command, args):
   # TODO: Filter only at handler level.
   levels = {0: lg.ERROR, 1: lg.WARNING, 2: lg.INFO}
   config = Config(stream_log_level=levels.get(args['--verbose'], lg.DEBUG))
-  handler = config.get_log_file_handler(command)
+  handler = config.get_log_handler(command)
   if args['--log']:
-    if handler:
-      sys.stdout.write('%s\n' % (handler.baseFilename, ))
-    else:
+    if isinstance(handler, NullHandler):
       sys.stdout.write('No log file active.\n')
+    else:
+      sys.stdout.write('%s\n' % (handler.baseFilename, ))
     sys.exit(0)
   logger.addHandler(handler)
   return config.get_client(args['--alias'])

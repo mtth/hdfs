@@ -19,6 +19,14 @@ import sys
 _logger = lg.getLogger(__name__)
 
 
+class NullHandler(lg.Handler):
+
+  """For python <2.7."""
+
+  def emit(self, record):
+    pass
+
+
 class Config(RawConfigParser):
 
   """Configuration class.
@@ -95,12 +103,14 @@ class Config(RawConfigParser):
         raise HdfsError('Alias %r not found in %r.', alias, self.path)
     return self._clients[alias]
 
-  def get_log_file_handler(self, command):
+  def get_log_handler(self, command):
     """Configure and return log handler.
 
     :param command: The command to load the configuration for. All options will
       be looked up in the `[COMMAND.command]` section. This is currently only
-      used for configuring the file handler for logging.
+      used for configuring the file handler for logging. If logging is disabled
+      for the command, a :class:`NullHandler` will be returned, else a
+      :class:`TimedRotatingFileHandler`.
 
     """
     section = '%s.command' % (command, )
@@ -109,7 +119,7 @@ class Config(RawConfigParser):
     if self.has_section(section):
       key = 'log.disable'
       if self.has_option(section, key) and self.getboolean(section, key):
-        return None
+        return NullHandler()
       if self.has_option(section, 'log.path'):
         path = self.get(section, 'log.path') # Override default path.
       if self.has_option(section, 'log.level'):
@@ -150,6 +160,7 @@ class Config(RawConfigParser):
       osp.splitext(osp.basename(path))[0],
       path
     ))
+
 
 def catch(*error_classes):
   """Returns a decorator that catches errors and prints messages to stderr.

@@ -6,9 +6,10 @@ from hdfs import __version__
 from os import environ
 from setuptools import find_packages, setup
 
+
 # Allow configuration of the CLI alias.
-if environ.get('HDFS_ENTRY_POINT'):
-  ENTRY_POINT = environ.get('HDFS_ENTRY_POINT') # Backwards compatibility.
+if 'HDFS_ENTRY_POINT' in environ:
+  ENTRY_POINT = environ['HDFS_ENTRY_POINT'] # Backwards compatibility.
 else:
   ENTRY_POINT = environ.get('HDFSCLI_ENTRY_POINT', 'hdfscli')
 
@@ -34,13 +35,13 @@ setup(
   ],
   install_requires=[
     'docopt',
-    'requests>=2.0.1',
+    'requests>=2.7.0',
     'six>=1.9.0',
   ],
   extras_require={
-    'avro': ['fastavro'],
-    'kerberos': ['requests-kerberos'],
-    'dataframe': ['pandas>=0.14.1', 'fastavro'],
+    'avro': ['fastavro>=0.8.6'],
+    'kerberos': ['requests-kerberos>=0.7.0'],
+    'dataframe': ['fastavro>=0.8.6', 'pandas>=0.14.1'],
   },
   entry_points={'console_scripts': [
     '%s = hdfs.__main__:main' % (ENTRY_POINT, ),
