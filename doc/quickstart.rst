@@ -46,7 +46,7 @@ aliases, `dev` and `prod`:
 Each alias is defined as its own `ALIAS.alias` section which must at least 
 contain a `url` option with the URL to the namenode (including protocol and 
 port). All other options can be omitted. If specified, `client` determines 
-which :class:`~hdfs.client.Client` class to use and the remaining options are 
+which :class:`hdfs.client.Client` class to use and the remaining options are 
 passed as keyword arguments to the appropriate constructor. The currently 
 available client classes are:
 

@@ -4,24 +4,35 @@
 """Support for clusters using Kerberos authentication.
 
 This extension adds a new :class:`hdfs.client.Client` subclass,
-:class:`KerberosClient`, which handles authentication appropriately.
-
-To activate, add the following inside `~/.hdfscli.cfg` (or wherever your
-configuration file is located):
-
-.. code-block:: cfg
-
-  [global]
-  autoload.modules = hdfs.ext.kerberos
-
-We can also import the new client class directly (this will however not expose
-it to the CLI):
+:class:`KerberosClient`, which handles authentication appropriately:
 
 .. code-block:: python
 
   from hdfs.ext.kerberos import KerberosClient
-
   client = KerberosClient('http://host:port')
+
+To expose this class to the CLI, we add the following line inside the `global`
+section of `~/.hdfscli.cfg` (or wherever our configuration file is located):
+
+.. code-block:: cfg
+
+  autoload.modules = hdfs.ext.kerberos
+
+Here is what our updated earlier configuration would look like if our
+production grid started using Kerberos authentication:
+
+.. code-block:: cfg
+
+  [global]
+  default.alias = dev
+  autoload.modules = hdfs.ext.kerberos
+
+  [dev.alias]
+  url = http://dev.namenode:port
+
+  [prod.alias]
+  url = http://prod.namenode:port
+  class = KerberosClient
 
 """
 
