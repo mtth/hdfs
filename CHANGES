@@ -4,69 +4,89 @@ HdfsCLI
 Version 2.0 (?)
 ---------------
 
-* Add python 3 support (the Kerberos extension's requirements must however
-  be manually installed).
-* Allow specifying relative client roots. These will be assumed relative to the
+* Add python 3 support (the Kerberos extension's requirements must however be 
+  manually installed).
+* Allow specifying relative client roots. These will be assumed relative to the 
   user's home directory.
-* Add several client methods: `makedirs`, `set_times`, `checksum`,
-  `set_replication`.
-* Add `progress` argument to `Client.read` and `Client.upload` and a
- `chunk_size` argument to the latter to allow better tracking.
-* `Client.read` and `Client.write` can now return file-like objects (supporting
+* Add several client methods: `makedirs`, `set_times`, `checksum`, 
+  `set_replication`, etc.
+* Add `progress` argument to `Client.read`, `Client.upload`, and 
+  `Client.download`. Also add a `chunk_size` argument to the latter to allow 
+  better tracking.
+* Add `strict` option to `Client.status` and `Client.content` to perform path 
+  existence checks.
+* `Client.write` now can be used as a context manager (returning a file-like 
+  object).
+* `Client.read` and `Client.write` can now return file-like objects (supporting 
   `read` and `write` calls respectively).
-* Improve robustness of `KerberosClient`. In particular add the
-  `max_concurrency` parameter which can be tuned to prevent authentication
-  errors when too many simultaneous requests are being made. Along with
-  the new delay parameter, this lets us remove the timeouts in
-  `Client.download` and `Client.upload`, which both simplify and speed up these
-  functions.
-* Change alias suffix in `~/.hdfsrc` (from `_alias` to `.alias`). The old one
-  is still supported.
-* Add `autoload.modules` and `autoload.paths` configuration keys.
+* Improve robustness of `KerberosClient`. In particular add the 
+  `max_concurrency` parameter which can be tuned to prevent authentication 
+  errors when too many simultaneous requests are being made. Along with the new 
+  delay parameter, this lets us remove the timeouts in `Client.download` and 
+  `Client.upload`, which both simplify and speed up these functions.
+* Add `Config` class which handles all CLI configuration (e.g. aliases and 
+  logging).
+* Add `autoload.modules` and `autoload.paths` configuration options.
+* Rename alias configuration sections to `ALIAS.alias` (the old format, 
+  `ALIAS_alias` is still supported).
 * Add `--verbose` option to CLI, enabling logging at various levels.
-* Add `strict` option to `Client.status` and `Client.content`.
+* Switch Avro extension to using `fastavro`. This speeds up `AvroWriter` and 
+  `AvroReader` by a significant amount (~5 times faster on a reasonable 
+  connection).
+* Add `write` command to Avro CLI.
+* Remove CSV support for dataframe extension.
 
 Breaking changes:
 
-* Add `session` argument to `Client` and remove newly redundant parameters.
-* Make `alias` argument mandatory for `Client.from_alias`. Default alias
-  resolution logic is moved to the CLIs.
-* Change default entry point name to `hdfscli` to avoid clashing with
-  Hadoop HDFS script.
-* `Client.delete` returns a boolean indicating success (rather than failing if
-  the path was already empty).
-* `Client.read` must now be used in a `with` block. This ensures that
-  connections are properly closed. The context manager now returns a file like
-  object (useful for composing with other functions, e.g. to decode Avro).
-  Setting `chunk_size` to a positive value will make it return a generator
+* Change default configuration file path (to `~/.hdfscli.cfg`).
+* Change location of `default.alias` option in configuration file (from command 
+  specific section to `global`).
+* Add `session` argument to `Client` and remove newly redundant parameters 
+  (e.g. `verify`, `cert`).
+* Remove `Client.from_alias` method (delegated to the new `Config` class). The 
+  `Client.from_options` method is now public (renamed from 
+  `Client._from_options`).
+* Change default entry point name to `hdfscli` to avoid clashing with Hadoop 
+  HDFS script.
+* `Client.delete` now returns a boolean indicating success (rather than failing 
+  if the path was already empty).
+* `Client.read` must now be used inside a `with` block. This ensures that 
+  connections are properly closed. The context manager now returns a file like 
+  object (useful for composing with other functions, e.g. to decode Avro). 
+  Setting `chunk_size` to a positive value will make it return a generator 
   similar to the previous behavior.
-* Rename `Client.set_permissions` to `Client.set_permission` to make
-  `permission` argument uniform across `Client` methods (alway singular,
+* Rename `Client.set_permissions` to `Client.set_permission` to make 
+  `permission` argument uniform across `Client` methods (alway singular, 
   consistent with WebHDFS API).
 * `Client.parts` will now throw an error if called on a normal file.
-* Make most client attributes private (e.g. `cert`, `timeout`, etc.), except
+* Make most client attributes private (e.g. `cert`, `timeout`, etc.), except 
   `url` and `root`.
-* Remove `--` prefix from CLI commands. Also simplify CLI to only
-  interactive, download and upload commands (write and read behavior can
-  be achieved by passing '-' as local path). The `Client` API changes
-  should make it more convenient to perform these from a python shell.
-* Change meaning of `n_threads` option in `Client.download` and
-  `Client.upload`.
+* Remove `--` prefix from CLI commands. Also simplify CLI to only interactive, 
+  download and upload commands (write and read behavior can be achieved by 
+  passing '-' as local path). The `Client` API changes should make it more 
+  convenient to perform these from a python shell.
+* Rename several CLI options (e.g. `--log`, `--force`, `--version`).
+* Change meaning of `n_threads` option in `Client.download` and 
+  `Client.upload`. `0` now means one thread per part-file rather than a single 
+  thread.
 * Change `Client.walk` to be consistent with `os.walk`. Also change meaning of
-  `depth` option.
+  `depth` option (`0` being unlimited).
 * Add `status` option to `Client.list`, `Client.walk`, and `Client.parts`. By
   default these functions now only return the names of the relevant files and
   folders.
-* Remove `Client.append` method.
-* Don't import symbols exported by extensions.
+* Remove `Client.append` method (replaced by `append` keyword argument to 
+  `Client.write`).
+* Symbols exported by extensions aren't imported in the main `hdfs` module 
+  anymore. This removes the need for some custom error handling (when 
+  dependency requirements weren't met).
+* Remove Bash autocompletion file (for now).
 
 
 Version 1.4.0 (2015/07/24)
 --------------------------
 
 * Add support for download and upload of arbitrary folders.
-* Deprecate `Client.append` (in favor of `append` argument to
-  `Client.write`).
+* Deprecate `Client.append` (in favor of `append` argument to `Client.write`).
 
 
 Version 1.1.0 (2015/06/23)
@@ -110,7 +130,7 @@ Version 0.2.0 (2014/04/26)
 Breaking changes:
 
 * Removed content from `Client.walk`.
-* Simplified CLI. All download and uploads are normalized through standard in,
+* Simplified CLI. All download and uploads are normalized through standard in, 
   and standard out.
 
 
