@@ -30,24 +30,27 @@ Custom client support
 ---------------------
 
 In order for the CLI to be able to instantiate arbitrary client classes, it has 
-to be able to discover these first. This can be done either by specifying where 
-they are defined in the `global` section. For example, here is how we can make 
-the Kerberos client available:
+to be able to discover these first. This is done by specifying where they are 
+defined in the `global` section of HdfsCLI's configuration file. For example, 
+here is how we can make the :class:`~hdfs.ext.kerberos.KerberosClient` class 
+available:
 
 .. code-block:: cfg
 
   [global]
   autoload.modules = hdfs.ext.kerberos
 
-There are two options for telling the CLI where to load the clients from:
+More precisely, there are two options for telling the CLI where to load the 
+clients from:
 
 + `autoload.modules`, a comma-separated list of modules (which must be on 
   python's path).
 + `autoload.paths`, a comma-separated list of paths to python files.
 
 Implementing custom clients can be particularly useful for passing default 
-options (e.g. a custom `session` argument to each client). Here is a working 
-example implementing a secure client with optional custom certificate support.
+options (e.g. a custom `session` argument to each client). We describe below a 
+working example implementing a secure client with optional custom certificate 
+support.
 
 We first implement our new client and save it somewhere, for example 
 `/etc/hdfscli.py`.
@@ -96,18 +99,18 @@ define a `prod` alias using our new client:
 
 
 Note that options used to instantiate clients from the CLI (using 
-:meth:`Client.from_options` under the hood) are always passed in as strings. 
-This is why we had to implement some parsing logic in the `SecureClient` 
-constructor above.
+:meth:`hdfs.client.Client.from_options` under the hood) are always passed in as 
+strings. This is why we had to implement some parsing logic in the 
+`SecureClient` constructor above.
 
 
 Tracking transfer progress
 --------------------------
 
 The :meth:`~hdfs.client.Client.read`, :meth:`~hdfs.client.Client.upload`, 
-:meth:`~hdfs.client.Client.download` methods accept a `progress` callback 
-argument which can be used to track transfers. The passed function will be 
-called every `chunk_size` bytes with two arguments:
+:meth:`~hdfs.client.Client.download` client methods accept a `progress` 
+callback argument which can be used to track transfers. The passed function 
+will be called every `chunk_size` bytes with two arguments:
 
 + The source path of the file currently being transferred.
 + The number of bytes currently transferred for this file or `-1` to signal 
@@ -116,7 +119,7 @@ called every `chunk_size` bytes with two arguments:
 Below is an implementation of a toy tracker which simply outputs to standard 
 error the total number of transferred bytes each time a file transfer completes 
 (we must still take care to ensure correct behavior even during multi-threaded 
-transfer).
+transfers).
 
 .. code-block:: python
 
@@ -148,11 +151,11 @@ Logging configuration
 
 It is possible to configure and disable where the CLI logs are written for each 
 entry point. To do this, we can set the following options in its corresponding 
-section. For example:
+section (the entry point's name suffixed with `.command`). For example:
 
 .. code-block:: cfg
 
-  [hdfscli-avro.command] # Section is named COMMAND.command
+  [hdfscli-avro.command]
   log.level = INFO
   log.path = /tmp/hdfscli/avro.log
 

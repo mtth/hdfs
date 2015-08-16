@@ -97,9 +97,10 @@ def configure_client(command, args):
   if args['--log']:
     if isinstance(handler, NullHandler):
       sys.stdout.write('No log file active.\n')
+      sys.exit(1)
     else:
       sys.stdout.write('%s\n' % (handler.baseFilename, ))
-    sys.exit(0)
+      sys.exit(0)
   logger.addHandler(handler)
   return config.get_client(args['--alias'])
 
