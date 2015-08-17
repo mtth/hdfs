@@ -279,8 +279,8 @@ Other methods build on these to provide more advanced features:
 See the :ref:`api_reference` for the comprehensive list of methods available.
 
 
-Checking existence
-******************
+Checking path existence
+***********************
 
 Most of the methods described above will raise an :class:`~hdfs.util.HdfsError` 
 if called on a missing path. The recommended way of checking whether a path 
@@ -292,7 +292,7 @@ which case they will return `None` on a missing path).
 More
 ****
 
-See the :ref:`advance_usage` section to learn more.
+See the :ref:`advanced_usage` section to learn more.
 
 
 .. _pip: http://www.pip-installer.org/en/latest/

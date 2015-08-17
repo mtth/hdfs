@@ -2,7 +2,23 @@
 # encoding: utf-8
 # pylint: disable=protected-access
 
-"""Extension for reading and writing Avro files directly from HDFS."""
+"""Read and write Avro files directly from HDFS.
+
+This extension enables streaming decoding and encoding of files from and to
+HDFS. It requires the `fastavro` library.
+
++ :class:`AvroWriter` writes Avro files on HDFS from python objects.
++ :class:`AvroReader` reads Avro files from HDFS into an iterable of records.
+
+It also features an entry point (named `hdfscli-avro` by default) which
+provides access to the above functionality from the shell. For usage examples
+and more information:
+
+.. code-block:: bash
+
+  $ hdfscli-avro --help
+
+"""
 
 from ...util import HdfsError
 from json import dumps
@@ -110,11 +126,18 @@ class _SeekableReader(object):
 
 class AvroReader(object):
 
-  """Lazy remote Avro file reader.
+  """HDFS Avro file reader.
 
   :param client: :class:`hdfs.client.Client` instance.
   :param hdfs_path: Remote path.
-  :param parts: Cf. :meth:`hdfs.client.Client.parts`.
+  :param parts: Part-files to read, when reading a distributed file. The
+    default is to read all part-files in order. See
+    :meth:`hdfs.client.Client.parts` for details.
+
+  The contents of the file will be decoded in a streaming manner, as the data
+  is transferred. This makes it possible to use on files of arbitrary size. As
+  a convenience, the content summary object of the remote file is available on
+  the reader's `content` attribute.
 
   Usage:
 
@@ -193,10 +216,10 @@ class AvroWriter(object):
 
   :param client: :class:`hdfs.client.Client` instance.
   :param hdfs_path: Remote path.
-  :param records: Generator of records to write.
-  :param schema: Avro schema. If not specified, will be inferred from the first
-    record sent. There are however limitations regarding what can be inferred.
-  :param codec: Compression codec.
+  :param schema: Avro schema. If not specified, the writer will try to infer it
+    from the first record sent. There are however limitations regarding what
+    can be inferred.
+  :param codec: Compression codec. The default is `'null'` (no compression).
   :param sync_interval: Number of bytes after which a block will be written.
   :param sync_marker: 16 byte tag used for synchronization. If not specified,
     one will be generated at random.

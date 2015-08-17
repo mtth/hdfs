@@ -4,23 +4,7 @@
 """Test Hdfs client interactions with HDFS."""
 
 from hdfs.util import *
-from nose.tools import eq_, raises
-
-
-class TestHuman(object):
-
-  def test_hsize(self):
-    eq_(hsize(0), '   0 B')
-    eq_(hsize(1023), '1023 B')
-    eq_(hsize(1024), '   1kB')
-
-  def test_htime(self):
-    eq_(htime(0), ' 0.0s')
-    eq_(htime(50), '50.0s')
-    eq_(htime(60), ' 1.0m')
-    eq_(htime(90), ' 1.5m')
-    eq_(htime(3600), ' 1.0h')
-    eq_(htime(3600 * 24 * 7 * 4 * 12 * 24), '24.0Y')
+from nose.tools import eq_, ok_, raises
 
 
 class TestAsyncWriter(object):
@@ -89,3 +73,22 @@ class TestAsyncWriter(object):
       raise HdfsError('Ya')
     with AsyncWriter(consumer) as writer:
       invalid(writer)
+
+
+class TestTemppath(object):
+
+  def test_new(self):
+    with temppath() as tpath:
+      ok_(not osp.exists(tpath))
+
+  def test_cleanup(self):
+    with temppath() as tpath:
+      with open(tpath, 'w') as writer:
+        writer.write('hi')
+    ok_(not osp.exists(tpath))
+
+  def test_dpath(self):
+    with temppath() as dpath:
+      os.mkdir(dpath)
+      with temppath(dpath) as tpath:
+        eq_(osp.dirname(tpath), dpath)

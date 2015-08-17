@@ -1,7 +1,7 @@
 .. default-role:: code
 
 
-.. _advance_usage:
+.. _advanced_usage:
 
 Advanced usage
 ==============

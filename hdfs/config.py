@@ -1,7 +1,13 @@
 #!/usr/bin/env python
 # encoding: utf-8
 
-"""CLI configuration module."""
+"""Command line interface configuration module.
+
+This module provides programmatic access to HdfsCLI's configuration settings.
+In particular it exposes the ability to instantiate clients from aliases (see
+:meth:`Config.get_client`).
+
+"""
 
 from .client import Client
 from .util import HdfsError
@@ -21,9 +27,14 @@ _logger = lg.getLogger(__name__)
 
 class NullHandler(lg.Handler):
 
-  """For python <2.7."""
+  """Pass-through logging handler.
+
+  This is required for python <2.7.
+
+  """
 
   def emit(self, record):
+    """Do nothing."""
     pass
 
 
@@ -38,6 +49,10 @@ class Config(RawConfigParser):
   :param stream_log_level: Stream handler log level, attached to the root
     logger. A false-ish value will disable this handler. This is particularly
     useful with the :func:`catch` which reports exceptions as log messages.
+
+  On instantiation, the configuration object will attempt to load modules
+  defined in the `autoload` global options (see :ref:`custom_cilent` for more
+  information).
 
   """
 

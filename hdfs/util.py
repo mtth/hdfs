@@ -147,33 +147,3 @@ def temppath(dpath=None):
         _logger.debug('Deleted temporary file at %s.', path)
     else:
       _logger.debug('No temporary file or directory to delete at %s.', path)
-
-def hsize(size):
-  """Transform size from bytes to human readable format (kB, MB, ...).
-
-  :param size: Size in bytes.
-
-  """
-  for suffix in [' ', 'k', 'M', 'G', 'T']:
-    if size < 1024.0:
-      return '%4.0f%sB' % (size, suffix)
-    size /= 1024.0
-
-def htime(time):
-  """Transform time from seconds to human readable format (min, hour, ...).
-
-  :param time: Time in seconds.
-
-  """
-  for (multiplier, suffix) in [
-    (60.0, 's'),
-    (60, 'm'),
-    (24, 'h'),
-    (7, 'd'),
-    (4, 'w'),
-    (12, 'M'),
-    (float('inf'), 'Y'),
-  ]:
-    if time < multiplier:
-      return '%4.1f%s' % (time, suffix)
-    time /= multiplier

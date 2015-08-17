@@ -74,7 +74,7 @@ class _Encoder(JSONEncoder):
       'check_circular': False,
       'separators': (',', ':'),
     })
-    if sys.version_info[0] == 2:
+    if sys.version_info[0] == 2: # Python 3 removed the `encoding` kwarg.
       kwargs['encoding'] = self.encoding
     super(_Encoder, self).__init__(**kwargs)
 
