@@ -49,7 +49,7 @@ Dataframe
 Configuration
 -------------
 
-.. autoclass:: hdfs.config.Config
+.. automodule:: hdfs.config
     :members:
     :show-inheritance:
 

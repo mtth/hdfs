@@ -48,10 +48,11 @@ class Config(RawConfigParser):
     defaults to `~/.hdfscli.cfg`.
   :param stream_log_level: Stream handler log level, attached to the root
     logger. A false-ish value will disable this handler. This is particularly
-    useful with the :func:`catch` which reports exceptions as log messages.
+    useful with the :func:`catch` function which reports exceptions as log
+    messages.
 
   On instantiation, the configuration object will attempt to load modules
-  defined in the `autoload` global options (see :ref:`custom_cilent` for more
+  defined in the `autoload` global options (see :ref:`custom_client` for more
   information).
 
   """
