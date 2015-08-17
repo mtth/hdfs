@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # encoding: utf-8
 
-"""Pandas dataframe extension.
+"""Read and write Pandas dataframes directly from HDFS.
 
 Currently only Avro serialization is supported.
 

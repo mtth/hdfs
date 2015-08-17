@@ -80,6 +80,8 @@ Breaking changes:
   anymore. This removes the need for some custom error handling (when 
   dependency requirements weren't met).
 * Remove Bash autocompletion file (for now).
+* Remove compatibility layer for entry point configuration (i.e. 
+  `HDFS_ENTRY_POINT` isn't supported anymore).
 
 
 Version 1.4.0 (2015/07/24)

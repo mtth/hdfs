@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 
-"""HdfsCLI: a command line interface for WebHDFS."""
+"""HdfsCLI: API and command line interface for HDFS."""
 
 from hdfs import __version__
 from os import environ
@@ -8,10 +8,7 @@ from setuptools import find_packages, setup
 
 
 # Allow configuration of the CLI alias.
-if 'HDFS_ENTRY_POINT' in environ:
-  ENTRY_POINT = environ['HDFS_ENTRY_POINT'] # Backwards compatibility.
-else:
-  ENTRY_POINT = environ.get('HDFSCLI_ENTRY_POINT', 'hdfscli')
+ENTRY_POINT = environ.get('HDFSCLI_ENTRY_POINT', 'hdfscli')
 
 setup(
   name='hdfs',
