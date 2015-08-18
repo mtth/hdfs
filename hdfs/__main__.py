@@ -78,10 +78,12 @@ def parse_arg(args, name, parser, separator=None):
   except ValueError:
     raise HdfsError('Invalid %r option: %r.', name, args[name])
 
-def configure_client(command, args):
+def configure_client(command, args, path=None):
   """Instantiate configuration from arguments dictionary.
 
+  :param command: Command name, used to set up the appropriate log handler.
   :param args: Arguments returned by `docopt`.
+  :param path: Path to CLI configuration.
 
   If the `--log` argument is set, this method will print active file handler
   paths and exit the process.
@@ -92,7 +94,10 @@ def configure_client(command, args):
   lg.getLogger('requests_kerberos.kerberos_').setLevel(lg.INFO)
   # TODO: Filter only at handler level.
   levels = {0: lg.ERROR, 1: lg.WARNING, 2: lg.INFO}
-  config = Config(stream_log_level=levels.get(args['--verbose'], lg.DEBUG))
+  config = Config(
+    path=path,
+    stream_log_level=levels.get(args['--verbose'], lg.DEBUG)
+  )
   handler = config.get_log_handler(command)
   if args['--log']:
     if isinstance(handler, NullHandler):
@@ -111,12 +116,15 @@ class _Progress(object):
 
   :param nbytes: Total number of bytes that will be transferred.
   :param nfiles: Total number of files that will be transferred.
+  :param writer: Writable file-object where the progress will be written.
+    Defaults to standard error.
 
   """
 
-  def __init__(self, nbytes, nfiles):
+  def __init__(self, nbytes, nfiles, writer=None):
     self._total_bytes = nbytes
     self._pending_files = nfiles
+    self._writer = writer or sys.stderr
     self._downloading_files = 0
     self._complete_files = 0
     self._lock = Lock()
@@ -135,7 +143,7 @@ class _Progress(object):
       else:
         data[hdfs_path] = nbytes
       if self._pending_files + self._downloading_files > 0:
-        sys.stderr.write(
+        self._writer.write(
           '%3.1f%%\t[ pending: %d | downloading: %d | complete: %d ]   \r' %
           (
             100. * sum(data.values()) / self._total_bytes,
@@ -145,10 +153,10 @@ class _Progress(object):
           )
         )
       else:
-        sys.stderr.write('%79s\r' % ('', ))
+        self._writer.write('%79s\r' % ('', ))
 
   @classmethod
-  def from_hdfs_path(cls, client, hdfs_path):
+  def from_hdfs_path(cls, client, hdfs_path, writer=None):
     """Instantiate from remote path.
 
     :param client: HDFS client.
@@ -156,10 +164,10 @@ class _Progress(object):
 
     """
     content = client.content(hdfs_path)
-    return cls(content['length'], content['fileCount'])
+    return cls(content['length'], content['fileCount'], writer=writer)
 
   @classmethod
-  def from_local_path(cls, local_path):
+  def from_local_path(cls, local_path, writer=None):
     """Instantiate from a local path.
 
     :param local_path: Local path.
@@ -177,7 +185,7 @@ class _Progress(object):
       nfiles = 1
     else:
       raise HdfsError('No file found at: %s', local_path)
-    return cls(nbytes, nfiles)
+    return cls(nbytes, nfiles, writer=writer)
 
 @catch(HdfsError)
 def main(argv=None, client=None):

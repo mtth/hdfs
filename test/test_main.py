@@ -3,13 +3,16 @@
 
 """Test CLI."""
 
-from hdfs.__main__ import *
-from hdfs.util import temppath
+from hdfs.__main__ import _Progress, configure_client, main, parse_arg
+from hdfs.config import Config, NullHandler
+from hdfs.util import HdfsError, temppath
 from logging.handlers import TimedRotatingFileHandler
 from nose.tools import eq_, nottest, ok_, raises
-from util import _IntegrationTest
+from util import _IntegrationTest, save_config
 import filecmp
 import logging as lg
+import os
+import os.path as osp
 import sys
 
 
@@ -29,6 +32,55 @@ class TestParseArg(object):
   def test_parse_int_list(self):
     eq_(parse_arg({'foo': '1,'}, 'foo', int, ','), [1])
     eq_(parse_arg({'foo': '1,2'}, 'foo', int, ','), [1,2])
+
+
+class TestConfigureClient(object):
+
+  def teardown(self):
+    lg.getLogger().handlers = [] # Clean up handlers.
+
+  def test_with_alias(self):
+    url = 'http://host:port'
+    with temppath() as tpath:
+      config = Config(path=tpath)
+      section = 'dev.alias'
+      config.add_section(section)
+      config.set(section, 'url', url)
+      save_config(config)
+      args = {'--alias': 'dev', '--log': False, '--verbose': 0}
+      client = configure_client('test', args, path=tpath)
+      eq_(client.url, url)
+
+class TestProgress(object):
+
+  def test_single_file(self):
+    with temppath() as tpath:
+      with open(tpath, 'w') as writer:
+        progress = _Progress(100, 1, writer=writer)
+        progress('foo', 60)
+        eq_(progress._data['foo'], 60)
+        eq_(progress._pending_files, 0)
+        eq_(progress._downloading_files, 1)
+        progress('foo', 40)
+        progress('foo', -1)
+        eq_(progress._downloading_files, 0)
+        eq_(progress._complete_files, 1)
+
+  def test_from_local_path(self):
+    with temppath() as dpath:
+      os.mkdir(dpath)
+      fpath1 = osp.join(dpath, 'foo')
+      with open(fpath1, 'w') as writer:
+        writer.write('hey')
+      os.mkdir(osp.join(dpath, 'bar'))
+      fpath2 = osp.join(dpath, 'bar', 'baz')
+      with open(fpath2, 'w') as writer:
+        writer.write('hello')
+      with temppath() as tpath:
+        with open(tpath, 'w') as writer:
+          progress = _Progress.from_local_path(dpath, writer=writer)
+          eq_(progress._total_bytes, 8)
+          eq_(progress._pending_files, 2)
 
 
 class TestMain(_IntegrationTest):
@@ -52,6 +104,30 @@ class TestMain(_IntegrationTest):
         self.client
       )
       self._dircmp(tpath)
+
+  def test_download_stream(self):
+    self.client.write('foo', 'hello')
+    with temppath() as tpath:
+      stdout = sys.stdout
+      try:
+        with open(tpath, 'wb') as writer:
+          sys.stdout = writer
+          main(
+            ['download', 'foo', '-', '--silent', '--threads', '1'],
+            self.client
+          )
+      finally:
+        sys.stdout = stdout
+      with open(tpath) as reader:
+        eq_(reader.read(), 'hello')
+
+  @raises(SystemExit)
+  def test_download_stream_multiple_files(self):
+    self.client.upload('foo', self.dpath)
+    main(
+      ['download', 'foo', '-', '--silent', '--threads', '1'],
+      self.client
+    )
 
   @raises(SystemExit)
   def test_download_overwrite(self):

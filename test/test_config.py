@@ -53,6 +53,15 @@ class TestConfig(object):
         client = Client.from_options({'url': ''}, 'PathClient')
         eq_(client.one, 1)
 
+  @raises(SystemExit)
+  def test_autoload_missing_path(self):
+    with temppath() as module_path:
+      with temppath() as config_path:
+        config = Config(config_path)
+        config.add_section(config.global_section)
+        config.set(config.global_section, 'autoload.paths', module_path)
+        config._autoload()
+
   def test_autoload_client_from_module(self):
     with temppath() as module_dpath:
       os.mkdir(module_dpath)
