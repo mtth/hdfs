@@ -5,9 +5,6 @@
 
 __version__ = '2.0.0'
 
-try:
-  from .client import Client, InsecureClient, TokenClient
-  from .config import Config
-  from .util import HdfsError
-except ImportError:
-  pass # In setup.py.
+from .client import Client, InsecureClient, TokenClient
+from .config import Config
+from .util import HdfsError

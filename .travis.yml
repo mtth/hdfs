@@ -5,7 +5,7 @@ python:
   - 3.3
   - 3.4
 install:
-  - pip install . fastavro
+  - pip install . fastavro coverage
 before_script:
   - export HADOOP_HOME="$(./scripts/hadoop.sh download)"
   - export HADOOP_CONF_DIR="$(./scripts/hadoop.sh config)"
@@ -14,8 +14,8 @@ before_script:
   - export HTTPFS_URL=http://localhost:14000
   - env | sort
 script:
-  - HDFSCLI_TEST_URL="$WEBHDFS_URL" nosetests -v test/
-  - HDFSCLI_TEST_URL="$HTTPFS_URL" nosetests -v test/
+  - HDFSCLI_TEST_URL="$WEBHDFS_URL" nosetests --with-coverage --cover-package=hdfs
+  - HDFSCLI_TEST_URL="$HTTPFS_URL" nosetests --with-coverage --cover-package=hdfs
 after_script:
   - ./scripts/hadoop.sh stop
   - rm -r "$(dirname "$HADOOP_HOME")" "$HADOOP_CONF_DIR"

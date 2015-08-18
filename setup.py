@@ -2,9 +2,28 @@
 
 """HdfsCLI: API and command line interface for HDFS."""
 
-from hdfs import __version__
 from os import environ
 from setuptools import find_packages, setup
+import re
+
+
+def _get_version():
+  """Extract version from package."""
+  with open('hdfs/__init__.py') as reader:
+    match = re.search(
+      r'^__version__\s*=\s*[\'"]([^\'"]*)[\'"]',
+      reader.read(),
+      re.MULTILINE
+    )
+    if match:
+      return match.group(1)
+    else:
+      raise RuntimeError('Unable to extract version.')
+
+def _get_long_description():
+  """Get README contents."""
+  with open('README.rst') as reader:
+    return reader.read()
 
 
 # Allow configuration of the CLI alias.
@@ -12,9 +31,9 @@ ENTRY_POINT = environ.get('HDFSCLI_ENTRY_POINT', 'hdfscli')
 
 setup(
   name='hdfs',
-  version=__version__,
+  version=_get_version(),
   description=__doc__,
-  long_description=open('README.rst').read(),
+  long_description=_get_long_description(),
   author='Matthieu Monsch',
   author_email='monsch@alum.mit.edu',
   url='http://hdfscli.readthedocs.org',
