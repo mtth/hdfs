@@ -51,11 +51,8 @@ Features
 See the documentation_ to learn more.
 
 
-Contributing
-------------
-
-We'd love to hear what you think on the issues_ page. Pull requests are also 
-most welcome!
+Testing
+-------
 
 HdfsCLI is tested against both WebHDFS_ and HttpFS_. There are two ways of 
 running tests (see `scripts/` for helpers to set up a test HDFS cluster):
@@ -64,6 +61,13 @@ running tests (see `scripts/` for helpers to set up a test HDFS cluster):
 
   $ HDFSCLI_TEST_URL=http://localhost:50070 nosetests # Using a namenode's URL.
   $ HDFSCLI_TEST_ALIAS=dev nosetests # Using an alias.
+
+
+Contributing
+------------
+
+We'd love to hear what you think on the issues_ page. Pull requests are also 
+most welcome!
 
 
 .. _documentation: http://hdfscli.readthedocs.org/

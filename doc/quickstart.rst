@@ -5,23 +5,6 @@ Quickstart
 ==========
 
 
-Installation
-------------
-
-Using pip_:
-
-.. code-block:: bash
-
-  $ pip install hdfs
-
-By default none of the package requirements for extensions are installed. To do 
-so simply suffix the package name with the desired extensions:
-
-.. code-block:: bash
-
-  $ pip install hdfs[avro,dataframe,kerberos]
-
-
 Configuration
 -------------
 
@@ -295,5 +278,4 @@ More
 See the :ref:`advanced_usage` section to learn more.
 
 
-.. _pip: http://www.pip-installer.org/en/latest/
 .. _IPython: http://ipython.org/

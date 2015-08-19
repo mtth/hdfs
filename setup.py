@@ -25,7 +25,6 @@ def _get_long_description():
   with open('README.rst') as reader:
     return reader.read()
 
-
 # Allow configuration of the CLI alias.
 ENTRY_POINT = environ.get('HDFSCLI_ENTRY_POINT', 'hdfscli')
 

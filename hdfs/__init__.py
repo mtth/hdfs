@@ -12,4 +12,5 @@ import logging as lg
 __version__ = '2.0.0'
 __license__ = 'MIT'
 
+
 lg.getLogger(__name__).addHandler(NullHandler())
