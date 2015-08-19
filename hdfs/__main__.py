@@ -78,12 +78,12 @@ def parse_arg(args, name, parser, separator=None):
   except ValueError:
     raise HdfsError('Invalid %r option: %r.', name, args[name])
 
-def configure_client(command, args, path=None):
+def configure_client(command, args, config=None):
   """Instantiate configuration from arguments dictionary.
 
   :param command: Command name, used to set up the appropriate log handler.
   :param args: Arguments returned by `docopt`.
-  :param path: Path to CLI configuration.
+  :param config: CLI configuration, used for testing.
 
   If the `--log` argument is set, this method will print active file handler
   paths and exit the process.
@@ -93,11 +93,9 @@ def configure_client(command, args, path=None):
   logger.setLevel(lg.DEBUG)
   lg.getLogger('requests_kerberos.kerberos_').setLevel(lg.INFO)
   # TODO: Filter only at handler level.
-  levels = {0: lg.ERROR, 1: lg.WARNING, 2: lg.INFO}
-  config = Config(
-    path=path,
-    stream_log_level=levels.get(args['--verbose'], lg.DEBUG)
-  )
+  if not config:
+    levels = {0: lg.ERROR, 1: lg.WARNING, 2: lg.INFO}
+    config = Config(stream_log_level=levels.get(args['--verbose'], lg.DEBUG))
   handler = config.get_log_handler(command)
   if args['--log']:
     if isinstance(handler, NullHandler):

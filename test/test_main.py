@@ -36,9 +36,6 @@ class TestParseArg(object):
 
 class TestConfigureClient(object):
 
-  def teardown(self):
-    lg.getLogger().handlers = [] # Clean up handlers.
-
   def test_with_alias(self):
     url = 'http://host:port'
     with temppath() as tpath:
@@ -46,9 +43,8 @@ class TestConfigureClient(object):
       section = 'dev.alias'
       config.add_section(section)
       config.set(section, 'url', url)
-      save_config(config)
       args = {'--alias': 'dev', '--log': False, '--verbose': 0}
-      client = configure_client('test', args, path=tpath)
+      client = configure_client('test', args, config=config)
       eq_(client.url, url)
 
 class TestProgress(object):
@@ -87,8 +83,13 @@ class TestMain(_IntegrationTest):
 
   dpath = osp.join(osp.dirname(__file__), 'dat')
 
+  def setup(self):
+    self._root_logger = lg.getLogger()
+    self._handlers = self._root_logger.handlers
+    super(TestMain, self).setup()
+
   def teardown(self):
-    lg.getLogger().handlers = [] # Clean up handlers.
+    self._root_logger.handlers = self._handlers
 
   def _dircmp(self, dpath):
     dircmp = filecmp.dircmp(self.dpath, dpath)

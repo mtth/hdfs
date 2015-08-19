@@ -3,8 +3,13 @@
 
 """HdfsCLI: API and command line interface for HDFS."""
 
-__version__ = '2.0.0'
-
 from .client import Client, InsecureClient, TokenClient
-from .config import Config
+from .config import Config, NullHandler
 from .util import HdfsError
+import logging as lg
+
+
+__version__ = '2.0.0'
+__license__ = 'MIT'
+
+lg.getLogger(__name__).addHandler(NullHandler())
