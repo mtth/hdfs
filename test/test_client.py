@@ -296,6 +296,11 @@ class TestUpload(_IntegrationTest):
     eq_(self._read('up'), b'hello, world!')
 
   @raises(HdfsError)
+  def test_upload_missing(self):
+    with temppath() as tpath:
+      self.client.upload('up', tpath)
+
+  @raises(HdfsError)
   def test_upload_empty_directory(self):
     dpath = mkdtemp()
     try:
@@ -367,6 +372,34 @@ class TestUpload(_IntegrationTest):
         writer.write('here')
       self.client.upload('up', tpath)
       self.client.upload('up', tpath)
+
+  def test_upload_cleanup(self):
+    dpath = mkdtemp()
+    _write = self.client.write
+
+    def write(hdfs_path, *args, **kwargs):
+      if 'bar' in hdfs_path:
+        raise RuntimeError()
+      return _write(hdfs_path, *args, **kwargs)
+
+    try:
+      self.client.write = write
+      npath = osp.join(dpath, 'hi')
+      os.mkdir(npath)
+      with open(osp.join(npath, 'foo'), 'w') as writer:
+        writer.write('hello!')
+      os.mkdir(osp.join(npath, 'bar'))
+      with open(osp.join(npath, 'bar', 'baz'), 'w') as writer:
+        writer.write('world!')
+      try:
+        self.client.upload('foo', dpath)
+      except RuntimeError:
+        ok_(not self._exists('foo'))
+      else:
+        ok_(False) # This shouldn't happen.
+    finally:
+      rmtree(dpath)
+      self.client.write = _write
 
   def test_upload_with_progress(self):
 
@@ -639,6 +672,27 @@ class TestDownload(_IntegrationTest):
         eq_(reader.read(), 'hello')
       with open(osp.join(tpath, 'bar', 'dl')) as reader:
         eq_(reader.read(), 'there')
+
+  def test_download_cleanup(self):
+    self.client.write('foo/dl', 'hello')
+    self.client.write('foo/bar/dl', 'there')
+    _read = self.client.read
+
+    def read(hdfs_path, *args, **kwargs):
+      if 'bar' in hdfs_path:
+        raise RuntimeError()
+      return _read(hdfs_path, *args, **kwargs)
+
+    with temppath() as tpath:
+      try:
+        self.client.read = read
+        self.client.download('foo', tpath)
+      except RuntimeError:
+        ok_(not osp.exists(tpath))
+      else:
+        ok_(False) # This shouldn't happen.
+      finally:
+        self.client.read = _read
 
   @raises(HdfsError)
   def test_download_empty_folder(self):
@@ -1041,3 +1095,15 @@ class TestSetReplication(_IntegrationTest):
     replication = self.client.status('foo')['replication'] + 1
     self.client.set_replication('foo', replication)
     eq_(self.client.status('foo')['replication'], replication)
+
+
+class TestTokenClient(object):
+
+  def test_without_session(self):
+    client = TokenClient('url', '123')
+    eq_(client._session.params['delegation'], '123')
+
+  def test_with_session(self):
+    session = rq.Session()
+    client = TokenClient('url', '123', session=session)
+    eq_(session.params['delegation'], '123')
