@@ -5,7 +5,7 @@ python:
   - 3.3
   - 3.4
 install:
-  - pip install . fastavro coverage
+  - pip install . fastavro coverage mock
 before_script:
   - export HADOOP_HOME="$(./scripts/hadoop.sh download)"
   - export HADOOP_CONF_DIR="$(./scripts/hadoop.sh config)"
