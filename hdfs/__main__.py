@@ -1,10 +1,10 @@
 #!/usr/bin/env python
 # encoding: utf-8
 
-"""HdfsCLI: a command line interface for WebHDFS.
+"""HdfsCLI: a command line interface for HDFS.
 
 Usage:
-  hdfscli [interactive] [-v...] [-a ALIAS]
+  hdfscli [interactive] [-a ALIAS] [-v...]
   hdfscli download [-fsa ALIAS] [-v...] [-t THREADS] HDFS_PATH LOCAL_PATH
   hdfscli upload [-sa ALIAS] [-v...] [-A | -f] [-t THREADS] LOCAL_PATH HDFS_PATH
   hdfscli -L | -V | -h
