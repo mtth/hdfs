@@ -12,9 +12,7 @@ HDFS. It requires the `fastavro` library.
 
 Sample usage:
 
-.. code-block:: python
-
-  .. include:: ../examples/avro.py
+.. literalinclude:: ../examples/avro.py
 
 It also features an entry point (named `hdfscli-avro` by default) which
 provides access to the above functionality from the shell. For usage examples

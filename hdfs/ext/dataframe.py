@@ -3,11 +3,7 @@
 
 """Read and write Pandas_ dataframes directly from HDFS.
 
-Sample usage:
-
-.. code-block:: python
-
-  .. include:: ../examples/dataframe.py
+.. literalinclude:: /../examples/dataframe.py
 
 This extension requires both the `avro` extension and `pandas` to be installed.
 Currently only Avro serialization is supported.

@@ -1,10 +1,9 @@
 #!/usr/bin/env python
 # encoding: utf-8
 
-"""Simple HdfsCLI example.
+"""Sample HdfsCLI script.
 
-In this example, we show how to we can transfer some JSON-serialized data to
-and from HDFS.
+In this script, we show how to transfer JSON-serialized data to and from HDFS.
 
 """
 
@@ -25,7 +24,7 @@ weights = {
 # The path on HDFS where we will store the file.
 path = 'static/weights.json'
 
-# Store as JSON on HDFS.
+# Serialize to JSON and upload to HDFS.
 data = dumps(weights)
 client.write(path, data=data, overwrite=True)
 

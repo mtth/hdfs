@@ -38,6 +38,12 @@ User guide
   api
 
 
+Code snippet
+------------
+
+.. literalinclude:: ../examples/json.py
+
+
 .. _Project homepage on GitHub: https://github.com/mtth/hdfs
 .. _PyPI entry: https://pypi.python.org/pypi/hdfs/
 .. _pip: http://www.pip-installer.org/en/latest/

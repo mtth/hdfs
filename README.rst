@@ -45,7 +45,7 @@ Features
 
   + `avro`, to `read and write Avro files directly from HDFS`_.
   + `dataframe`, to `load and save Pandas dataframes`_.
-  + `kerberos`, to support Kerberos authenticated clusters.
+  + `kerberos`, to `support Kerberos authenticated clusters`_.
 
 See the documentation_ to learn more.
 
@@ -73,5 +73,6 @@ most welcome!
 .. _WebHDFS: http://hadoop.apache.org/docs/current/hadoop-project-dist/hadoop-hdfs/WebHDFS.html
 .. _read and write Avro files directly from HDFS: http://hdfscli.readthedocs.org/en/latest/api.html#module-hdfs.ext.avro
 .. _load and save Pandas dataframes: http://hdfscli.readthedocs.org/en/latest/api.html#module-hdfs.ext.dataframe
+.. _support Kerberos authenticated clusters: http://hdfscli.readthedocs.org/en/latest/api.html#module-hdfs.ext.kerberos
 .. _documentation: http://hdfscli.readthedocs.org/
 .. _issues: https://github.com/mtth/hdfs/issues
