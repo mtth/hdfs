@@ -43,10 +43,9 @@ Features
   shell, with aliases for convenient namenode URL caching.
 * Additional functionality through optional extensions:
 
-  + `kerberos`, adding support for Kerberos_ authenticated clusters.
-  + `avro`, allowing reading and writing Avro_ files directly from HDFS.
-  + `dataframe`, enabling fast loading and saving of pandas_ dataframes on 
-    HDFS.
+  + `avro`, to `read and write Avro files directly from HDFS`_.
+  + `dataframe`, to `load and save Pandas dataframes`_.
+  + `kerberos`, to support Kerberos authenticated clusters.
 
 See the documentation_ to learn more.
 
@@ -70,10 +69,9 @@ We'd love to hear what you think on the issues_ page. Pull requests are also
 most welcome!
 
 
-.. _documentation: http://hdfscli.readthedocs.org/
 .. _HttpFS: http://hadoop.apache.org/docs/current/hadoop-hdfs-httpfs/
-.. _Avro: https://avro.apache.org/docs/1.7.7/index.html
-.. _pandas: http://pandas.pydata.org/
 .. _WebHDFS: http://hadoop.apache.org/docs/current/hadoop-project-dist/hadoop-hdfs/WebHDFS.html
-.. _Kerberos: http://web.mit.edu/kerberos/
+.. _read and write Avro files directly from HDFS: http://hdfscli.readthedocs.org/en/latest/api.html#module-hdfs.ext.avro
+.. _load and save Pandas dataframes: http://hdfscli.readthedocs.org/en/latest/api.html#module-hdfs.ext.dataframe
+.. _documentation: http://hdfscli.readthedocs.org/
 .. _issues: https://github.com/mtth/hdfs/issues

@@ -2,13 +2,19 @@
 # encoding: utf-8
 # pylint: disable=protected-access
 
-"""Read and write Avro files directly from HDFS.
+"""Read and write Avro_ files directly from HDFS.
 
 This extension enables streaming decoding and encoding of files from and to
 HDFS. It requires the `fastavro` library.
 
 + :class:`AvroWriter` writes Avro files on HDFS from python objects.
 + :class:`AvroReader` reads Avro files from HDFS into an iterable of records.
+
+Sample usage:
+
+.. code-block:: python
+
+  .. include:: ../examples/avro.py
 
 It also features an entry point (named `hdfscli-avro` by default) which
 provides access to the above functionality from the shell. For usage examples
@@ -17,6 +23,8 @@ and more information:
 .. code-block:: bash
 
   $ hdfscli-avro --help
+
+.. _Avro: https://avro.apache.org/docs/1.7.7/index.html
 
 """
 

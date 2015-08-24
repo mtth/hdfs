@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # encoding: utf-8
 
-"""Support for clusters using Kerberos authentication.
+"""Support for clusters using Kerberos_ authentication.
 
 This extension adds a new :class:`hdfs.client.Client` subclass,
 :class:`KerberosClient`, which handles authentication appropriately with
@@ -35,6 +35,8 @@ support a Kerberized production grid:
   [prod.alias]
   url = http://prod.namenode:port
   class = KerberosClient
+
+.. _Kerberos: http://web.mit.edu/kerberos/
 
 """
 
