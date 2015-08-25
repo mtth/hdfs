@@ -309,12 +309,11 @@ class AvroWriter(object):
 
     def dump_header():
       """Write header."""
-      fastavro._writer.write_header(
-        fo,
-        self._schema,
-        self._codec,
-        self._sync_marker
-      )
+      metadata = {
+        'avro.codec': self._codec,
+        'avro.schema': dumps(self._schema),
+      }
+      fastavro._writer.write_header(fo, metadata, self._sync_marker)
       _logger.debug('Wrote header. Sync marker: %r', self._sync_marker)
       fastavro._writer.acquaint_schema(self._schema)
 

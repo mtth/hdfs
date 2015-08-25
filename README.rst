@@ -22,15 +22,26 @@ API and command line interface for HDFS.
   In [1]: CLIENT.list('models/')
   Out[1]: ['1.json', '2.json']
 
-  In [2]: with CLIENT.read('models/2.json', encoding='utf-8') as reader:
+  In [2]: CLIENT.status('models/2.json')
+  Out[2]: {
+    'accessTime': 1439743128690,
+    'blockSize': 134217728,
+    'childrenNum': 0,
+    'fileId': 16389,
+    'group': 'supergroup',
+    'length': 48,
+    'modificationTime': 1439743129392,
+    'owner': 'drwho',
+    'pathSuffix': '',
+    'permission': '755',
+    'replication': 1,
+    'storagePolicy': 0,
+    'type': 'FILE'
+  }
+
+  In [3]: with CLIENT.read('models/2.json', encoding='utf-8') as reader:
     ...:     from json import load
     ...:     model = load(reader)
-    ...:     model['normalize'] = False
-    ...:
-
-  In [3]: with CLIENT.write('models/2.json', encoding='utf-8', overwrite=True) as writer:
-    ...:     from json import dump
-    ...:     dump(model, writer)
     ...:
 
 

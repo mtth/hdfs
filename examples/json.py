@@ -1,28 +1,25 @@
 #!/usr/bin/env python
 # encoding: utf-8
 
-"""Sample HdfsCLI script.
-
-In this script, we show how to transfer JSON-serialized data to and from HDFS.
-
-"""
+"""Sample HdfsCLI script."""
 
 from hdfs import Config
-from json import dumps, loads
+from json import dumps, load
 
 
 # Get the default alias' client.
 client = Config().get_client()
 
-# Some sample data.
+# Our new model.
 weights = {
-  'first_feature': 48,
-  'second_feature': 12,
+  '(intercept)': 48.,
+  'first_feature': 2.,
+  'second_feature': 12.,
   # ...
 }
 
 # The path on HDFS where we will store the file.
-path = 'static/weights.json'
+path = 'models/3.json'
 
 # Serialize to JSON and upload to HDFS.
 data = dumps(weights)
@@ -34,4 +31,4 @@ assert status['length'] == len(data)
 
 # Download the file back and check that the deserialized contents match.
 with client.read(path, encoding='utf-8') as reader:
-  assert loads(contents) == weights
+  assert load(reader) == weights
