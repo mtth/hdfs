@@ -26,13 +26,12 @@ path = 'static/weights.json'
 
 # Serialize to JSON and upload to HDFS.
 data = dumps(weights)
-client.write(path, data=data, overwrite=True)
+client.write(path, data=data, encoding='utf-8', overwrite=True)
 
 # The file's HDFS status, we can use it to verify that all the data is there.
 status = client.status(path)
 assert status['length'] == len(data)
 
 # Download the file back and check that the deserialized contents match.
-with client.read(path) as reader:
-  contents = reader.read().decode('utf-8')
+with client.read(path, encoding='utf-8') as reader:
   assert loads(contents) == weights

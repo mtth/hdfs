@@ -13,6 +13,7 @@ from shutil import move, rmtree
 from six import add_metaclass
 from six.moves.urllib.parse import quote
 from threading import Lock
+import codecs
 import logging as lg
 import os
 import os.path as osp
@@ -325,7 +326,8 @@ class Client(object):
     return infos if status else [name for name, _ in infos]
 
   def write(self, hdfs_path, data=None, overwrite=False, permission=None,
-    blocksize=None, replication=None, buffersize=None, append=False):
+    blocksize=None, replication=None, buffersize=None, append=False,
+    encoding=None):
     """Create a file on HDFS.
 
     :param hdfs_path: Path where to create file. The necessary directories will
@@ -342,6 +344,7 @@ class Client(object):
     :param replication: Number of replications of the file.
     :param buffersize: Size of upload buffer.
     :param append: Append to a file rather than create a new one.
+    :param encoding: Encoding used to serialize data written.
 
     Sample usages:
 
@@ -389,7 +392,7 @@ class Client(object):
       self._request(
         method='POST' if append else 'PUT',
         url=res.headers['location'],
-        data=_data,
+        data=(c.encode(encoding) for c in _data) if encoding else _data,
         auth=False,
       )
 
@@ -541,7 +544,7 @@ class Client(object):
 
   @contextmanager
   def read(self, hdfs_path, offset=0, length=None, buffer_size=None,
-    chunk_size=None, progress=None):
+    chunk_size=None, progress=None, encoding=None):
     """Read a file from HDFS.
 
     :param hdfs_path: HDFS path.
@@ -558,6 +561,9 @@ class Client(object):
       will be passed two arguments, the path to the file being uploaded and the
       number of bytes transferred so far. On completion, it will be called once
       with `-1` as second argument.
+    :param encoding: Encoding used to decode the request. By default the raw
+      data is returned. This is mostly helpful in python 3, e.g. since the JSON
+      module will only deserialize unicode.
 
     This method must be called using a `with` block:
 
@@ -580,22 +586,24 @@ class Client(object):
     )
     try:
       if chunk_size:
+        # Patch in encoding so that `iter_content` can pick it up.
+        res.encoding = encoding
         if progress:
 
-          def reader(_hdfs_path, _res, _chunk_size, _progress):
+          def reader(_hdfs_path, _progress):
             """Generator that tracks progress."""
             nbytes = 0
-            for chunk in _res.iter_content(_chunk_size):
+            for chunk in res.iter_content(chunk_size, decode_unicode=True):
               nbytes += len(chunk)
               _progress(_hdfs_path, nbytes)
               yield chunk
             _progress(_hdfs_path, -1)
 
-          yield reader(hdfs_path, res, chunk_size, progress)
+          yield reader(hdfs_path, progress)
         else:
-          yield res.iter_content(chunk_size)
+          yield res.iter_content(chunk_size, decode_unicode=True)
       else:
-        yield res.raw
+        yield codecs.getreader(encoding)(res.raw) if encoding else res.raw
     finally:
       res.close()
       _logger.debug('Closed response for reading file %r.', hdfs_path)

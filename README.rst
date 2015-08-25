@@ -22,13 +22,13 @@ API and command line interface for HDFS.
   In [1]: CLIENT.list('models/')
   Out[1]: ['1.json', '2.json']
 
-  In [2]: with CLIENT.read('models/2.json') as reader:
+  In [2]: with CLIENT.read('models/2.json', encoding='utf-8') as reader:
     ...:     from json import load
     ...:     model = load(reader)
     ...:     model['normalize'] = False
     ...:
 
-  In [3]: with CLIENT.write('models/2.json', overwrite=True) as writer:
+  In [3]: with CLIENT.write('models/2.json', encoding='utf-8', overwrite=True) as writer:
     ...:     from json import dump
     ...:     dump(model, writer)
     ...:

@@ -200,12 +200,21 @@ class TestResolve(_IntegrationTest):
 class TestWrite(_IntegrationTest):
 
   def test_create_from_string(self):
-    self.client.write('up', 'hello, world!')
+    self.client.write('up', u'hello, world!')
+    eq_(self._read('up'), b'hello, world!')
+
+  def test_create_from_string_with_encoding(self):
+    self.client.write('up', u'hello, world!')
     eq_(self._read('up'), b'hello, world!')
 
   def test_create_from_generator(self):
     data = (e for e in [b'hello, ', b'world!'])
     self.client.write('up', data)
+    eq_(self._read('up'), b'hello, world!')
+
+  def test_create_from_generator_with_encoding(self):
+    data = (e for e in [u'hello, ', u'world!'])
+    self.client.write('up', data, encoding='utf-8')
     eq_(self._read('up'), b'hello, world!')
 
   def test_create_from_file_object(self):
@@ -236,6 +245,19 @@ class TestWrite(_IntegrationTest):
       writer.write(b'hello, ')
       writer.write(b'world!')
     eq_(self._read('up'), b'hello, world!')
+
+  def test_as_context_manager_with_encoding(self):
+    with self.client.write('up', encoding='utf-8') as writer:
+      writer.write(u'hello, ')
+      writer.write(u'world!')
+    eq_(self._read('up'), b'hello, world!')
+
+  def test_dump_json(self):
+    from json import dump, loads
+    data = {'one': 1, 'two': 2}
+    with self.client.write('up', encoding='utf-8') as writer:
+      dump(data, writer)
+    eq_(loads(self._read('up', encoding='utf-8')), data)
 
   @raises(HdfsError)
   def test_create_and_overwrite_directory(self):
@@ -505,6 +527,25 @@ class TestRead(_IntegrationTest):
       with open(tpath, 'rb') as reader:
         eq_(reader.read(), b'hello, world!')
       eq_(cb('', 0), [5, 10, 13, -1, 0])
+
+  def test_read_with_encoding(self):
+    s = u'hello, world!'
+    self.client.write('foo', s)
+    with self.client.read('foo', encoding='utf-8') as reader:
+      eq_(reader.read(), s)
+
+  def test_read_with_chunk_size_and_encoding(self):
+    s = u'hello, world!'
+    self.client.write('foo', s)
+    with self.client.read('foo', chunk_size=5, encoding='utf-8') as reader:
+      eq_(list(reader), [u'hello', u', wor', u'ld!'])
+
+  def test_read_json(self):
+    from json import dumps, load
+    data = {'one': 1, 'two': 2}
+    self.client.write('foo', data=dumps(data), encoding='utf-8')
+    with self.client.read('foo', encoding='utf-8') as reader:
+      eq_(load(reader), data)
 
 
 class TestRename(_IntegrationTest):

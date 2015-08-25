@@ -96,8 +96,8 @@ class _IntegrationTest(object):
 
   # Helpers.
 
-  def _read(self, hdfs_path):
-    with self.client.read(hdfs_path) as reader:
+  def _read(self, hdfs_path, encoding=None):
+    with self.client.read(hdfs_path, encoding=encoding) as reader:
       return reader.read()
 
   def _exists(self, hdfs_path):
