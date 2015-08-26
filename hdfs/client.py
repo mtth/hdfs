@@ -350,7 +350,7 @@ class Client(object):
 
     .. code-block:: python
 
-      from json import dumps
+      from json import dump, dumps
 
       records = [
         {'name': 'foo', 'weight': 1},
@@ -358,13 +358,11 @@ class Client(object):
       ]
 
       # As a context manager:
-      with client.write('data/records.jsonl') as writer:
-        for record in records:
-          writer.write(dumps(record))
+      with client.write('data/records.jsonl', encoding='utf-8') as writer:
+        dump(records, writer)
 
       # Or, passing in a generator directly:
-      dumped_records = (dumps(record) for record in records)
-      client.write('data/records.jsonl', data=dumped_records)
+      client.write('data/records.jsonl', data=dumps(records), encoding='utf-8')
 
     """
     # TODO: Figure out why this function generates a "Connection pool is full,
@@ -544,7 +542,7 @@ class Client(object):
 
   @contextmanager
   def read(self, hdfs_path, offset=0, length=None, buffer_size=None,
-    chunk_size=None, progress=None, encoding=None):
+    encoding=None, chunk_size=None, delimiter=None, progress=None):
     """Read a file from HDFS.
 
     :param hdfs_path: HDFS path.
@@ -553,17 +551,20 @@ class Client(object):
       file.
     :param buffer_size: Size of the buffer in bytes used for transferring the
       data. Defaults the the value set in the HDFS configuration.
+    :param encoding: Encoding used to decode the request. By default the raw
+      data is returned. This is mostly helpful in python 3, for example to
+      deserialize JSON data (as the decoder expects unicode).
     :param chunk_size: If set to a positive number, the context manager will
       return a generator yielding every `chunk_size` bytes instead of a
-      file-like object.
+      file-like object (unless `delimiter` is also set, see below).
+    :param delimiter: If set, the context manager will return a generator
+      yielding each time the delimiter is encountered. This parameter requires
+      the `encoding` to be specified.
     :param progress: Callback function to track progress, called every
       `chunk_size` bytes (not available if the chunk size isn't specified). It
       will be passed two arguments, the path to the file being uploaded and the
       number of bytes transferred so far. On completion, it will be called once
       with `-1` as second argument.
-    :param encoding: Encoding used to decode the request. By default the raw
-      data is returned. This is mostly helpful in python 3, e.g. since the JSON
-      module will only deserialize unicode.
 
     This method must be called using a `with` block:
 
@@ -576,24 +577,41 @@ class Client(object):
 
     """
     if progress and not chunk_size:
-      raise HdfsError('Callbacks are only supported with positive chunk size.')
+      raise ValueError('Progress callback requires a positive chunk size.')
+    if delimiter and not encoding:
+      raise ValueError('Delimiter splitting requires an encoding.')
     _logger.info('Reading file %r.', hdfs_path)
     res = self._open(
       hdfs_path,
       offset=offset,
       length=length,
-      buffersize=buffer_size
+      buffersize=buffer_size,
     )
     try:
-      if chunk_size:
-        # Patch in encoding so that `iter_content` can pick it up.
+      if not chunk_size and not delimiter:
+        yield codecs.getreader(encoding)(res.raw) if encoding else res.raw
+      else:
+        # Patch in encoding  on the response object so that `iter_content` and
+        # `iter_lines` can pick it up. If `None`, it is ignored and no decoding
+        # happens (which is why we can always set `decode_unicode=True`).
         res.encoding = encoding
+        if delimiter and chunk_size:
+          data = res.iter_lines(
+            chunk_size=chunk_size,
+            decode_unicode=True,
+            delimiter=delimiter,
+          )
+        elif delimiter:
+          # Use `requests`' default chunk size.
+          data = res.iter_lines(delimiter=delimiter, decode_unicode=True)
+        else:
+          data = res.iter_content(chunk_size=chunk_size, decode_unicode=True)
         if progress:
 
           def reader(_hdfs_path, _progress):
             """Generator that tracks progress."""
             nbytes = 0
-            for chunk in res.iter_content(chunk_size, decode_unicode=True):
+            for chunk in data:
               nbytes += len(chunk)
               _progress(_hdfs_path, nbytes)
               yield chunk
@@ -601,9 +619,7 @@ class Client(object):
 
           yield reader(hdfs_path, progress)
         else:
-          yield res.iter_content(chunk_size, decode_unicode=True)
-      else:
-        yield codecs.getreader(encoding)(res.raw) if encoding else res.raw
+          yield data
     finally:
       res.close()
       _logger.debug('Closed response for reading file %r.', hdfs_path)

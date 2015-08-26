@@ -547,6 +547,11 @@ class TestRead(_IntegrationTest):
     with self.client.read('foo', encoding='utf-8') as reader:
       eq_(load(reader), data)
 
+  def test_read_with_delimiter(self):
+    self.client.write('foo', u'hi\nworld!\n')
+    with self.client.read('foo', delimiter='\n', encoding='utf-8') as reader:
+      eq_(list(reader), [u'hi', u'world!', u''])
+
 
 class TestRename(_IntegrationTest):
 
