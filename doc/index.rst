@@ -38,10 +38,12 @@ User guide
   api
 
 
-Code snippet
-------------
+Sample script
+-------------
 
 .. literalinclude:: ../examples/json.py
+
+More examples can be found in the `examples/` folder on GitHub.
 
 
 .. _Project homepage on GitHub: https://github.com/mtth/hdfs
