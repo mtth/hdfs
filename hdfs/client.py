@@ -578,8 +578,11 @@ class Client(object):
     """
     if progress and not chunk_size:
       raise ValueError('Progress callback requires a positive chunk size.')
-    if delimiter and not encoding:
-      raise ValueError('Delimiter splitting requires an encoding.')
+    if delimiter:
+      if not encoding:
+        raise ValueError('Delimiter splitting requires an encoding.')
+      if chunk_size:
+        raise ValueError('Delimiter splitting incompatible with chunk size.')
     _logger.info('Reading file %r.', hdfs_path)
     res = self._open(
       hdfs_path,
@@ -595,14 +598,7 @@ class Client(object):
         # `iter_lines` can pick it up. If `None`, it is ignored and no decoding
         # happens (which is why we can always set `decode_unicode=True`).
         res.encoding = encoding
-        if delimiter and chunk_size:
-          data = res.iter_lines(
-            chunk_size=chunk_size,
-            decode_unicode=True,
-            delimiter=delimiter,
-          )
-        elif delimiter:
-          # Use `requests`' default chunk size.
+        if delimiter:
           data = res.iter_lines(delimiter=delimiter, decode_unicode=True)
         else:
           data = res.iter_content(chunk_size=chunk_size, decode_unicode=True)

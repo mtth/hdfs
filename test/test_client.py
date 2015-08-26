@@ -483,6 +483,24 @@ class TestDelete(_IntegrationTest):
 
 class TestRead(_IntegrationTest):
 
+  @raises(ValueError)
+  def test_progress_without_chunk_size(self):
+    self.client.write('foo', 'hello, world!')
+    with self.client.read('foo', progress=lambda path, nbytes: None) as reader:
+      pass
+
+  @raises(ValueError)
+  def test_delimiter_without_encoding(self):
+    self.client.write('foo', 'hello, world!')
+    with self.client.read('foo', delimiter=',') as reader:
+      pass
+
+  @raises(ValueError)
+  def test_delimiter_with_chunk_size(self):
+    self.client.write('foo', 'hello, world!')
+    with self.client.read('foo', delimiter=',', chunk_size=1) as reader:
+      pass
+
   def test_read_file(self):
     self.client.write('foo', 'hello, world!')
     with self.client.read('foo') as reader:
@@ -551,7 +569,6 @@ class TestRead(_IntegrationTest):
     self.client.write('foo', u'hi\nworld!\n')
     with self.client.read('foo', delimiter='\n', encoding='utf-8') as reader:
       eq_(list(reader), [u'hi', u'world!', u''])
-
 
 class TestRename(_IntegrationTest):
 
