@@ -61,6 +61,16 @@ Features
 See the documentation_ to learn more.
 
 
+Getting started
+---------------
+
+.. code-block:: bash
+
+  $ pip install hdfs
+
+Then hop on over to the quickstart_ guide.
+
+
 Testing
 -------
 
@@ -86,4 +96,5 @@ most welcome!
 .. _load and save Pandas dataframes: http://hdfscli.readthedocs.org/en/latest/api.html#module-hdfs.ext.dataframe
 .. _support Kerberos authenticated clusters: http://hdfscli.readthedocs.org/en/latest/api.html#module-hdfs.ext.kerberos
 .. _documentation: http://hdfscli.readthedocs.org/
+.. _quickstart: http://hdfscli.readthedocs.org/en/latest/quickstart.html
 .. _issues: https://github.com/mtth/hdfs/issues

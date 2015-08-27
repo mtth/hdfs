@@ -4,6 +4,11 @@
 Quickstart
 ==========
 
+This page first goes through the steps required to configure HdfsCLI's command 
+line interface then gives an overview of the python API. If you are only 
+interested in using HdfsCLI as a library, then feel free to jump ahead to the 
+`Python bindings`_ section.
+
 
 Configuration
 -------------
@@ -180,7 +185,7 @@ connections are always properly closed):
     features = reader.read()
 
   # Directly deserializing a JSON object.
-  with client.read('model.json') as reader:
+  with client.read('model.json', encoding='utf-8') as reader:
     from json import load
     model = load(reader)
 
@@ -192,6 +197,15 @@ instead, making it sometimes simpler to stream the file's contents.
   # Stream a file.
   with client.read('features', chunk_size=8096) as reader:
     for chunk in reader:
+      pass
+
+Similarly, if a `delimiter` argument is passed, the method will return a 
+generator of the delimited chunks.
+
+.. code-block:: python
+
+  with client.read('samples.csv', encoding='utf-8', delimiter='\n') as reader:
+    for line in reader:
       pass
 
 Writing files to HDFS is done using the :meth:`~hdfs.client.Client.write` 
@@ -206,7 +220,7 @@ method which returns a file-like writable object:
         writer.write(line)
 
   # Writing a serialized JSON object.
-  with client.write('model.json') as writer:
+  with client.write('model.json', encoding='utf-8') as writer:
     from json import dump
     dump(model, writer)
 
