@@ -322,6 +322,7 @@ class AvroWriter(object):
       write_long(fo, n_block_records)
       block_writer(fo, buf.getvalue())
       fo.write(self._sync_marker)
+      buf.seek(0)
       buf.truncate(0)
 
     if self._schema:

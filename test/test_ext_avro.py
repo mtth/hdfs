@@ -140,6 +140,19 @@ class TestWriter(_AvroIntegrationTest):
         self._get_data_bytes(tpath)
       )
 
+  def test_write_in_multiple_blocks(self):
+    writer = AvroWriter(
+      self.client,
+      'weather.avro',
+      schema=self.schema,
+      sync_interval = 1 # Flush block on every write.
+    )
+    with writer:
+      for record in self.records:
+        writer.write(record)
+    with AvroReader(self.client, 'weather.avro') as reader:
+      eq_(list(reader), self.records)
+
   def test_write_empty(self):
     with AvroWriter(self.client, 'empty.avro', schema=self.schema):
       pass
