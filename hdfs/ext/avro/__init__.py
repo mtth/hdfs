@@ -182,12 +182,12 @@ class AvroReader(object):
       """Record generator over all part-files."""
       for path in self._paths:
         with self._client.read(path) as bytes_reader:
-          avro_reader = fastavro.reader(_SeekableReader(bytes_reader))
+          reader = fastavro._reader.iter_avro(_SeekableReader(bytes_reader))
           if not self._schema:
-            schema = avro_reader.schema
+            schema = reader.schema
             _logger.debug('Read schema from %r.', path)
             yield schema
-          for record in avro_reader:
+          for record in reader:
             yield record
 
     self._records = _reader()
