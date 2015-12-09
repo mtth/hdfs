@@ -26,6 +26,7 @@ aliases, `dev` and `prod`:
 
   [dev.alias]
   url = http://dev.namenode:port
+  user = ann
 
   [prod.alias]
   url = http://prod.namenode:port
@@ -159,7 +160,7 @@ configured aliases:
 .. code-block:: python
 
   from hdfs import InsecureClient
-  client = InsecureClient('http://host:port')
+  client = InsecureClient('http://host:port', user='ann')
 
 The second leverages the :class:`hdfs.config.Config` class to load an existing 
 configuration file (defaulting to the same one as the CLI) and create clients 
