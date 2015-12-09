@@ -179,7 +179,7 @@ class TestResolve(_IntegrationTest):
     eq_(encoded.split('/')[-1], 'foo=1')
 
   def test_create_file_with_reserved_characters(self):
-    path = 'fo&o/a?a'
+    path = 'fo&o/a ?a'
     self.client.write(path, data='hello')
     with self.client.read(path) as reader:
       eq_(reader.read(), b'hello')
