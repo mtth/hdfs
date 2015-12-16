@@ -682,7 +682,7 @@ class Client(object):
         raise HdfsError('Parent directory of %r does not exist.', local_path)
       temp_path = local_path
     # Then we figure out which files we need to download and where.
-    remote_paths = list(self.walk(hdfs_path))
+    remote_paths = list(self._walk(hdfs_path, depth=0, status=False, resolve=False))
     if not remote_paths:
       # This is a single file.
       remote_fpaths = [hdfs_path]
@@ -910,6 +910,9 @@ class Client(object):
     it contains.
 
     """
+    return self._walk(hdfs_path, depth, status, True)
+
+  def _walk(self, hdfs_path, depth, status, resolve):
     _logger.info('Walking %r (depth %r).', hdfs_path, depth)
 
     def _walk(dir_path, dir_status, depth):
@@ -931,6 +934,8 @@ class Client(object):
           for infos in _walk(path, s, depth - 1):
             yield infos
 
+    if resolve:
+      hdfs_path = self.resolve(hdfs_path) # Cache resolution.
     s = self.status(hdfs_path)
     if s['type'] == 'DIRECTORY':
       for infos in _walk(hdfs_path, s, depth):
