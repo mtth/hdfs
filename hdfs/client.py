@@ -661,7 +661,6 @@ class Client(object):
             _writer.write(chunk)
 
     # First, we figure out where we will download the files to.
-    hdfs_path = self.resolve(hdfs_path)
     local_path = osp.realpath(local_path)
     if osp.isdir(local_path):
       local_path = osp.join(local_path, psp.basename(hdfs_path))
@@ -932,7 +931,6 @@ class Client(object):
           for infos in _walk(path, s, depth - 1):
             yield infos
 
-    hdfs_path = self.resolve(hdfs_path) # Cache resolution.
     s = self.status(hdfs_path)
     if s['type'] == 'DIRECTORY':
       for infos in _walk(hdfs_path, s, depth):

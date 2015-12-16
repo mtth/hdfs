@@ -763,6 +763,21 @@ class TestDownload(_IntegrationTest):
     with temppath() as tpath:
       self.client.download('foo', tpath)
 
+  def test_download_dir_whitespace(self):
+    self.client.write('foo/foo bar.txt', 'hello')
+    with temppath() as tpath:
+      self.client.download('foo', tpath)
+      with open(osp.join(tpath, 'foo bar.txt')) as reader:
+        eq_(reader.read(), 'hello')
+
+  def test_download_file_whitespace(self):
+    self.client.write('foo/foo bar%.txt', 'hello')
+    with temppath() as tpath:
+      print(tpath)
+      self.client.download('foo/foo bar%.txt', tpath)
+      with open(tpath) as reader:
+        eq_(reader.read(), 'hello')
+
 
 class TestStatus(_IntegrationTest):
 
