@@ -661,9 +661,10 @@ class Client(object):
             _writer.write(chunk)
 
     # First, we figure out where we will download the files to.
+    resolved_path = self.resolve(hdfs_path);
     local_path = osp.realpath(local_path)
     if osp.isdir(local_path):
-      local_path = osp.join(local_path, psp.basename(hdfs_path))
+      local_path = osp.join(local_path, psp.basename(resolved_path))
     if osp.exists(local_path):
       if not overwrite:
         raise HdfsError('Path %r already exists.', local_path)
@@ -682,10 +683,10 @@ class Client(object):
         raise HdfsError('Parent directory of %r does not exist.', local_path)
       temp_path = local_path
     # Then we figure out which files we need to download and where.
-    remote_paths = list(self._walk(hdfs_path, depth=0, status=False, resolve=False))
+    remote_paths = list(self.walk(hdfs_path, depth=0, status=False))
     if not remote_paths:
       # This is a single file.
-      remote_fpaths = [hdfs_path]
+      remote_fpaths = [resolved_path]
     else:
       remote_fpaths = [
         psp.join(dpath, fname)
@@ -693,8 +694,8 @@ class Client(object):
         for fname in fnames
       ]
       if not remote_fpaths:
-        raise HdfsError('No files to download found inside %r.', hdfs_path)
-    offset = len(hdfs_path) + 1 # Prefix length.
+        raise HdfsError('No files to download found inside %r.', resolved_path)
+    offset = len(resolved_path) + 1 # Prefix length.
     fpath_tuples = [
       (
         fpath,
@@ -731,7 +732,7 @@ class Client(object):
       if temp_path != local_path:
         _logger.debug(
           'Download of %r complete. Moving from %r to %r.',
-          hdfs_path, temp_path, local_path
+          resolved_path, temp_path, local_path
         )
         if osp.isdir(local_path):
           rmtree(local_path)
@@ -740,7 +741,7 @@ class Client(object):
         move(temp_path, local_path)
       else:
         _logger.debug(
-          'Download of %s to %r complete.', hdfs_path, local_path
+          'Download of %s to %r complete.', resolved_path, local_path
         )
     return local_path
 
@@ -910,9 +911,6 @@ class Client(object):
     it contains.
 
     """
-    return self._walk(hdfs_path, depth, status, True)
-
-  def _walk(self, hdfs_path, depth, status, resolve):
     _logger.info('Walking %r (depth %r).', hdfs_path, depth)
 
     def _walk(dir_path, dir_status, depth):
@@ -934,8 +932,7 @@ class Client(object):
           for infos in _walk(path, s, depth - 1):
             yield infos
 
-    if resolve:
-      hdfs_path = self.resolve(hdfs_path) # Cache resolution.
+    hdfs_path = self.resolve(hdfs_path) # Cache resolution.
     s = self.status(hdfs_path)
     if s['type'] == 'DIRECTORY':
       for infos in _walk(hdfs_path, s, depth):
