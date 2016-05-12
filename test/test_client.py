@@ -168,22 +168,6 @@ class TestResolve(_IntegrationTest):
     eq_(Client('url').resolve('/bar'), '/bar')
     eq_(Client('url').resolve('/bar/foo/'), '/bar/foo')
 
-  def test_resolve_filename(self):
-    path = 'fo&o/a?%a'
-    encoded = self.client.resolve(path)
-    eq_(encoded.split('/')[-2:], ['fo%26o', 'a%3F%25a'])
-
-  def test_resolve_filename_with_safe_characters(self):
-    path = 'foo=1'
-    encoded = self.client.resolve(path)
-    eq_(encoded.split('/')[-1], 'foo=1')
-
-  def test_create_file_with_reserved_characters(self):
-    path = 'fo&o/a ?a'
-    self.client.write(path, data='hello')
-    with self.client.read(path) as reader:
-      eq_(reader.read(), b'hello')
-
   def test_create_file_with_percent(self):
     # `%` (`0x25`) is a special case because it seems to cause errors (even
     # though the action still goes through). Typical error message will be
@@ -570,6 +554,7 @@ class TestRead(_IntegrationTest):
     with self.client.read('foo', delimiter='\n', encoding='utf-8') as reader:
       eq_(list(reader), [u'hi', u'world!', u''])
 
+
 class TestRename(_IntegrationTest):
 
   def test_rename_file(self):
@@ -587,11 +572,23 @@ class TestRename(_IntegrationTest):
     self.client.write('bar', 'hello again, world!')
     self.client.rename('foo', 'bar')
 
-  def test_rename_file_into_existing_directory(self):
+  def test_move_file_into_existing_directory(self):
     self.client.write('foo', 'hello, world!')
     self.client._mkdirs('bar')
     self.client.rename('foo', 'bar')
     eq_(self._read('bar/foo'), b'hello, world!')
+
+  def test_rename_file_into_existing_directory(self):
+    self.client.write('foo', 'hello, world!')
+    self.client._mkdirs('bar')
+    self.client.rename('foo', 'bar/baz')
+    eq_(self._read('bar/baz'), b'hello, world!')
+
+  def test_rename_file_with_special_characters(self):
+    path = 'fo&oa ?a=1'
+    self.client.write('foo', 'hello, world!')
+    self.client.rename('foo', path)
+    eq_(self._read(path), b'hello, world!')
 
 
 class TestDownload(_IntegrationTest):
@@ -762,6 +759,20 @@ class TestDownload(_IntegrationTest):
     self.client._mkdirs('foo')
     with temppath() as tpath:
       self.client.download('foo', tpath)
+
+  def test_download_dir_whitespace(self):
+    self.client.write('foo/foo bar.txt', 'hello')
+    with temppath() as tpath:
+      self.client.download('foo', tpath)
+      with open(osp.join(tpath, 'foo bar.txt')) as reader:
+        eq_(reader.read(), 'hello')
+
+  def test_download_file_whitespace(self):
+    self.client.write('foo/foo bar%.txt', 'hello')
+    with temppath() as tpath:
+      self.client.download('foo/foo bar%.txt', tpath)
+      with open(tpath) as reader:
+        eq_(reader.read(), 'hello')
 
 
 class TestStatus(_IntegrationTest):

@@ -78,7 +78,7 @@ class _Request(object):
       url = '%s%s%s' % (
         client.url.rstrip('/'),
         self.webhdfs_prefix,
-        client.resolve(hdfs_path),
+        quote(client.resolve(hdfs_path), '/= '),
       )
       params['op'] = operation
       return client._request(
@@ -248,7 +248,7 @@ class Client(object):
     # #LATEST expansion (could cache the pattern, but not worth it)
 
     _logger.debug('Resolved path %r to %r.', hdfs_path, path)
-    return quote(path, '/= ')
+    return path
 
   def content(self, hdfs_path, strict=True):
     """Get ContentSummary_ for a file or folder on HDFS.
@@ -683,7 +683,7 @@ class Client(object):
         raise HdfsError('Parent directory of %r does not exist.', local_path)
       temp_path = local_path
     # Then we figure out which files we need to download and where.
-    remote_paths = list(self.walk(hdfs_path))
+    remote_paths = list(self.walk(hdfs_path, depth=0, status=False))
     if not remote_paths:
       # This is a single file.
       remote_fpaths = [hdfs_path]
@@ -768,7 +768,8 @@ class Client(object):
     :param hdfs_src_path: Source path.
     :param hdfs_dst_path: Destination path. If the path already exists and is
       a directory, the source will be moved into it. If the path exists and is
-      a file, this method will raise an :class:`HdfsError`.
+      a file, or if a parent destination directory is missing, this method will
+      raise an :class:`HdfsError`.
 
     """
     _logger.info('Renaming %r to %r.', hdfs_src_path, hdfs_dst_path)
