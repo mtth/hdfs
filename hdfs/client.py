@@ -400,7 +400,7 @@ class Client(object):
       consumer(data)
 
   def upload(self, hdfs_path, local_path, overwrite=False, n_threads=1,
-    temp_dir=None, chunk_size=2 ** 16, progress=None, **kwargs):
+    temp_dir=None, chunk_size=2 ** 16, progress=None, cleanup=True, **kwargs):
     """Upload a file or directory to HDFS.
 
     :param hdfs_path: Target HDFS path. If it already exists and is a
@@ -419,6 +419,8 @@ class Client(object):
       `chunk_size` bytes. It will be passed two arguments, the path to the
       file being uploaded and the number of bytes transferred so far. On
       completion, it will be called once with `-1` as second argument.
+    :param cleanup: Delete any uploaded files if an error occurs during the
+      upload.
     :param \*\*kwargs: Keyword arguments forwarded to :meth:`write`.
 
     On success, this method returns the remote upload path.
@@ -457,13 +459,17 @@ class Client(object):
     try:
       statuses = [status for _, status in self.list(hdfs_path, status=True)]
     except HdfsError as err:
-      if 'not a directory' in str(err):
+      message = str(err)
+      if 'not a directory' in message:
         # Remote path is a normal file.
         if not overwrite:
           raise HdfsError('Remote path %r already exists.', hdfs_path)
-      else:
+      elif 'does not exist' in message:
         # Remote path doesn't exist.
         temp_path = hdfs_path
+      else:
+        # An unexpected error occurred.
+        raise err
     else:
       # Remote path is a directory.
       suffixes = set(status['pathSuffix'] for status in statuses)
@@ -519,12 +525,15 @@ class Client(object):
       else:
         _map_async(n_threads, _upload, fpath_tuples)
     except Exception as err: # pylint: disable=broad-except
-      _logger.exception('Error while uploading. Attempting cleanup.')
-      try:
-        self.delete(temp_path, recursive=True)
-      except Exception:
-        _logger.error('Unable to cleanup temporary folder.')
-      finally:
+      if cleanup:
+        _logger.exception('Error while uploading. Attempting cleanup.')
+        try:
+          self.delete(temp_path, recursive=True)
+        except Exception:
+          _logger.error('Unable to cleanup temporary folder.')
+        finally:
+          raise err
+      else:
         raise err
     else:
       if temp_path != hdfs_path:

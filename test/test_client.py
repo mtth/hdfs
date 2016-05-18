@@ -407,6 +407,35 @@ class TestUpload(_IntegrationTest):
       rmtree(dpath)
       self.client.write = _write
 
+  def test_upload_no_cleanup(self):
+    dpath = mkdtemp()
+    _write = self.client.write
+
+    def write(hdfs_path, *args, **kwargs):
+      if 'bar' in hdfs_path:
+        raise RuntimeError()
+      return _write(hdfs_path, *args, **kwargs)
+
+    try:
+      self.client.write = write
+      npath = osp.join(dpath, 'hi')
+      os.mkdir(npath)
+      with open(osp.join(npath, 'foo'), 'w') as writer:
+        writer.write('hello!')
+      os.mkdir(osp.join(npath, 'bar'))
+      with open(osp.join(npath, 'bar', 'baz'), 'w') as writer:
+        writer.write('world!')
+      try:
+        self.client.upload('foo', dpath, cleanup=False)
+      except RuntimeError:
+        # The outer folder still exists.
+        ok_(self._exists('foo'))
+      else:
+        ok_(False) # This shouldn't happen.
+    finally:
+      rmtree(dpath)
+      self.client.write = _write
+
   def test_upload_with_progress(self):
 
     def callback(path, nbytes, history=defaultdict(list)):
