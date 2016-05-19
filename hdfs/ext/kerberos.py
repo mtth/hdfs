@@ -34,7 +34,7 @@ support a Kerberized production grid:
 
   [prod.alias]
   url = http://prod.namenode:port
-  class = KerberosClient
+  client = KerberosClient
 
 .. _Kerberos: http://web.mit.edu/kerberos/
 
