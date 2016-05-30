@@ -35,7 +35,7 @@ setup(
   long_description=_get_long_description(),
   author='Matthieu Monsch',
   author_email='monsch@alum.mit.edu',
-  url='http://hdfscli.readthedocs.org',
+  url='https://hdfscli.readthedocs.io',
   license='MIT',
   packages=find_packages(),
   classifiers=[
