@@ -185,10 +185,8 @@ class Client(object):
 
   # Raw API endpoints
 
-  _append = _Request('PUT') # doesn't allow for streaming
-  _append_1 = _Request('POST', allow_redirects=False) # cf. `read`
-  _create = _Request('PUT') # doesn't allow for streaming
-  _create_1 = _Request('PUT', allow_redirects=False) # cf. `write`
+  _append = _Request('POST', allow_redirects=False) # cf. `read`
+  _create = _Request('PUT', allow_redirects=False) # cf. `write`
   _delete = _Request('DELETE')
   _get_content_summary = _Request('GET')
   _get_file_checksum = _Request('GET')
@@ -373,10 +371,10 @@ class Client(object):
       if permission or blocksize or replication:
         raise ValueError('Cannot change file properties while appending.')
       _logger.info('Appending to %r.', hdfs_path)
-      res = self._append_1(hdfs_path, buffersize=buffersize)
+      res = self._append(hdfs_path, buffersize=buffersize)
     else:
       _logger.info('Writing to %r.', hdfs_path)
-      res = self._create_1(
+      res = self._create(
         hdfs_path,
         overwrite=overwrite,
         permission=permission,
@@ -391,7 +389,6 @@ class Client(object):
         method='POST' if append else 'PUT',
         url=res.headers['location'],
         data=(c.encode(encoding) for c in _data) if encoding else _data,
-        auth=False,
       )
 
     if data is None:

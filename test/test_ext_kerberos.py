@@ -55,7 +55,7 @@ class TestKerberosClient(object):
     t2.join()
     eq_(calls, set([1, 2]))
 
-  def test_concurrency_no_auth(self):
+  def test_concurrency_no_redirect_auth(self):
     lock = Lock()
     calls = set()
     items = []
@@ -81,10 +81,14 @@ class TestKerberosClient(object):
     t1 = Thread(
       target=client._request,
       args=args,
-      kwargs={'thread': 1, 'auth': True}
+      kwargs={'thread': 1, 'is_redirect': False}
     )
     t1.start()
-    t2 = Thread(target=client._request, args=args, kwargs={'thread': 2})
+    t2 = Thread(
+      target=client._request,
+      args=args,
+      kwargs={'thread': 2, 'is_redirect': True}
+    )
     t2.start()
     t1.join()
     t2.join()

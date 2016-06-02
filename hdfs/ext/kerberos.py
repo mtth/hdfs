@@ -61,6 +61,10 @@ class KerberosClient(Client):
   :param max_concurrency: Maximum number of allowed concurrent requests. This
     is required since requests exceeding the threshold allowed by the server
     will be unable to authenticate.
+  :param auth_redirects: Whether or not redirects should be authenticated (e.g.
+    when writing to remote files). Some clusters require this but be aware that
+    this will limit the number of parallel uploads (to at most
+    `max_concurrency`).
   :param \*\*kwargs: Keyword arguments passed to the base class' constructor.
 
   To avoid replay errors, a timeout of 1 ms is enforced between requests.
@@ -69,11 +73,15 @@ class KerberosClient(Client):
 
   _delay = 0.001 # Seconds.
 
-  def __init__(self, url, mutual_auth='OPTIONAL', max_concurrency=1, **kwargs):
+  def __init__(self, url, mutual_auth='OPTIONAL', max_concurrency=1,
+    auth_redirects=False, **kwargs):
     # Note the handling of options passed in as strings to support
     # instantiation via the configuration file.
     self._lock = Lock()
     self._sem = Semaphore(int(max_concurrency))
+    if isinstance(auth_redirects, string_types):
+      auth_redirects = auth_redirects.lower() in ('true', 'yes', '1')
+    self._auth_redirects = auth_redirects
     self._timestamp = time() - self._delay
     session = kwargs.setdefault('session', rq.Session())
     if isinstance(mutual_auth, string_types):
@@ -93,8 +101,8 @@ class KerberosClient(Client):
     being made.
 
     """
-    if not 'auth' in kwargs:
-      # Request doesn't need to be authenticated, bypass this.
+    if 'data' in kwargs and not self._auth_redirects:
+      # Redirect which doesn't need to be authenticated, bypass this.
       return super(KerberosClient, self)._request(method, url, **kwargs)
     with self._sem:
       with self._lock:

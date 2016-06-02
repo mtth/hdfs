@@ -100,5 +100,9 @@ class _IntegrationTest(object):
     with self.client.read(hdfs_path, encoding=encoding) as reader:
       return reader.read()
 
+  def _write(self, hdfs_path, data, encoding=None):
+    with self.client.write(hdfs_path, encoding=encoding) as writer:
+      return writer.write(data)
+
   def _exists(self, hdfs_path):
     return bool(self.client.status(hdfs_path, strict=False))

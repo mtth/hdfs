@@ -82,19 +82,9 @@ class TestApi(_IntegrationTest):
     path = self.client._get_home_directory('/').json()['Path']
     ok_('/user/' in path)
 
-  def test_create_file(self):
-    path = 'foo'
-    self.client._create(path, data='hello')
-    ok_(self._exists(path))
-
-  def test_create_nested_file(self):
-    path = 'foo/bar'
-    self.client._create(path, data='hello')
-    ok_(self._exists(path))
-
   def test_delete_file(self):
     path = 'bar'
-    self.client._create(path, data='hello')
+    self.client._write(path, b'hello')
     ok_(self.client._delete(path).json()['boolean'])
     ok_(not self._exists(path))
 
@@ -104,7 +94,7 @@ class TestApi(_IntegrationTest):
 
   def test_rename_file(self):
     paths = ['foo', '%s/bar' % (self.client.root.rstrip('/'), )]
-    self.client._create(paths[0], data='hello')
+    self.client._write(paths[0], b'hello')
     ok_(self.client._rename(paths[0], destination=paths[1]).json()['boolean'])
     ok_(not self._exists(paths[0]))
     eq_(self.client._open(paths[1].rsplit('/', 1)[1]).content, b'hello')
@@ -112,8 +102,8 @@ class TestApi(_IntegrationTest):
 
   def test_rename_file_to_existing(self):
     p = ['foo', '%s/bar' % (self.client.root.rstrip('/'), )]
-    self.client._create(p[0], data='hello')
-    self.client._create(p[1], data='hi')
+    self.client._write(p[0], b'hello')
+    self.client._write(p[1], b'hi')
     try:
       ok_(not self.client._rename(p[0], destination=p[1]).json()['boolean'])
     finally:
@@ -121,11 +111,11 @@ class TestApi(_IntegrationTest):
       self.client._delete(p[1])
 
   def test_open_file(self):
-    self.client._create('foo', data='hello')
+    self.client._write('foo', b'hello')
     eq_(self.client._open('foo').content, b'hello')
 
   def test_get_file_checksum(self):
-    self.client._create('foo', data='hello')
+    self.client._write('foo', b'hello')
     data = self.client._get_file_checksum('foo').json()['FileChecksum']
     eq_(sorted(data), ['algorithm', 'bytes', 'length'])
     ok_(int(data['length']))
