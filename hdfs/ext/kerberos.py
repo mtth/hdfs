@@ -42,12 +42,39 @@ support a Kerberized production grid:
 
 from ..client import Client
 from ..util import HdfsError
-from requests_kerberos import HTTPKerberosAuth
 from six import string_types
 from threading import Lock, Semaphore
 from time import sleep, time
 import requests as rq
 import requests_kerberos # For mutual authentication globals.
+
+
+class _HdfsHTTPKerberosAuth(requests_kerberos.HTTPKerberosAuth):
+
+  """Kerberos authenticator which throttles authentication requests.
+
+  Without it, authentication will otherwise fail if too many concurrent
+  requests are being made. To avoid replay errors, a timeout of 1 ms is also
+  enforced between requests.
+
+  """
+
+  _delay = 0.001 # Seconds.
+
+  def __init__(self, max_concurrency, mutual_auth):
+    self._lock = Lock()
+    self._sem = Semaphore(max_concurrency)
+    self._timestamp = time() - self._delay
+    super(_HdfsHTTPKerberosAuth, self).__init__(mutual_auth)
+
+  def __call__(self, req):
+    with self._sem:
+      with self._lock:
+        delay = self._timestamp + self._delay - time()
+        if delay > 0:
+          sleep(delay) # Avoid replay errors.
+        self._timestamp = time()
+      return super(_HdfsHTTPKerberosAuth, self).__call__(req)
 
 
 class KerberosClient(Client):
@@ -58,31 +85,18 @@ class KerberosClient(Client):
     followed by WebHDFS port on namenode.
   :param mutual_auth: Whether to enforce mutual authentication or not (possible
     values: `'REQUIRED'`, `'OPTIONAL'`, `'DISABLED'`).
-  :param max_concurrency: Maximum number of allowed concurrent requests. This
-    is required since requests exceeding the threshold allowed by the server
-    will be unable to authenticate.
-  :param auth_redirects: Whether or not redirects should be authenticated (e.g.
-    when writing to remote files). Some clusters require this but be aware that
-    this will limit the number of parallel uploads (to at most
-    `max_concurrency`).
+  :param max_concurrency: Maximum number of allowed concurrent authentication
+    requests. This is required since requests exceeding the threshold allowed
+    by the server will be unable to authenticate.
   :param \*\*kwargs: Keyword arguments passed to the base class' constructor.
 
   To avoid replay errors, a timeout of 1 ms is enforced between requests.
 
   """
 
-  _delay = 0.001 # Seconds.
-
-  def __init__(self, url, mutual_auth='OPTIONAL', max_concurrency=1,
-    auth_redirects=False, **kwargs):
+  def __init__(self, url, mutual_auth='OPTIONAL', max_concurrency=1, **kwargs):
     # Note the handling of options passed in as strings to support
     # instantiation via the configuration file.
-    self._lock = Lock()
-    self._sem = Semaphore(int(max_concurrency))
-    if isinstance(auth_redirects, string_types):
-      auth_redirects = auth_redirects.lower() in ('true', 'yes', '1')
-    self._auth_redirects = auth_redirects
-    self._timestamp = time() - self._delay
     session = kwargs.setdefault('session', rq.Session())
     if isinstance(mutual_auth, string_types):
       try:
@@ -91,23 +105,5 @@ class KerberosClient(Client):
         raise HdfsError('Invalid mutual authentication type: %r', mutual_auth)
     else:
       _mutual_auth = mutual_auth
-    session.auth = HTTPKerberosAuth(_mutual_auth)
+    session.auth = _HdfsHTTPKerberosAuth(int(max_concurrency), _mutual_auth)
     super(KerberosClient, self).__init__(url, **kwargs)
-
-  def _request(self, method, url, **kwargs):
-    """Overriden method to avoid authentication errors.
-
-    Authentication will otherwise fail if too many concurrent requests are
-    being made.
-
-    """
-    if 'data' in kwargs and not self._auth_redirects:
-      # Redirect which doesn't need to be authenticated, bypass this.
-      return super(KerberosClient, self)._request(method, url, **kwargs)
-    with self._sem:
-      with self._lock:
-        delay = self._timestamp + self._delay - time()
-        if delay > 0:
-          sleep(delay) # Avoid replay errors.
-        self._timestamp = time()
-      return super(KerberosClient, self)._request(method, url, **kwargs)
