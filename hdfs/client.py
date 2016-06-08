@@ -81,6 +81,8 @@ class _Request(object):
         quote(client.resolve(hdfs_path), '/= '),
       )
       params['op'] = operation
+      if client._doas:
+        params['doas'] = client._doas
       return client._request(
         method=self.method,
         url=url,
@@ -149,10 +151,7 @@ class Client(object):
     self.root = root
     self.url = url
     self._session = session or rq.Session()
-    if proxy:
-      if not self._session.params:
-        self._session.params = {}
-      self._session.params['doas'] = proxy
+    self._doas = proxy
     self._timeout = timeout
     _logger.info('Instantiated %r.', self)
 
