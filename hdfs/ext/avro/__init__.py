@@ -39,16 +39,17 @@ import sys
 
 _logger = lg.getLogger(__name__)
 
-def _infer_schema(obj):
+
+def _infer_schema(obj, record_name=None):
   """Infer Avro type corresponding to a python object.
 
   :param obj: Python primitive.
+  :param record_name: Optional Avro record name.
 
   There are multiple limitations with this functions, among which:
 
   + Nullable fields aren't supported.
   + Only Avro integers will be inferred, so some values may overflow.
-  + Records are unnamed.
 
   """
   if isinstance(obj, bool):
@@ -64,18 +65,22 @@ def _infer_schema(obj):
       raise ValueError('Cannot infer type of empty array.')
     return {
       'type': 'array',
-      'items': _infer_schema(obj[0])
+      'items': _infer_schema(obj[0], record_name=record_name)
     }
   elif isinstance(obj, dict):
     if not obj:
       raise ValueError('Cannot infer type of empty record.')
-    return {
+    nested_record_name = u'Nested' + record_name if record_name else None
+    record = {
       'type': 'record',
       'fields': [
-        {'name': k, 'type': _infer_schema(v)}
+        {'name': k, 'type': _infer_schema(v, record_name=nested_record_name)}
         for k, v in obj.items()
       ]
     }
+    if record_name:
+      record.update(name=record_name)
+    return record
   raise ValueError('Cannot infer type from %s: %r' % (type(obj), obj))
 
 
@@ -243,11 +248,12 @@ class AvroWriter(object):
   """
 
   def __init__(self, client, hdfs_path, schema=None, codec=None,
-    sync_interval=None, sync_marker=None, **kwargs):
+    sync_interval=None, sync_marker=None, record_name=None, **kwargs):
     self._hdfs_path = hdfs_path
     self._fo = client.write(hdfs_path, **kwargs)
     self._schema = schema
     self._codec = codec or 'null'
+    self._record_name = record_name
     self._sync_interval = sync_interval or 1000 * fastavro._writer.SYNC_SIZE
     self._sync_marker = sync_marker or os.urandom(fastavro._writer.SYNC_SIZE)
     self._writer = None
@@ -332,7 +338,7 @@ class AvroWriter(object):
         record = (yield)
         if not n_records:
           if not self._schema:
-            self._schema = _infer_schema(record)
+            self._schema = _infer_schema(record, self._record_name)
             _logger.info('Inferred schema: %s', dumps(self._schema))
             dump_header()
           schema = self._schema
