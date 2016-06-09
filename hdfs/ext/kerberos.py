@@ -90,7 +90,9 @@ class KerberosClient(Client):
     by the server will be unable to authenticate.
   :param \*\*kwargs: Keyword arguments passed to the base class' constructor.
 
-  To avoid replay errors, a timeout of 1 ms is enforced between requests.
+  To avoid replay errors, a timeout of 1 ms is enforced between requests. If a
+  session argument is passed in, it will be modified in-place to support
+  authentication.
 
   """
 

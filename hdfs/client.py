@@ -81,6 +81,8 @@ class _Request(object):
         quote(client.resolve(hdfs_path), '/= '),
       )
       params['op'] = operation
+      if client._proxy is not None:
+        params['doas'] = client._proxy
       return client._request(
         method=self.method,
         url=url,
@@ -149,10 +151,7 @@ class Client(object):
     self.root = root
     self.url = url
     self._session = session or rq.Session()
-    if proxy:
-      if not self._session.params:
-        self._session.params = {}
-      self._session.params['doas'] = proxy
+    self._proxy = proxy
     self._timeout = timeout
     _logger.info('Instantiated %r.', self)
 
@@ -982,6 +981,9 @@ class InsecureClient(Client):
     `whoami`).
   :param \*\*kwargs: Keyword arguments passed to the base class' constructor.
 
+  Note that if a session argument is passed in, it will be modified in-place to
+  support authentication.
+
   """
 
   def __init__(self, url, user=None, **kwargs):
@@ -1001,6 +1003,9 @@ class TokenClient(Client):
     followed by WebHDFS port on namenode
   :param token: Hadoop delegation token.
   :param \*\*kwargs: Keyword arguments passed to the base class' constructor.
+
+  Note that if a session argument is passed in, it will be modified in-place to
+  support authentication.
 
   """
 
