@@ -39,44 +39,54 @@ import sys
 
 _logger = lg.getLogger(__name__)
 
-def _infer_schema(obj):
-  """Infer Avro type corresponding to a python object.
 
-  :param obj: Python primitive.
+class _SchemaInferrer(object):
 
-  There are multiple limitations with this functions, among which:
+  """Utility to infer Avro schemas from python values."""
 
-  + Nullable fields aren't supported.
-  + Only Avro integers will be inferred, so some values may overflow.
-  + Records are unnamed.
+  def __init__(self):
+    self.record_index = 0
 
-  """
-  if isinstance(obj, bool):
-    return 'boolean'
-  elif isinstance(obj, string_types):
-    return 'string'
-  elif isinstance(obj, integer_types): # Python 3 doesn't have `long`.
-    return 'int'
-  elif isinstance(obj, float):
-    return 'float'
-  elif isinstance(obj, list):
-    if not obj:
-      raise ValueError('Cannot infer type of empty array.')
-    return {
-      'type': 'array',
-      'items': _infer_schema(obj[0])
-    }
-  elif isinstance(obj, dict):
-    if not obj:
-      raise ValueError('Cannot infer type of empty record.')
-    return {
-      'type': 'record',
-      'fields': [
-        {'name': k, 'type': _infer_schema(v)}
-        for k, v in obj.items()
-      ]
-    }
-  raise ValueError('Cannot infer type from %s: %r' % (type(obj), obj))
+  def infer(self, obj):
+    """Infer Avro type corresponding to a python object.
+
+    :param obj: Python primitive.
+
+    There are multiple limitations with this functions, among which:
+
+    + Nullable fields aren't supported.
+    + Only Avro integers will be inferred, so some values may overflow.
+    + Record names are auto-generated.
+
+    """
+    if isinstance(obj, bool):
+      return 'boolean'
+    elif isinstance(obj, string_types):
+      return 'string'
+    elif isinstance(obj, integer_types): # Python 3 doesn't have `long`.
+      return 'int'
+    elif isinstance(obj, float):
+      return 'float'
+    elif isinstance(obj, list):
+      if not obj:
+        raise ValueError('Cannot infer type of empty array.')
+      return {
+        'type': 'array',
+        'items': self.infer(obj[0])
+      }
+    elif isinstance(obj, dict):
+      if not obj:
+        raise ValueError('Cannot infer type of empty record.')
+      self.record_index += 1
+      return {
+        'name': '__Record%s' % (self.record_index, ),
+        'type': 'record',
+        'fields': [
+          {'name': k, 'type': self.infer(v)}
+          for k, v in obj.items()
+        ]
+      }
+    raise ValueError('Cannot infer type from %s: %r' % (type(obj), obj))
 
 
 class _SeekableReader(object):
@@ -332,7 +342,7 @@ class AvroWriter(object):
         record = (yield)
         if not n_records:
           if not self._schema:
-            self._schema = _infer_schema(record)
+            self._schema = _SchemaInferrer().infer(record)
             _logger.info('Inferred schema: %s', dumps(self._schema))
             dump_header()
           schema = self._schema

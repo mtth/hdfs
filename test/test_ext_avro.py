@@ -13,7 +13,7 @@ import os.path as osp
 import sys
 
 try:
-  from hdfs.ext.avro import (_SeekableReader, _infer_schema, AvroReader,
+  from hdfs.ext.avro import (_SeekableReader, _SchemaInferrer, AvroReader,
     AvroWriter)
   from hdfs.ext.avro.__main__ import main
 except ImportError:
@@ -54,17 +54,12 @@ class TestSeekableReader(object):
 
 class TestInferSchema(object):
 
-  def _assert_schemas_equal(self, schema1, schema2):
-    # Only works for flat records.
-    ok_('fields' in schema1 and 'fields' in schema2)
-    fields = lambda schema: sorted(schema['fields'], key=lambda f: f['name'])
-    eq_(fields(schema1), fields(schema2))
-
   def test_flat_record(self):
-    self._assert_schemas_equal(
-      _infer_schema({'foo': 1, 'bar': 'hello'}),
+    eq_(
+      _SchemaInferrer().infer({'foo': 1, 'bar': 'hello'}),
       {
         'type': 'record',
+        'name': '__Record1',
         'fields': [
           {'type': 'int', 'name': 'foo'},
           {'type': 'string', 'name': 'bar'},
@@ -73,10 +68,11 @@ class TestInferSchema(object):
     )
 
   def test_array(self):
-    self._assert_schemas_equal(
-      _infer_schema({'foo': 1, 'bar': ['hello']}),
+    eq_(
+      _SchemaInferrer().infer({'foo': 1, 'bar': ['hello']}),
       {
         'type': 'record',
+        'name': '__Record1',
         'fields': [
           {'type': 'int', 'name': 'foo'},
           {'type': {'type': 'array', 'items': 'string'}, 'name': 'bar'},
