@@ -83,7 +83,7 @@ class _SchemaInferrer(object):
         'type': 'record',
         'fields': [
           {'name': k, 'type': self.infer(v)}
-          for k, v in obj.items()
+          for k, v in sorted(obj.items()) # Sort fields by name.
         ]
       }
     raise ValueError('Cannot infer type from %s: %r' % (type(obj), obj))

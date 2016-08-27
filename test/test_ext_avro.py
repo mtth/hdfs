@@ -54,19 +54,6 @@ class TestSeekableReader(object):
 
 class TestInferSchema(object):
 
-  def test_flat_record(self):
-    eq_(
-      _SchemaInferrer().infer({'foo': 1, 'bar': 'hello'}),
-      {
-        'type': 'record',
-        'name': '__Record1',
-        'fields': [
-          {'type': 'int', 'name': 'foo'},
-          {'type': 'string', 'name': 'bar'},
-        ]
-      }
-    )
-
   def test_array(self):
     eq_(
       _SchemaInferrer().infer({'foo': 1, 'bar': ['hello']}),
@@ -74,8 +61,48 @@ class TestInferSchema(object):
         'type': 'record',
         'name': '__Record1',
         'fields': [
-          {'type': 'int', 'name': 'foo'},
           {'type': {'type': 'array', 'items': 'string'}, 'name': 'bar'},
+          {'type': 'int', 'name': 'foo'},
+        ]
+      }
+    )
+
+  def test_flat_record(self):
+    eq_(
+      _SchemaInferrer().infer({'foo': 1, 'bar': 'hello'}),
+      {
+        'type': 'record',
+        'name': '__Record1',
+        'fields': [
+          {'type': 'string', 'name': 'bar'},
+          {'type': 'int', 'name': 'foo'},
+        ]
+      }
+    )
+
+  def test_nested_record(self):
+    eq_(
+      _SchemaInferrer().infer({'foo': {'bax': 2}, 'bar': {'baz': 3}}),
+      {
+        'type': 'record',
+        'name': '__Record1',
+        'fields': [
+          {
+            'type': {
+              'type': 'record',
+              'name': '__Record2',
+              'fields': [{'type': 'int', 'name': 'baz'}]
+            },
+            'name': 'bar',
+          },
+          {
+            'type': {
+              'type': 'record',
+              'name': '__Record3',
+              'fields': [{'type': 'int', 'name': 'bax'}]
+            },
+            'name': 'foo',
+          },
         ]
       }
     )
