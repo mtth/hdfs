@@ -913,6 +913,27 @@ class TestContent(_IntegrationTest):
   def test_missing_non_strict(self):
     ok_(self.client.content('foo', strict=False) is None)
 
+class TestAcl(_IntegrationTest):
+
+  def test_directory(self):
+    self.client.write('foo', 'hello, world!')
+    content = self.client.acl_status('')
+    ok_(len(content) > 1)
+    ok_(content['entries'] is not None)
+
+  def test_file(self):
+    self.client.write('foo', 'hello, world!')
+    content = self.client.acl_status('foo')
+    ok_(len(content) > 1)
+    ok_(content['entries'] is not None)
+
+  @raises(HdfsError)
+  def test_missing(self):
+    self.client.acl_status('foo')
+
+  def test_missing_non_strict(self):
+    ok_(self.client.acl_status('foo', strict=False) is None)
+
 
 class TestList(_IntegrationTest):
 
