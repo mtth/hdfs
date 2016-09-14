@@ -919,7 +919,9 @@ class TestAcl(_IntegrationTest):
     self.client.write('foo', 'hello, world!')
     content = self.client.acl_status('')
     ok_(len(content) > 1)
-    ok_(content['entries'] is not None)
+    ok_('entries' in content)
+    ok_('group' in content)
+    ok_('owner' in content)
 
   def test_file(self):
     self.client.write('foo', 'hello, world!')
