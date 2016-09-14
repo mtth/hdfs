@@ -278,7 +278,7 @@ class Client(object):
     res = self._get_file_status(hdfs_path, strict=strict)
     return res.json()['FileStatus'] if res else None
 
-  def get_acl(self, hdfs_path, strict=True):
+  def acl_status(self, hdfs_path, strict=True):
     """Get AclStatus_ for a file or folder on HDFS.
 
     :param hdfs_path: Remote path.
@@ -291,7 +291,7 @@ class Client(object):
     """
     _logger.info('Fetching ACL status for %r.', hdfs_path)
     res = self._get_acl_status(hdfs_path, strict=strict)
-    return res.json()['GETACLSTATUS'] if res else None
+    return res.json()['AclStatus'] if res else None
 
   def parts(self, hdfs_path, parts=None, status=False):
     """Returns a dictionary of part-files corresponding to a path.
