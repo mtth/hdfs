@@ -192,6 +192,7 @@ class Client(object):
   _get_file_status = _Request('GET')
   _get_home_directory = _Request('GET')
   _list_status = _Request('GET')
+  _get_acl_status = _Request('GET')
   _mkdirs = _Request('PUT')
   _open = _Request('GET', stream=True)
   _rename = _Request('PUT')
@@ -276,6 +277,21 @@ class Client(object):
     _logger.info('Fetching status for %r.', hdfs_path)
     res = self._get_file_status(hdfs_path, strict=strict)
     return res.json()['FileStatus'] if res else None
+
+  def acl_status(self, hdfs_path, strict=True):
+    """Get AclStatus_ for a file or folder on HDFS.
+
+    :param hdfs_path: Remote path.
+    :param strict: If `False`, return `None` rather than raise an exception if
+      the path doesn't exist.
+
+    .. _AclStatus: ACLS_
+    .. _ACLS: https://hadoop.apache.org/docs/stable2/hadoop-project-dist/hadoop-hdfs/WebHDFS.html#Get_ACL_Status
+
+    """
+    _logger.info('Fetching ACL status for %r.', hdfs_path)
+    res = self._get_acl_status(hdfs_path, strict=strict)
+    return res.json()['AclStatus'] if res else None
 
   def parts(self, hdfs_path, parts=None, status=False):
     """Returns a dictionary of part-files corresponding to a path.
