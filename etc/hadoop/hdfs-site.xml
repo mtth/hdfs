@@ -13,6 +13,6 @@
   </property>
   <property>
     <name>dfs.namenode.acls.enabled</name>
-  <value>true</value>
-</property>
+    <value>true</value>
+  </property>
 </configuration>

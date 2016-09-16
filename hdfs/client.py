@@ -187,12 +187,12 @@ class Client(object):
   _append = _Request('POST', allow_redirects=False) # cf. `read`
   _create = _Request('PUT', allow_redirects=False) # cf. `write`
   _delete = _Request('DELETE')
+  _get_acl_status = _Request('GET')
   _get_content_summary = _Request('GET')
   _get_file_checksum = _Request('GET')
   _get_file_status = _Request('GET')
   _get_home_directory = _Request('GET')
   _list_status = _Request('GET')
-  _get_acl_status = _Request('GET')
   _mkdirs = _Request('PUT')
   _open = _Request('GET', stream=True)
   _rename = _Request('PUT')
