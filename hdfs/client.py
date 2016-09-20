@@ -1002,7 +1002,7 @@ class InsecureClient(Client):
 
   """
 
-  def __init__(self, url, user=None, **kwargs):
+  def __init__(self, url, user="hdfs", **kwargs):
     user = user or getuser()
     session = kwargs.setdefault('session', rq.Session())
     if not session.params:
