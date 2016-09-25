@@ -596,6 +596,14 @@ class Client(object):
 
     This ensures that connections are always properly closed.
 
+    .. note::
+
+      The raw file-like object returned by this method (when called without an
+      encoding, chunk size, or delimiter) can have a very different performance
+      profile than local files. In particular, line-oriented methods are often
+      slower. The recommended workaround is to specify an encoding when
+      possible or read the entire file before splitting it.
+
     """
     if progress and not chunk_size:
       raise ValueError('Progress callback requires a positive chunk size.')
