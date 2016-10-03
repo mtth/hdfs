@@ -938,7 +938,7 @@ class TestAcl(_IntegrationTest):
 
   def test_set_acl(self):
     content = self.client.set_acl('foo', 'user::rwx,group::r--,other::---')
-    ok_(content is None)
+    ok_(content == 'Success')
 
 class TestList(_IntegrationTest):
 
