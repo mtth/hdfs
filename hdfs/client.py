@@ -307,6 +307,7 @@ class Client(object):
       'Setting ACLSPEC %r for %r.', aclspec, hdfs_path
     )
     res = self._set_acl(hdfs_path, aclspec=aclspec)
+    print('res is: ', res)
     if res is not None:
       raise HdfsError('Check your path or aclspec string', hdfs_path)
 
