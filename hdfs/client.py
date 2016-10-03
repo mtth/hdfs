@@ -294,6 +294,22 @@ class Client(object):
     res = self._get_acl_status(hdfs_path, strict=strict)
     return res.json()['AclStatus'] if res else None
 
+  def set_acl(self, hdfs_path, aclspec):
+    """Set ACL for specified path.
+
+    :param hdfs_path: Path to an existing remote file. An :class:`HdfsError`
+      will be raised if the path doesn't exist or points to a directory.
+    :param aclspec: String representation of an ACL spec. 
+      Ex: "user::rwx,user:foo:rw-,group::r--,other::---"
+
+    """
+    _logger.info(
+      'Setting ACLSPEC %r for %r.', aclspec, hdfs_path
+    )
+    res = self._set_acl(hdfs_path, aclspec=aclspec)
+    if not res.json()['boolean']:
+      raise HdfsError('%r is not a file.', hdfs_path)
+
   def parts(self, hdfs_path, parts=None, status=False):
     """Returns a dictionary of part-files corresponding to a path.
 
@@ -877,22 +893,6 @@ class Client(object):
       'Setting replication factor to %r for %r.', replication, hdfs_path
     )
     res = self._set_replication(hdfs_path, replication=replication)
-    if not res.json()['boolean']:
-      raise HdfsError('%r is not a file.', hdfs_path)
-
-    def set_acl(self, hdfs_path, aclspec):
-    """Set ACL for specified path.
-
-    :param hdfs_path: Path to an existing remote file. An :class:`HdfsError`
-      will be raised if the path doesn't exist or points to a directory.
-    :param aclspec: String representation of an ACL spec. 
-      Ex: "user::rwx,user:foo:rw-,group::r--,other::---"
-
-    """
-    _logger.info(
-      'Setting ACLSPEC %r for %r.', aclspec, hdfs_path
-    )
-    res = self._set_acl(hdfs_path, aclspec=aclspec)
     if not res.json()['boolean']:
       raise HdfsError('%r is not a file.', hdfs_path)
 
