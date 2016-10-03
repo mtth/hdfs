@@ -295,11 +295,11 @@ class Client(object):
     return res.json()['AclStatus'] if res else None
 
   def set_acl(self, hdfs_path, aclspec):
-    """Set ACL for specified path.
+    """Set ACL for specified path. Returns None for successful executions.
 
-    :param hdfs_path: Path to an existing remote file. An :class:`HdfsError`
-      will be raised if the path doesn't exist or points to a directory.
-    :param aclspec: String representation of an ACL spec. 
+    :param hdfs_path: Path to an existing remote file or directory. An :class:`HdfsError`
+      will be raised if the path doesn't exist.
+    :param aclspec: String representation of an ACL spec. Must be a valid string with entries for user, group and other.
       Ex: "user::rwx,user:foo:rw-,group::r--,other::---"
 
     """
@@ -307,8 +307,8 @@ class Client(object):
       'Setting ACLSPEC %r for %r.', aclspec, hdfs_path
     )
     res = self._set_acl(hdfs_path, aclspec=aclspec)
-    # if not res.json():
-    #  raise HdfsError('%r is not a file.', hdfs_path)
+    if res is not None:
+      raise HdfsError('Check your path or aclspec string', hdfs_path)
 
   def parts(self, hdfs_path, parts=None, status=False):
     """Returns a dictionary of part-files corresponding to a path.
