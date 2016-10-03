@@ -187,12 +187,12 @@ class Client(object):
   _append = _Request('POST', allow_redirects=False) # cf. `read`
   _create = _Request('PUT', allow_redirects=False) # cf. `write`
   _delete = _Request('DELETE')
+  _get_acl_status = _Request('GET')
   _get_content_summary = _Request('GET')
   _get_file_checksum = _Request('GET')
   _get_file_status = _Request('GET')
   _get_home_directory = _Request('GET')
   _list_status = _Request('GET')
-  _get_acl_status = _Request('GET')
   _mkdirs = _Request('PUT')
   _open = _Request('GET', stream=True)
   _rename = _Request('PUT')
@@ -595,6 +595,14 @@ class Client(object):
         content = reader.read()
 
     This ensures that connections are always properly closed.
+
+    .. note::
+
+      The raw file-like object returned by this method (when called without an
+      encoding, chunk size, or delimiter) can have a very different performance
+      profile than local files. In particular, line-oriented methods are often
+      slower. The recommended workaround is to specify an encoding when
+      possible or read the entire file before splitting it.
 
     """
     if progress and not chunk_size:
