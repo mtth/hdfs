@@ -200,6 +200,7 @@ class Client(object):
   _set_permission = _Request('PUT')
   _set_replication = _Request('PUT')
   _set_times = _Request('PUT')
+  _set_acl = _Request('PUT')
 
   # Exposed endpoints
 
@@ -878,6 +879,22 @@ class Client(object):
     res = self._set_replication(hdfs_path, replication=replication)
     if not res.json()['boolean']:
       raise HdfsError('%r is not a file.', hdfs_path)
+
+    def set_acl(self, hdfs_path, aclspec):
+    """Set ACL .
+
+    :param hdfs_path: Path to an existing remote file. An :class:`HdfsError`
+      will be raised if the path doesn't exist or points to a directory.
+    :param aclspec: String representation of an ACL spec. 
+      Ex: "user::rwx,user:foo:rw-,group::r--,other::---"
+
+    """
+    _logger.info(
+      'Setting ACLSPEC %r for %r.', aclspec, hdfs_path
+    )
+    res = self._set_acl(hdfs_path, aclspec=aclspec)
+    if not res.json()['boolean']:
+      raise HdfsError('%r is not a file.', hdfs_p
 
   def makedirs(self, hdfs_path, permission=None):
     """Create a remote directory, recursively if necessary.
