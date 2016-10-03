@@ -881,7 +881,7 @@ class Client(object):
       raise HdfsError('%r is not a file.', hdfs_path)
 
     def set_acl(self, hdfs_path, aclspec):
-    """Set ACL .
+    """Set ACL for specified path.
 
     :param hdfs_path: Path to an existing remote file. An :class:`HdfsError`
       will be raised if the path doesn't exist or points to a directory.
@@ -894,7 +894,7 @@ class Client(object):
     )
     res = self._set_acl(hdfs_path, aclspec=aclspec)
     if not res.json()['boolean']:
-      raise HdfsError('%r is not a file.', hdfs_p
+      raise HdfsError('%r is not a file.', hdfs_path)
 
   def makedirs(self, hdfs_path, permission=None):
     """Create a remote directory, recursively if necessary.
