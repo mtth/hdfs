@@ -307,8 +307,8 @@ class Client(object):
       'Setting ACLSPEC %r for %r.', aclspec, hdfs_path
     )
     res = self._set_acl(hdfs_path, aclspec=aclspec)
-    if not res.json()['boolean']:
-      raise HdfsError('%r is not a file.', hdfs_path)
+    # if not res.json():
+    #  raise HdfsError('%r is not a file.', hdfs_path)
 
   def parts(self, hdfs_path, parts=None, status=False):
     """Returns a dictionary of part-files corresponding to a path.
