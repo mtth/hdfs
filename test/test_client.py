@@ -937,6 +937,7 @@ class TestAcl(_IntegrationTest):
     ok_(self.client.acl_status('foo', strict=False) is None)
 
   def test_set_acl(self):
+    self.client.write('foo', 'hello, world!')
     content = self.client.set_acl('foo', 'user::rwx,group::r--,other::---')
     ok_(content == 'Success')
 
