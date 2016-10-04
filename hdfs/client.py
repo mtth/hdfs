@@ -306,8 +306,7 @@ class Client(object):
     _logger.info(
       'Setting ACLSPEC %r for %r.', aclspec, hdfs_path
     )
-    res = self._set_acl(hdfs_path, aclspec=aclspec)
-    return 'Success' if res else None
+    self._set_acl(hdfs_path, aclspec=aclspec)
 
   def parts(self, hdfs_path, parts=None, status=False):
     """Returns a dictionary of part-files corresponding to a path.

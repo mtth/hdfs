@@ -925,9 +925,11 @@ class TestAcl(_IntegrationTest):
 
   def test_file(self):
     self.client.write('foo', 'hello, world!')
+    self.client.set_acl('foo', 'user::rwx,group::r--,other::---')
     content = self.client.acl_status('foo')
     ok_(len(content) > 1)
     ok_(content['entries'] is not None)
+    ok_('rwx' in content['entries'] and 'r--' in content['entries'] and '---' in content['entries'])
 
   @raises(HdfsError)
   def test_missing(self):
@@ -936,10 +938,6 @@ class TestAcl(_IntegrationTest):
   def test_missing_non_strict(self):
     ok_(self.client.acl_status('foo', strict=False) is None)
 
-  def test_set_acl(self):
-    self.client.write('foo', 'hello, world!')
-    content = self.client.set_acl('foo', 'user::rwx,group::r--,other::---')
-    ok_(content == 'Success')
 
 class TestList(_IntegrationTest):
 
