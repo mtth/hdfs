@@ -929,6 +929,7 @@ class TestAcl(_IntegrationTest):
     content = self.client.acl_status('foo')
     ok_(len(content) > 1)
     ok_(content['entries'] is not None)
+    print(content['entries'])
     ok_('rwx' in content['entries'] and 'r--' in content['entries'] and '---' in content['entries'])
 
   @raises(HdfsError)
