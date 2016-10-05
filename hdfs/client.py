@@ -200,6 +200,7 @@ class Client(object):
   _set_permission = _Request('PUT')
   _set_replication = _Request('PUT')
   _set_times = _Request('PUT')
+  _set_acl = _Request('PUT')
 
   # Exposed endpoints
 
@@ -292,6 +293,20 @@ class Client(object):
     _logger.info('Fetching ACL status for %r.', hdfs_path)
     res = self._get_acl_status(hdfs_path, strict=strict)
     return res.json()['AclStatus'] if res else None
+
+  def set_acl(self, hdfs_path, aclspec):
+    """Set ACL for specified path. Returns None for successful executions.
+
+    :param hdfs_path: Path to an existing remote file or directory. An :class:`HdfsError`
+      will be raised if the path doesn't exist.
+    :param aclspec: String representation of an ACL spec. Must be a valid string with entries for user, group and other.
+      Ex: "user::rwx,user:foo:rw-,group::r--,other::---"
+
+    """
+    _logger.info(
+      'Setting ACLSPEC %r for %r.', aclspec, hdfs_path
+    )
+    self._set_acl(hdfs_path, aclspec=aclspec)
 
   def parts(self, hdfs_path, parts=None, status=False):
     """Returns a dictionary of part-files corresponding to a path.

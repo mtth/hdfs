@@ -925,9 +925,11 @@ class TestAcl(_IntegrationTest):
 
   def test_file(self):
     self.client.write('foo', 'hello, world!')
+    self.client.set_acl('foo', 'user::rwx,user:foouser:rwx,group::r--,other::---')
     content = self.client.acl_status('foo')
     ok_(len(content) > 1)
     ok_(content['entries'] is not None)
+    ok_(any('user:foouser:rwx' in s for s in content['entries']))
 
   @raises(HdfsError)
   def test_missing(self):
