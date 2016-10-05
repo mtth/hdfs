@@ -34,6 +34,7 @@ def _on_error(response):
 
   """
   if response.status_code == 401:
+    _logger.error(response.content)
     raise HdfsError('Authentication failure. Check your credentials.')
   try:
     # Cf. http://hadoop.apache.org/docs/r1.0.4/webhdfs.html#Error+Responses
@@ -196,11 +197,11 @@ class Client(object):
   _mkdirs = _Request('PUT')
   _open = _Request('GET', stream=True)
   _rename = _Request('PUT')
+  _set_acl = _Request('PUT')
   _set_owner = _Request('PUT')
   _set_permission = _Request('PUT')
   _set_replication = _Request('PUT')
   _set_times = _Request('PUT')
-  _set_acl = _Request('PUT')
 
   # Exposed endpoints
 
@@ -294,19 +295,18 @@ class Client(object):
     res = self._get_acl_status(hdfs_path, strict=strict)
     return res.json()['AclStatus'] if res else None
 
-  def set_acl(self, hdfs_path, aclspec):
-    """Set ACL for specified path. Returns None for successful executions.
+  def set_acl(self, hdfs_path, acl_spec):
+    """Set ACL for specified path.
 
-    :param hdfs_path: Path to an existing remote file or directory. An :class:`HdfsError`
-      will be raised if the path doesn't exist.
-    :param aclspec: String representation of an ACL spec. Must be a valid string with entries for user, group and other.
-      Ex: "user::rwx,user:foo:rw-,group::r--,other::---"
+    :param hdfs_path: Path to an existing remote file or directory. An
+      :class:`HdfsError` will be raised if the path doesn't exist.
+    :param acl_spec: String representation of an ACL spec. Must be a valid
+      string with entries for user, group and other. For example:
+      `"user::rwx,user:foo:rw-,group::r--,other::---"`.
 
     """
-    _logger.info(
-      'Setting ACLSPEC %r for %r.', aclspec, hdfs_path
-    )
-    self._set_acl(hdfs_path, aclspec=aclspec)
+    _logger.info('Setting ACL spec for %r to %r.', hdfs_path, acl_spec)
+    self._set_acl(hdfs_path, aclspec=acl_spec)
 
   def parts(self, hdfs_path, parts=None, status=False):
     """Returns a dictionary of part-files corresponding to a path.
