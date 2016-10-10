@@ -83,6 +83,8 @@ class _Request(object):
       params['op'] = operation
       if client._proxy is not None:
         params['doas'] = client._proxy
+        print('Proxy not none - Doas is: ', params['doas'])
+      print('Proxy none - Doas is: ', params['doas'])
       return client._request(
         method=self.method,
         url=url,
