@@ -149,7 +149,7 @@ class Client(object):
 
   __registry__ = {}
 
-  def __init__(self, url, root=None, proxy='apache', timeout=None, session=None):
+  def __init__(self, url, root=None, proxy='svchadoopjobsdev@ATL.CAREERBUILDER.COM', timeout=None, session=None):
     self.root = root
     self.url = url
     self._session = session or rq.Session()
