@@ -84,8 +84,6 @@ class _Request(object):
       params['op'] = operation
       if client._proxy is not None:
         params['doas'] = client._proxy
-        print('Proxy not none - Doas is: ', params['doas'])
-      print('Params: ', *params)
       return client._request(
         method=self.method,
         url=url,
@@ -150,7 +148,7 @@ class Client(object):
 
   __registry__ = {}
 
-  def __init__(self, url, root=None, proxy='svchadoopjobsdev@ATL.CAREERBUILDER.COM', timeout=None, session=None):
+  def __init__(self, url, root=None, proxy=None, timeout=None, session=None):
     self.root = root
     self.url = url
     self._session = session or rq.Session()
