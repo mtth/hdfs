@@ -204,7 +204,6 @@ class Client(object):
   _set_replication = _Request('PUT')
   _set_times = _Request('PUT')
 
-
   # Exposed endpoints
 
   def resolve(self, hdfs_path):
