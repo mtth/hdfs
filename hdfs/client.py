@@ -195,6 +195,7 @@ class Client(object):
   _get_home_directory = _Request('GET')
   _list_status = _Request('GET')
   _mkdirs = _Request('PUT')
+  _modify_acl_entries = _Request('PUT')
   _open = _Request('GET', stream=True)
   _rename = _Request('PUT')
   _set_acl = _Request('PUT')
@@ -202,7 +203,7 @@ class Client(object):
   _set_permission = _Request('PUT')
   _set_replication = _Request('PUT')
   _set_times = _Request('PUT')
-  _modify_acl_entries = _Request('PUT')
+
 
   # Exposed endpoints
 
@@ -296,34 +297,31 @@ class Client(object):
     res = self._get_acl_status(hdfs_path, strict=strict)
     return res.json()['AclStatus'] if res else None
 
-  def set_acl(self, hdfs_path, acl_spec):
-    """Set ACL for specified path.
+  def set_acl(self, hdfs_path, acl_spec, clear=True):
+    """SetAcl_ or ModifyAcl_ for a file or folder on HDFS.
 
     :param hdfs_path: Path to an existing remote file or directory. An
       :class:`HdfsError` will be raised if the path doesn't exist.
     :param acl_spec: String representation of an ACL spec. Must be a valid
       string with entries for user, group and other. For example:
       `"user::rwx,user:foo:rw-,group::r--,other::---"`.
-
-    """
-    _logger.info('Setting ACL spec for %r to %r.', hdfs_path, acl_spec)
-    self._set_acl(hdfs_path, aclspec=acl_spec)
-
-  def modify_acl(self, hdfs_path, acl_spec):
-    """Modifies ACL entries of files and directories.
-
-    :param hdfs_path: Path to an existing remote file or directory. An
-      :class:`HdfsError` will be raised if the path doesn't exist.
-    :param acl_spec: String representation of an ACL spec entry. All existing ACL entries
-      that are not specified in this call are retained without changes. For example:
+    :param clear: Clear existing ACL entries. If set to false, all existing ACL entries
+      that are not specified in this call are retained without changes, behaving like ModifyAcl_. For example:
       `"user:foo:rwx"`.
 
-    .. _ModifyAcl: MODACL_
-    .. _MODACL: https://hadoop.apache.org/docs/stable2/hadoop-project-dist/hadoop-hdfs/WebHDFS.html#Modify_ACL_Entries
+    .. _SetAcl: SETACL_
+    .. SETACL_: https://hadoop.apache.org/docs/stable2/hadoop-project-dist/hadoop-hdfs/WebHDFS.html#Set_ACL
+
+    .. ModifyAcl_: MODACL_
+    .. MODACL_: https://hadoop.apache.org/docs/stable2/hadoop-project-dist/hadoop-hdfs/WebHDFS.html#Modify_ACL_Entries
 
     """
-    _logger.info('Modifying ACL spec for %r to %r.', hdfs_path, acl_spec)
-    self._modify_acl_entries(hdfs_path, aclspec=acl_spec)
+    if clear:
+      _logger.info('Setting ACL spec for %r to %r.', hdfs_path, acl_spec)
+      self._set_acl(hdfs_path, aclspec=acl_spec)
+    else:
+      _logger.info('Modifying ACL spec for %r to %r.', hdfs_path, acl_spec)
+      self._modify_acl_entries(hdfs_path, aclspec=acl_spec)
 
   def parts(self, hdfs_path, parts=None, status=False):
     """Returns a dictionary of part-files corresponding to a path.

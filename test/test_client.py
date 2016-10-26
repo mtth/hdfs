@@ -923,13 +923,17 @@ class TestAcl(_IntegrationTest):
     ok_('group' in content)
     ok_('owner' in content)
 
-  def test_file(self):
+  def test_set_acl(self):
     self.client.write('foo', 'hello, world!')
     self.client.set_acl('foo', 'user::rwx,user:foouser:rwx,group::r--,other::---')
-    self.client.modify_acl('foo', 'user:foouser:rw-')
     content = self.client.acl_status('foo')
+    ok_(any('user:foouser:rwx' in s for s in content['entries']))
     ok_(len(content) > 1)
     ok_(content['entries'] is not None)
+
+  def test_modify_acl(self):
+    self.client.set_acl('foo', 'user:foouser:rw-', clear=False)
+    content = self.client.acl_status('foo')
     ok_(any('user:foouser:rw-' in s for s in content['entries']))
 
   @raises(HdfsError)
