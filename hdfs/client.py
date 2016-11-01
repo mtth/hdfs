@@ -304,9 +304,9 @@ class Client(object):
     :param acl_spec: String representation of an ACL spec. Must be a valid
       string with entries for user, group and other. For example:
       `"user::rwx,user:foo:rw-,group::r--,other::---"`.
-    :param clear: Clear existing ACL entries. If set to false, all existing ACL entries
-      that are not specified in this call are retained without changes, behaving like ModifyAcl_. For example:
-      `"user:foo:rwx"`.
+    :param clear: Clear existing ACL entries. If set to false, all existing ACL
+      entries that are not specified in this call are retained without changes,
+      behaving like ModifyAcl_. For example: `"user:foo:rwx"`.
 
     .. _SetAcl: SETACL_
     .. SETACL_: https://hadoop.apache.org/docs/stable2/hadoop-project-dist/hadoop-hdfs/WebHDFS.html#Set_ACL
