@@ -115,7 +115,7 @@ class KerberosClient(Client):
         mutual_auth = getattr(requests_kerberos, mutual_auth)
       except AttributeError:
         raise HdfsError('Invalid mutual authentication type: %r', mutual_auth)
-    kwargs['mutual_auth'] = mutual_auth
+    kwargs['mutual_authentication'] = mutual_auth
     if not session:
       session = rq.Session()
     session.auth = _HdfsHTTPKerberosAuth(int(max_concurrency), **kwargs)
