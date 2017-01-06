@@ -11,7 +11,7 @@ import sys
 
 class MockHTTPKerberosAuth(object):
 
-  def __init__(self, *args):
+  def __init__(self, **kwargs):
     self._lock = Lock()
     self._calls = set()
     self._items = []
@@ -40,7 +40,7 @@ from hdfs.ext.kerberos import _HdfsHTTPKerberosAuth
 class TestKerberosClient(object):
 
   def test_max_concurrency(self):
-    auth = _HdfsHTTPKerberosAuth(1, 'OPTIONAL')
+    auth = _HdfsHTTPKerberosAuth(1, mutual_auth='OPTIONAL')
     t1 = Thread(target=auth.__call__, args=(1, ))
     t1.start()
     t2 = Thread(target=auth.__call__, args=(2, ))

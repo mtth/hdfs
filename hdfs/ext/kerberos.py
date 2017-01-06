@@ -61,11 +61,11 @@ class _HdfsHTTPKerberosAuth(requests_kerberos.HTTPKerberosAuth):
 
   _delay = 0.001 # Seconds.
 
-  def __init__(self, max_concurrency, mutual_auth):
+  def __init__(self, max_concurrency, **kwargs):
     self._lock = Lock()
     self._sem = Semaphore(max_concurrency)
     self._timestamp = time() - self._delay
-    super(_HdfsHTTPKerberosAuth, self).__init__(mutual_auth)
+    super(_HdfsHTTPKerberosAuth, self).__init__(**kwargs)
 
   def __call__(self, req):
     with self._sem:
@@ -83,12 +83,13 @@ class KerberosClient(Client):
 
   :param url: Hostname or IP address of HDFS namenode, prefixed with protocol,
     followed by WebHDFS port on namenode.
-  :param mutual_auth: Whether to enforce mutual authentication or not (possible
-    values: `'REQUIRED'`, `'OPTIONAL'`, `'DISABLED'`).
   :param max_concurrency: Maximum number of allowed concurrent authentication
     requests. This is required since requests exceeding the threshold allowed
     by the server will be unable to authenticate.
-  :param \*\*kwargs: Keyword arguments passed to the base class' constructor.
+  :param \*\*kwargs: Additional arguments passed to the underlying
+    :class:`~requests_kerberos.HTTPKerberosAuth` class. If `mutual_auth` is
+    passed in as a string, it will be automatically converted to its
+    corresponding enum value (defaulting to `OPTIONAL`).
 
   To avoid replay errors, a timeout of 1 ms is enforced between requests. If a
   session argument is passed in, it will be modified in-place to support
@@ -96,16 +97,18 @@ class KerberosClient(Client):
 
   """
 
-  def __init__(self, url, mutual_auth='OPTIONAL', max_concurrency=1, **kwargs):
-    # Note the handling of options passed in as strings to support
-    # instantiation via the configuration file.
-    session = kwargs.setdefault('session', rq.Session())
+  def __init__(self, url, mutual_auth='OPTIONAL', max_concurrency=1, root=None,
+    proxy=None, timeout=None, session=None, **kwargs):
+    # We allow passing in a string as mutual authentication value.
     if isinstance(mutual_auth, string_types):
       try:
-        _mutual_auth = getattr(requests_kerberos, mutual_auth)
+        mutual_auth = getattr(requests_kerberos, mutual_auth)
       except AttributeError:
         raise HdfsError('Invalid mutual authentication type: %r', mutual_auth)
-    else:
-      _mutual_auth = mutual_auth
-    session.auth = _HdfsHTTPKerberosAuth(int(max_concurrency), _mutual_auth)
-    super(KerberosClient, self).__init__(url, **kwargs)
+    kwargs['mutual_auth'] = mutual_auth
+    if not session:
+      session = rq.Session()
+    session.auth = _HdfsHTTPKerberosAuth(int(max_concurrency), **kwargs)
+    super(KerberosClient, self).__init__(
+      url, root=root, proxy=proxy, timeout=timeout, session=session
+    )
