@@ -83,13 +83,23 @@ class KerberosClient(Client):
 
   :param url: Hostname or IP address of HDFS namenode, prefixed with protocol,
     followed by WebHDFS port on namenode.
+  :param mutual_auth: Whether to enforce mutual authentication or not (possible
+    values: `'REQUIRED'`, `'OPTIONAL'`, `'DISABLED'`).
   :param max_concurrency: Maximum number of allowed concurrent authentication
     requests. This is required since requests exceeding the threshold allowed
     by the server will be unable to authenticate.
+  :param proxy: User to proxy as.
+  :param root: Root path, this will be prefixed to all HDFS paths passed to the
+    client. If the root is relative, the path will be assumed relative to the
+    user's home directory.
+  :param timeout: Connection timeouts, forwarded to the request handler. How
+    long to wait for the server to send data before giving up, as a float, or a
+    `(connect_timeout, read_timeout)` tuple. If the timeout is reached, an
+    appropriate exception will be raised. See the requests_ documentation for
+    details.
+  :param session: `requests.Session` instance, used to emit all requests.
   :param \*\*kwargs: Additional arguments passed to the underlying
-    :class:`~requests_kerberos.HTTPKerberosAuth` class. If `mutual_auth` is
-    passed in as a string, it will be automatically converted to its
-    corresponding enum value (defaulting to `OPTIONAL`).
+    :class:`~requests_kerberos.HTTPKerberosAuth` class.
 
   To avoid replay errors, a timeout of 1 ms is enforced between requests. If a
   session argument is passed in, it will be modified in-place to support
