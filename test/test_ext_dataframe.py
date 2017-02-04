@@ -53,3 +53,15 @@ class TestWriteDataFrame(_DataFrameIntegrationTest):
     write_dataframe(self.client, 'weather.avro', self.df)
     with AvroReader(self.client, 'weather.avro') as reader:
       eq_(list(reader), self.records)
+
+
+class TestReadWriteDataFrame(_DataFrameIntegrationTest):
+
+  def test_column_order(self):
+    # Column order should be preserved, not just alphabetical.
+    df = self.df[['temp', 'station', 'time']]
+    write_dataframe(self.client, 'weather-ordered.avro', df)
+    assert_frame_equal(
+      read_dataframe(self.client, 'weather-ordered.avro'),
+      df
+    )

@@ -169,6 +169,7 @@ class AvroReader(object):
 
   def __init__(self, client, hdfs_path, parts=None):
     self.content = client.content(hdfs_path) #: Content summary of Avro file.
+    self.metadata = None #: Avro header metadata.
     self._schema = None
     if self.content['directoryCount']:
       # This is a folder.
@@ -196,12 +197,12 @@ class AvroReader(object):
           if not self._schema:
             schema = reader.schema
             _logger.debug('Read schema from %r.', path)
-            yield schema
+            yield (schema, reader.metadata)
           for record in reader:
             yield record
 
     self._records = _reader()
-    self._schema = next(self._records) # Prime generator to get schema.
+    self._schema, self.metadata = next(self._records)
     return self
 
   def __exit__(self, exc_type, exc_value, traceback):
@@ -239,6 +240,8 @@ class AvroWriter(object):
   :param sync_interval: Number of bytes after which a block will be written.
   :param sync_marker: 16 byte tag used for synchronization. If not specified,
     one will be generated at random.
+  :param metadata: Additional metadata to include in the container file's
+    header. Keys starting with `'avro.'` are reserved.
   :param \*\*kwargs: Keyword arguments forwarded to
     :meth:`hdfs.client.Client.write`.
 
@@ -253,13 +256,14 @@ class AvroWriter(object):
   """
 
   def __init__(self, client, hdfs_path, schema=None, codec=None,
-    sync_interval=None, sync_marker=None, **kwargs):
+    sync_interval=None, sync_marker=None, metadata=None, **kwargs):
     self._hdfs_path = hdfs_path
     self._fo = client.write(hdfs_path, **kwargs)
     self._schema = schema
     self._codec = codec or 'null'
     self._sync_interval = sync_interval or 1000 * fastavro._writer.SYNC_SIZE
     self._sync_marker = sync_marker or os.urandom(fastavro._writer.SYNC_SIZE)
+    self._metadata = metadata
     self._writer = None
     _logger.info('Instantiated %r.', self)
 
@@ -323,6 +327,10 @@ class AvroWriter(object):
         'avro.codec': self._codec,
         'avro.schema': dumps(self._schema),
       }
+      if self._metadata:
+        for key, value in self._metadata.items():
+          # Don't overwrite the codec or schema.
+          metadata.setdefault(key, value)
       fastavro._writer.write_header(fo, metadata, self._sync_marker)
       _logger.debug('Wrote header. Sync marker: %r', self._sync_marker)
       fastavro._writer.acquaint_schema(self._schema)
