@@ -28,6 +28,13 @@ class HdfsError(Exception):
   def __init__(self, message, *args):
     super(HdfsError, self).__init__(message % args if args else message)
 
+class HdfsStandbyError(HdfsError):
+
+  """Standby Error class.
+  Raised when a NameNode reports it is standby
+  """
+  pass
+
 
 class AsyncWriter(object):
 
