@@ -149,10 +149,10 @@ class Client(object):
 
   __registry__ = {}
 
-  def __init__(self, urls, root=None, proxy=None, timeout=None, session=None):
+  def __init__(self, url, root=None, proxy=None, timeout=None, session=None):
     self.root = root
     # We build a deque of all URLs
-    self._urls = deque([ u.rstrip('/') for u in urls.split(';') if u ])
+    self._urls = deque([ u.rstrip('/') for u in url.split(';') if u ])
     # Then we store what URL we'll start at when making requests
     self._start_url_index = 0
     self._session = session or rq.Session()
@@ -160,61 +160,77 @@ class Client(object):
     self._timeout = timeout
     _logger.info('Instantiated %r.', self)
 
+  @property
+  def urls(self):
+    return list(self._urls)
+
   def __repr__(self):
     return '<%s(url=%r)>' % (self.__class__.__name__, self._urls)
 
-  # Raw requestor.  Pass directly to session
-  def _raw_request(self, *args, **kwargs):
-    return self._session.request(*args, **kwargs)
-
   # Generic request handler
-  def _request(self, method, url_suffix, strict=True, **kwargs):
+  def _request(self, method, url, strict=True, **kwargs):
     """Send request to WebHDFS API.
 
     :param method: HTTP verb.
-    :param url: Url to send the request to.
+    :param url: Url to send the request to, or URL suffix to add to base.
     :param \*\*kwargs: Extra keyword arguments forwarded to the request
       handler. If any `params` are defined, these will take precendence over
       the instance's defaults.
 
     """
-    # We rotate our deque (left) by the amound of failed URLs we tried before
-    self._urls.rotate(-self._start_url_index)
-    # Then we enumerate over the list.  If the first URL works, self._start_url_index
-    # Will be 0 next request, and we won't rotate any above
-    for self._start_url_index, url_base in enumerate(self._urls):
-      # Reset response, we'll use it at end of loop if it's set
-      response = None
-      exc = None
-      try:
-        response = self._raw_request(
-          method=method,
-          url=url_base + url_suffix,
-          timeout=self._timeout,
-          headers={'content-type': 'application/octet-stream'}, # For HttpFS.
-          **kwargs
-        )
-        if strict and \
-            not response and \
-            not (response.status_code == 403 and response.json()['RemoteException']['exception'] == 'StandbyException'):
-          return _on_error(response)
-        elif response.status_code == 403 and response.json()['RemoteException']['exception'] == 'StandbyException':
+    # If passed a full URL, just send the request
+    if url.startswith('http'):
+      response = self._session.request(
+        method=method,
+        url=url,
+        timeout=self._timeout,
+        headers={'content-type': 'application/octet-stream'}, # For HttpFS.
+        **kwargs
+      )
+      if strict and not response:
+        _on_error(response)
+      else:
+        return response
+    # If passed a suffix, use the Standby if available
+    else:
+      # We rotate our deque (left) by the amound of failed URLs we tried before
+      self._urls.rotate(-self._start_url_index)
+      # Then we enumerate over the list.  If the first URL works, self._start_url_index
+      # Will be 0 next request, and we won't rotate any above
+
+      for self._start_url_index, url_base in enumerate(self._urls):
+        # Reset response, we'll use it at end of loop if it's set
+        response = None
+        exc = None
+        try:
+          response = self._session.request(
+            method=method,
+            url=url_base + url,
+            timeout=self._timeout,
+            headers={'content-type': 'application/octet-stream'}, # For HttpFS.
+            **kwargs
+          )
+          if strict and \
+              not response and \
+              not (response.status_code == 403 and response.json()['RemoteException']['exception'] == 'StandbyException'):
+            return _on_error(response)
+          elif response.status_code == 403 and response.json()['RemoteException']['exception'] == 'StandbyException':
+            continue
+          else:
+            return response
+        except (rq.exceptions.ReadTimeout,
+                  rq.exceptions.ConnectTimeout,
+                  rq.exceptions.ConnectionError,
+                  ) as e:
+          # Socket error with host
+          exc = e
           continue
-        else:
-          return response
-      except (rq.exceptions.ReadTimeout,
-                rq.exceptions.ConnectTimeout,
-                rq.exceptions.ConnectionError,
-                ) as e:
-        # Socket error with host
-        exc = e
-        continue
-    # If we got a valid response, process it as an error
-    if response:
-      _on_error(response)
-    # If the last thing was a socket exception, raise it
-    if exc:
-      raise exc
+      # If we got a valid response, process it as an error
+      if response:
+        _on_error(response)
+      # If the last thing was a socket exception, raise it
+      if exc:
+        raise exc
 
   # Raw API endpoints
 
@@ -462,9 +478,9 @@ class Client(object):
 
     def consumer(_data):
       """Thread target."""
-      self._raw_request(
-        method='POST' if append else 'PUT',
-        url=res.headers['location'],
+      self._request(
+        'POST' if append else 'PUT',
+        res.headers['location'],
         data=(c.encode(encoding) for c in _data) if encoding else _data,
       )
 
