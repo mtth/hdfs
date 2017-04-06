@@ -46,6 +46,9 @@ See the :ref:`Kerberos extension <kerberos_extension>` to enable the
 :class:`~hdfs.ext.kerberos.KerberosClient` and :ref:`custom_client` to learn 
 how to use other client classes.
 
+The `url` option can be configured to support HA namenodes when using WebHDFS,
+simply add more URLs by delimiting with a semicolon (`;`).
+
 Finally, note the `default.alias` entry in the global configuration section 
 which will be used as default alias if none is specified.
 
