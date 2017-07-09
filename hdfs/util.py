@@ -22,12 +22,13 @@ class HdfsError(Exception):
 
   :param message: Error message.
   :param args: optional Message formatting arguments.
+  :param kwargs: optional extra values to store
 
   """
 
-  def __init__(self, message, *args):
+  def __init__(self, message, *args, **kwargs):
     super(HdfsError, self).__init__(message % args if args else message)
-
+    self.response = kwargs.get('response', None)
 
 class AsyncWriter(object):
 
