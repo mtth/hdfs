@@ -325,7 +325,8 @@ class Client(object):
   def parts(self, hdfs_path, parts=None, status=False):
     """Returns a dictionary of part-files corresponding to a path.
 
-    :param hdfs_path: Remote path.
+    :param hdfs_path: Remote path. This directory should contain at most one
+      part file per partition (otherwise one will be picked arbitrarily).
     :param parts: List of part-files numbers or total number of part-files to
       select. If a number, that many partitions will be chosen at random. By
       default all part-files are returned. If `parts` is a list and one of the
