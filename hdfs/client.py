@@ -3,7 +3,7 @@
 
 """WebHDFS API clients."""
 
-from .util import AsyncWriter, HdfsError
+from .util import AsyncWriter, HdfsError, HdfsStandbyError
 from collections import deque
 from contextlib import contextmanager
 from getpass import getuser
@@ -36,14 +36,24 @@ def _on_error(response):
   """
   if response.status_code == 401:
     _logger.error(response.content)
-    raise HdfsError('Authentication failure. Check your credentials.', response=response)
+    raise HdfsError('Authentication failure. Check your credentials.')
+
   try:
     # Cf. http://hadoop.apache.org/docs/r1.0.4/webhdfs.html#Error+Responses
     message = response.json()['RemoteException']['message']
   except ValueError:
     # No clear one thing to display, display entire message content
     message = response.content
-  raise HdfsError(message, response=response)
+
+  try:
+    webhdfs_exception = response.json()['RemoteException']['exception']
+  except ValueError:
+    webhdfs_exception = None
+
+  if webhdfs_exception == 'StandbyException':
+    raise HdfsStandbyError(message)
+  else:
+    raise HdfsError(message)
 
 
 class _Request(object):
@@ -63,7 +73,7 @@ class _Request(object):
     self.kwargs = kwargs
 
   def __call__(self):
-    pass # make pylint happy
+    pass  # make pylint happy
 
   def to_method(self, operation):
     """Returns method associated with request to attach to client.
@@ -81,41 +91,40 @@ class _Request(object):
       if client._proxy is not None:
         params['doas'] = client._proxy
 
-      # Try each URL configured in the client
-      # If we get a socket error, rotate the URLs
-      # If we get a HDFS error, check for standby and rotate if so
-      # If don't get a successful response, raise the last occurring exception
-      max_attempts = len(client._urls)
-      exc = None
-      for _ in range(max_attempts):
+      attempted_hosts = set()
+      while True:
+        # rotate the urls deque until a host is found, which was not yet tried.
+        # Lock the deque while doing this for thread safety
+        with client._lock:
+          while client._urls[0] in attempted_hosts:
+            client._urls.rotate(-1)
+          host = client._urls[0]
+
         url = '%s%s%s' % (
-          client._urls[0].rstrip('/'),
+          host.rstrip('/'),
           self.webhdfs_prefix,
           quote(client.resolve(hdfs_path), '/= '),
         )
+
         try:
           return client._request(
-            self.method,
+            method=self.method,
             url=url,
             data=data,
             params=params,
             strict=strict,
             **self.kwargs
           )
-        except (rq.exceptions.ReadTimeout,
-                  rq.exceptions.ConnectTimeout,
-                  rq.exceptions.ConnectionError,
-                  ) as e:
-          exc = e
-          client._urls.rotate(-1)
-        except HdfsError as e:
-          exc = e
-          if e.response and e.response.json()['RemoteException']['exception'] \
-                            == 'StandbyException':
-            client._urls.rotate(-1)
-          else:
-            raise
-      raise exc
+        # The execptions below indicate that the host is either unreachable, can
+        # not respond or is in Standby mode. Thus the next host should be tried.
+        except (rq.exceptions.ReadTimeout, rq.exceptions.ConnectTimeout,
+                rq.exceptions.ConnectionError, HdfsStandbyError) as exc:
+          attempted_hosts.add(host)
+          if len(attempted_hosts) == len(client._urls):
+            if len(client._urls) > 1:
+              _logger.info(
+                'Tried alls hosts without success, raising last Error')
+            raise exc
 
     api_handler.__name__ = '%s_handler' % (operation.lower(), )
     api_handler.__doc__ = 'Cf. %s#%s' % (self.doc_url, operation)
@@ -175,31 +184,25 @@ class Client(object):
 
   def __init__(self, url, root=None, proxy=None, timeout=None, session=None):
     self.root = root
-    self._urls = deque([ u.rstrip('/') for u in url.split(';') if u ])
-    # Then we store what URL we'll start at when making requests
-    self._start_url_index = 0
+    self.url = url
+    self.urls = [u for u in url.split(';') if u]
+    self._urls = deque(self.urls)  # this is rotated and used internally
     self._session = session or rq.Session()
     self._proxy = proxy
     self._timeout = timeout
+    self._lock = Lock()
     _logger.info('Instantiated %r.', self)
 
-  @property
-  def urls(self):
-    return list(self._urls)
-
-  @property
-  def url(self):
-    return ';'.join(self.urls)
-
   def __repr__(self):
-    return '<%s(url=%r)>' % (self.__class__.__name__, self._urls)
+    return '<%s(url=%r)>' % (self.__class__.__name__, self.url)
 
   # Generic request handler
+
   def _request(self, method, url, strict=True, **kwargs):
     """Send request to WebHDFS API.
 
     :param method: HTTP verb.
-    :param url: Url to send the request to
+    :param url: Url to send the request to.
     :param \*\*kwargs: Extra keyword arguments forwarded to the request
       handler. If any `params` are defined, these will take precendence over
       the instance's defaults.
@@ -212,7 +215,7 @@ class Client(object):
       headers={'content-type': 'application/octet-stream'}, # For HttpFS.
       **kwargs
     )
-    if strict and not response:
+    if strict and not response:  # Non 2XX status code.
       _on_error(response)
     else:
       return response

@@ -22,13 +22,24 @@ class HdfsError(Exception):
 
   :param message: Error message.
   :param args: optional Message formatting arguments.
-  :param kwargs: optional extra values to store
 
   """
 
-  def __init__(self, message, *args, **kwargs):
+  def __init__(self, message, *args):
     super(HdfsError, self).__init__(message % args if args else message)
-    self.response = kwargs.get('response', None)
+
+
+class HdfsStandbyError(HdfsError):
+
+  """Error raised when the WebHDFS-Exception is 'StandbyException'.
+
+  :param message: Error message.
+  :param args: optional Message formatting arguments.
+
+  """
+
+  pass
+
 
 class AsyncWriter(object):
 
@@ -70,7 +81,7 @@ class AsyncWriter(object):
       try:
         _logger.debug('Starting consumer.')
         self._consumer(data)
-      except Exception as err: # pylint: disable=broad-except
+      except Exception as err:  # pylint: disable=broad-except
         _logger.debug('Exception in child.')
         self._err = err
       finally:

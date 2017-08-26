@@ -45,7 +45,9 @@ class TestConfigureClient(object):
       config.set(section, 'url', url)
       args = {'--alias': 'dev', '--log': False, '--verbose': 0}
       client = configure_client('test', args, config=config)
+      eq_(client.url, url)
       eq_(client.urls, [url])
+
 
 class TestProgress(object):
 
