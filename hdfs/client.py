@@ -73,7 +73,7 @@ class _Request(object):
     self.kwargs = kwargs
 
   def __call__(self):
-    pass  # make pylint happy
+    pass # make pylint happy
 
   def to_method(self, operation):
     """Returns method associated with request to attach to client.
@@ -93,8 +93,6 @@ class _Request(object):
 
       attempted_hosts = set()
       while True:
-        # rotate the urls deque until a host is found, which was not yet tried.
-        # Lock the deque while doing this for thread safety
         with client._lock:
           while client._urls[0] in attempted_hosts:
             client._urls.rotate(-1)
@@ -115,14 +113,12 @@ class _Request(object):
             strict=strict,
             **self.kwargs
           )
-        # The execptions below indicate that the host is either unreachable, can
-        # not respond or is in Standby mode. Thus the next host should be tried.
         except (rq.exceptions.ReadTimeout, rq.exceptions.ConnectTimeout,
                 rq.exceptions.ConnectionError, HdfsStandbyError) as exc:
           attempted_hosts.add(host)
           if len(attempted_hosts) == len(client._urls):
             if len(client._urls) > 1:
-              _logger.info(
+              _logger.warning(
                 'Tried alls hosts without success, raising last Error')
             raise exc
 
@@ -186,7 +182,7 @@ class Client(object):
     self.root = root
     self.url = url
     self.urls = [u for u in url.split(';') if u]
-    self._urls = deque(self.urls)  # this is rotated and used internally
+    self._urls = deque(self.urls) # this is rotated and used internally
     self._session = session or rq.Session()
     self._proxy = proxy
     self._timeout = timeout
@@ -215,7 +211,7 @@ class Client(object):
       headers={'content-type': 'application/octet-stream'}, # For HttpFS.
       **kwargs
     )
-    if strict and not response:  # Non 2XX status code.
+    if strict and not response: # Non 2XX status code.
       _on_error(response)
     else:
       return response

@@ -81,7 +81,7 @@ class AsyncWriter(object):
       try:
         _logger.debug('Starting consumer.')
         self._consumer(data)
-      except Exception as err:  # pylint: disable=broad-except
+      except Exception as err: # pylint: disable=broad-except
         _logger.debug('Exception in child.')
         self._err = err
       finally:
