@@ -25,20 +25,9 @@ class HdfsError(Exception):
 
   """
 
-  def __init__(self, message, *args):
+  def __init__(self, message, *args, **kwargs):
     super(HdfsError, self).__init__(message % args if args else message)
-
-
-class HdfsStandbyError(HdfsError):
-
-  """Error raised when the WebHDFS-Exception is 'StandbyException'.
-
-  :param message: Error message.
-  :param args: optional Message formatting arguments.
-
-  """
-
-  pass
+    self.exception = kwargs.get("exception")
 
 
 class AsyncWriter(object):

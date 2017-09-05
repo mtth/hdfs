@@ -3,7 +3,7 @@
 
 """WebHDFS API clients."""
 
-from .util import AsyncWriter, HdfsError, HdfsStandbyError
+from .util import AsyncWriter, HdfsError
 from collections import deque
 from contextlib import contextmanager
 from getpass import getuser
@@ -46,14 +46,11 @@ def _on_error(response):
     message = response.content
 
   try:
-    webhdfs_exception = response.json()['RemoteException']['exception']
+    exception = response.json()['RemoteException']['exception']
   except ValueError:
-    webhdfs_exception = None
+    exception = None
 
-  if webhdfs_exception == 'StandbyException':
-    raise HdfsStandbyError(message)
-  else:
-    raise HdfsError(message)
+  raise HdfsError(message, exception=exception)
 
 
 class _Request(object):
@@ -114,8 +111,12 @@ class _Request(object):
             **self.kwargs
           )
         except (rq.exceptions.ReadTimeout, rq.exceptions.ConnectTimeout,
-                rq.exceptions.ConnectionError, HdfsStandbyError) as exc:
+                rq.exceptions.ConnectionError, HdfsError) as exc:
+          if isinstance(exc, HdfsError) and exc.exception != 'StandbyException':
+            raise exc
+
           attempted_hosts.add(host)
+
           if len(attempted_hosts) == len(client._urls):
             if len(client._urls) > 1:
               _logger.warning(
