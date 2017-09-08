@@ -37,19 +37,16 @@ def _on_error(response):
   if response.status_code == 401:
     _logger.error(response.content)
     raise HdfsError('Authentication failure. Check your credentials.')
-
   try:
     # Cf. http://hadoop.apache.org/docs/r1.0.4/webhdfs.html#Error+Responses
     message = response.json()['RemoteException']['message']
   except ValueError:
     # No clear one thing to display, display entire message content
     message = response.content
-
   try:
     exception = response.json()['RemoteException']['exception']
   except ValueError:
     exception = None
-
   raise HdfsError(message, exception=exception)
 
 
@@ -94,7 +91,6 @@ class _Request(object):
           while client._urls[0] in attempted_hosts:
             client._urls.rotate(-1)
           host = client._urls[0]
-
         url = '%s%s%s' % (
           host.rstrip('/'),
           self.webhdfs_prefix,
@@ -111,17 +107,15 @@ class _Request(object):
             **self.kwargs
           )
         except (rq.exceptions.ReadTimeout, rq.exceptions.ConnectTimeout,
-                rq.exceptions.ConnectionError, HdfsError) as exc:
-          if isinstance(exc, HdfsError) and exc.exception != 'StandbyException':
-            raise exc
+                rq.exceptions.ConnectionError, HdfsError) as err:
+          if isinstance(err, HdfsError) and err.exception != 'StandbyException':
+            raise err
 
           attempted_hosts.add(host)
-
           if len(attempted_hosts) == len(client._urls):
             if len(client._urls) > 1:
-              _logger.warning(
-                'Tried alls hosts without success, raising last Error')
-            raise exc
+              _logger.warning('No reachable host, raising last error.')
+            raise err
 
     api_handler.__name__ = '%s_handler' % (operation.lower(), )
     api_handler.__doc__ = 'Cf. %s#%s' % (self.doc_url, operation)
