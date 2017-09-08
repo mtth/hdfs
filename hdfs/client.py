@@ -4,6 +4,7 @@
 """WebHDFS API clients."""
 
 from .util import AsyncWriter, HdfsError
+from collections import deque
 from contextlib import contextmanager
 from getpass import getuser
 from itertools import repeat
@@ -36,13 +37,20 @@ def _on_error(response):
   if response.status_code == 401:
     _logger.error(response.content)
     raise HdfsError('Authentication failure. Check your credentials.')
+
   try:
     # Cf. http://hadoop.apache.org/docs/r1.0.4/webhdfs.html#Error+Responses
     message = response.json()['RemoteException']['message']
   except ValueError:
     # No clear one thing to display, display entire message content
     message = response.content
-  raise HdfsError(message)
+
+  try:
+    exception = response.json()['RemoteException']['exception']
+  except ValueError:
+    exception = None
+
+  raise HdfsError(message, exception=exception)
 
 
 class _Request(object):
@@ -76,22 +84,44 @@ class _Request(object):
 
     def api_handler(client, hdfs_path, data=None, strict=True, **params):
       """Wrapper function."""
-      url = '%s%s%s' % (
-        client.url.rstrip('/'),
-        self.webhdfs_prefix,
-        quote(client.resolve(hdfs_path), '/= '),
-      )
       params['op'] = operation
       if client._proxy is not None:
         params['doas'] = client._proxy
-      return client._request(
-        method=self.method,
-        url=url,
-        data=data,
-        params=params,
-        strict=strict,
-        **self.kwargs
-      )
+
+      attempted_hosts = set()
+      while True:
+        with client._lock:
+          while client._urls[0] in attempted_hosts:
+            client._urls.rotate(-1)
+          host = client._urls[0]
+
+        url = '%s%s%s' % (
+          host.rstrip('/'),
+          self.webhdfs_prefix,
+          quote(client.resolve(hdfs_path), '/= '),
+        )
+
+        try:
+          return client._request(
+            method=self.method,
+            url=url,
+            data=data,
+            params=params,
+            strict=strict,
+            **self.kwargs
+          )
+        except (rq.exceptions.ReadTimeout, rq.exceptions.ConnectTimeout,
+                rq.exceptions.ConnectionError, HdfsError) as exc:
+          if isinstance(exc, HdfsError) and exc.exception != 'StandbyException':
+            raise exc
+
+          attempted_hosts.add(host)
+
+          if len(attempted_hosts) == len(client._urls):
+            if len(client._urls) > 1:
+              _logger.warning(
+                'Tried alls hosts without success, raising last Error')
+            raise exc
 
     api_handler.__name__ = '%s_handler' % (operation.lower(), )
     api_handler.__doc__ = 'Cf. %s#%s' % (self.doc_url, operation)
@@ -126,7 +156,8 @@ class Client(object):
   """Base HDFS web client.
 
   :param url: Hostname or IP address of HDFS namenode, prefixed with protocol,
-    followed by WebHDFS port on namenode.
+    followed by WebHDFS port on namenode.  You may also specify multiple URLs
+    separated by semicolons for High Availability support.
   :param proxy: User to proxy as.
   :param root: Root path, this will be prefixed to all HDFS paths passed to the
     client. If the root is relative, the path will be assumed relative to the
@@ -151,9 +182,12 @@ class Client(object):
   def __init__(self, url, root=None, proxy=None, timeout=None, session=None):
     self.root = root
     self.url = url
+    self.urls = [u for u in url.split(';') if u]
+    self._urls = deque(self.urls) # this is rotated and used internally
     self._session = session or rq.Session()
     self._proxy = proxy
     self._timeout = timeout
+    self._lock = Lock()
     _logger.info('Instantiated %r.', self)
 
   def __repr__(self):
@@ -179,7 +213,7 @@ class Client(object):
       **kwargs
     )
     if strict and not response: # Non 2XX status code.
-      return _on_error(response)
+      _on_error(response)
     else:
       return response
 

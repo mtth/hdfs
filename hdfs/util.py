@@ -25,8 +25,9 @@ class HdfsError(Exception):
 
   """
 
-  def __init__(self, message, *args):
+  def __init__(self, message, *args, **kwargs):
     super(HdfsError, self).__init__(message % args if args else message)
+    self.exception = kwargs.get("exception")
 
 
 class AsyncWriter(object):
