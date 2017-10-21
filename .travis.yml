@@ -14,6 +14,7 @@ before_script:
   - export WEBHDFS_URL="http://$("${HADOOP_HOME}/bin/hdfs" getconf -confKey dfs.namenode.http-address)"
   - export HTTPFS_URL=http://localhost:14000
   - env | sort
+  - sleep 5 # TODO: Find a better way to wait for all datanodes to become reachable.
 script:
   - HDFSCLI_TEST_URL="$WEBHDFS_URL" nosetests --with-coverage --cover-package=hdfs
   - HDFSCLI_TEST_URL="$HTTPFS_URL" nosetests --with-coverage --cover-package=hdfs
