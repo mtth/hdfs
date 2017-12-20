@@ -103,12 +103,13 @@ class _Request(object):
             url=url,
             data=data,
             params=params,
-            strict=strict,
             **self.kwargs
           )
         except (rq.exceptions.ReadTimeout, rq.exceptions.ConnectTimeout,
                 rq.exceptions.ConnectionError, HdfsError) as err:
           if isinstance(err, HdfsError) and err.exception != 'StandbyException':
+            if not strict:
+                return
             raise err
 
           attempted_hosts.add(host)
@@ -189,7 +190,7 @@ class Client(object):
 
   # Generic request handler
 
-  def _request(self, method, url, strict=True, **kwargs):
+  def _request(self, method, url, **kwargs):
     """Send request to WebHDFS API.
 
     :param method: HTTP verb.
@@ -206,7 +207,7 @@ class Client(object):
       headers={'content-type': 'application/octet-stream'}, # For HttpFS.
       **kwargs
     )
-    if strict and not response: # Non 2XX status code.
+    if not response: # Non 2XX status code.
       _on_error(response)
     else:
       return response
