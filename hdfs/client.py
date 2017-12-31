@@ -60,7 +60,7 @@ class _Request(object):
   """
 
   webhdfs_prefix = '/webhdfs/v1'
-  doc_url = 'http://hadoop.apache.org/docs/r1.0.4/webhdfs.html'
+  doc_url = 'http://hadoop.apache.org/docs/r2.9.0/hadoop-project-dist/hadoop-hdfs/WebHDFS.html'
 
   def __init__(self, method, **kwargs):
     self.method = method
@@ -221,6 +221,7 @@ class Client(object):
   _get_file_checksum = _Request('GET')
   _get_file_status = _Request('GET')
   _get_home_directory = _Request('GET')
+  _get_trash_root = _Request('GET')
   _list_status = _Request('GET')
   _mkdirs = _Request('PUT')
   _modify_acl_entries = _Request('PUT')
@@ -832,22 +833,56 @@ class Client(object):
         )
     return local_path
 
-  def delete(self, hdfs_path, recursive=False):
+  def delete(self, hdfs_path, recursive=False, skip_trash=False):
     """Remove a file or directory from HDFS.
 
     :param hdfs_path: HDFS path.
     :param recursive: Recursively delete files and directories. By default,
       this method will raise an :class:`HdfsError` if trying to delete a
       non-empty directory.
+    :param skip_trash: Move items to be trashed into
+      /users/<current user>/.Trash/Current/<timestamp>/<path>.
 
     This function returns `True` if the deletion was successful and `False` if
     no file or directory previously existed at `hdfs_path`.
 
     """
-    _logger.info(
-      'Deleting %r%s.', hdfs_path, ' recursively' if recursive else ''
-    )
-    return self._delete(hdfs_path, recursive=recursive).json()['boolean']
+    def _trash_root(hdfs_path, strict=True):
+      """Get TrashRoot_ for a folder on HDFS. Currently in DFS if the path "/foo" is a normal path, it returns
+      "/user/$USER/.Trash" for "/foo" and if "/foo" is an encrypted zone,
+      it returns "/foo/.Trash/$USER" for the child file/dir of "/foo". -- see HDFS-10756
+
+      :param hdfs_path: Remote path.
+      :param strict: If `False`, return `None` rather than raise an exception if
+        the path doesn't exist.
+
+      .. _TrashRoot: TR_
+      .. _TR: http://hadoop.apache.org/docs/r2.9.0/hadoop-project-dist/hadoop-hdfs/WebHDFS.html#Get_Trash_Root
+
+      """
+      _logger.info('Fetching Trash Root for %r.', hdfs_path)
+      res = self._get_trash_root(hdfs_path, strict=strict)
+      trash_root = None
+      if res.json()['Path']:
+        trash_root = psp.join(
+          res.json()['Path'],
+          '%s/Current/%s' % (res.json()['Path'], int(time.time()))
+        )
+      return trash_root
+
+    hdfs_dst_path = _trash_root(hdfs_path)
+    if hdfs_dst_path and not skip_trash:
+      self.makedirs(hdfs_dst_path)
+      self.rename(hdfs_path, hdfs_dst_path)
+      _logger.info(
+        '%r moved to Trash %r', hdfs_path, hdfs_dst_path
+      )
+      return self.list(hdfs_dst_path) is not None
+    else:
+      _logger.info(
+        'Deleting %r%s.', hdfs_path, ' recursively' if recursive else ''
+      )
+      return self._delete(hdfs_path, recursive=recursive).json()['boolean']
 
   def rename(self, hdfs_src_path, hdfs_dst_path):
     """Move a file or folder.
