@@ -93,7 +93,7 @@ class TestApi(_IntegrationTest):
     ok_(not self.client._delete(path).json()['boolean'])
 
   def test_rename_file(self):
-    paths = ['foo', '%s/bar' % (self.client.root.rstrip('/'), )]
+    paths = ['foo', '{}/bar'.format(self.client.root.rstrip('/'))]
     self._write(paths[0], b'hello')
     ok_(self.client._rename(paths[0], destination=paths[1]).json()['boolean'])
     ok_(not self._exists(paths[0]))
@@ -101,7 +101,7 @@ class TestApi(_IntegrationTest):
     self.client._delete(paths[1])
 
   def test_rename_file_to_existing(self):
-    p = ['foo', '%s/bar' % (self.client.root.rstrip('/'), )]
+    p = ['foo', '{}/bar'.format(self.client.root.rstrip('/'))]
     self._write(p[0], b'hello')
     self._write(p[1], b'hi')
     try:
@@ -649,7 +649,7 @@ class TestDownload(_IntegrationTest):
       'part-r-00002': 'foo',
     }
     for name, content in parts.items():
-      self.client.write('dl/%s' % (name, ), content)
+      self.client.write('dl/{}'.format(name), content)
     with temppath() as tpath:
       self.client.download('dl', tpath, n_threads=-1)
       local_parts = os.listdir(tpath)
@@ -1196,7 +1196,7 @@ class TestChecksum(_IntegrationTest):
   def test_file(self):
     self.client.write('foo', 'hello')
     checksum = self.client.checksum('foo')
-    eq_(set(['algorithm', 'bytes', 'length']), set(checksum))
+    eq_({'algorithm', 'bytes', 'length'}, set(checksum))
 
 
 class TestSetReplication(_IntegrationTest):

@@ -44,7 +44,7 @@ content = client.content('models/1.json')
 # convenient to read CSV files.
 with client.read('models/1.csv', delimiter='\n', encoding='utf-8') as reader:
   items = (line.split(',') for line in reader if line)
-  assert dict((name, float(value)) for name, value in items) == model
+  assert {name: float(value) for name, value in items} == model
 
 # Loading JSON directly from HDFS is even simpler.
 with client.read('models/1.json', encoding='utf-8') as reader:

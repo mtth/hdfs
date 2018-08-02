@@ -79,14 +79,14 @@ class _SchemaInferrer(object):
         raise ValueError('Cannot infer type of empty record.')
       self.record_index += 1
       return {
-        'name': '__Record%s' % (self.record_index, ),
+        'name': '__Record{}'.format(self.record_index),
         'type': 'record',
         'fields': [
           {'name': k, 'type': self.infer(v)}
           for k, v in sorted(obj.items()) # Sort fields by name.
         ]
       }
-    raise ValueError('Cannot infer type from %s: %r' % (type(obj), obj))
+    raise ValueError('Cannot infer type from {}: {!r}'.format(type(obj), obj))
 
 
 class _SeekableReader(object):
@@ -185,7 +185,7 @@ class AvroReader(object):
     _logger.debug('Instantiated %r.', self)
 
   def __repr__(self):
-    return '<AvroReader(paths=%r)>' % (self._paths, )
+    return '<AvroReader(paths={!r})>'.format(self._paths)
 
   def __enter__(self):
 
@@ -268,7 +268,7 @@ class AvroWriter(object):
     _logger.info('Instantiated %r.', self)
 
   def __repr__(self):
-    return '<AvroWriter(hdfs_path=%r)>' % (self._hdfs_path, )
+    return '<AvroWriter(hdfs_path={!r})>'.format(self._hdfs_path)
 
   def __enter__(self):
     if self._writer:

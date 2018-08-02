@@ -91,7 +91,7 @@ class _Request(object):
           while client._urls[0] in attempted_hosts:
             client._urls.rotate(-1)
           host = client._urls[0]
-        url = '%s%s%s' % (
+        url = '{}{}{}'.format(
           host.rstrip('/'),
           self.webhdfs_prefix,
           quote(client.resolve(hdfs_path), '/= '),
@@ -117,8 +117,8 @@ class _Request(object):
               _logger.warning('No reachable host, raising last error.')
             raise err
 
-    api_handler.__name__ = '%s_handler' % (operation.lower(), )
-    api_handler.__doc__ = 'Cf. %s#%s' % (self.doc_url, operation)
+    api_handler.__name__ = '{}_handler'.format(operation.lower())
+    api_handler.__doc__ = 'Cf. {}#{}'.format(self.doc_url, operation)
     return api_handler
 
 
@@ -185,7 +185,7 @@ class Client(object):
     _logger.info('Instantiated %r.', self)
 
   def __repr__(self):
-    return '<%s(url=%r)>' % (self.__class__.__name__, self.url)
+    return '<{}(url={!r})>'.format(self.__class__.__name__, self.url)
 
   # Generic request handler
 
@@ -369,11 +369,11 @@ class Client(object):
       (name, pattern.match(name), s)
       for name, s in self.list(hdfs_path, status=True)
     )
-    part_files = dict(
-      (int(match.group(1)), (name, s))
+    part_files = {
+      int(match.group(1)): (name, s)
       for name, match, s in matches
       if match
-    )
+    }
     if not part_files:
       raise HdfsError('No part-files found in %r.', hdfs_path)
     _logger.debug('Found %s part-files for %r.', len(part_files), hdfs_path)
@@ -542,7 +542,7 @@ class Client(object):
         raise err
     else:
       # Remote path is a directory.
-      suffixes = set(status['pathSuffix'] for status in statuses)
+      suffixes = {status['pathSuffix'] for status in statuses}
       local_name = osp.basename(local_path)
       hdfs_path = psp.join(hdfs_path, local_name)
       if local_name in suffixes:
@@ -556,7 +556,7 @@ class Client(object):
       temp_dir = temp_dir or remote_dpath
       temp_path = psp.join(
         temp_dir,
-        '%s.temp-%s' % (remote_name, int(time.time()))
+        '{}.temp-{}'.format(remote_name, int(time.time()))
       )
       _logger.debug(
         'Upload destination %r already exists. Using temporary path %r.',
@@ -759,7 +759,7 @@ class Client(object):
       temp_dir = temp_dir or local_dpath
       temp_path = osp.join(
         temp_dir,
-        '%s.temp-%s' % (local_name, int(time.time()))
+        '{}.temp-{}'.format(local_name, int(time.time()))
       )
       _logger.debug(
         'Download destination %r already exists. Using temporary path %r.',
@@ -882,9 +882,9 @@ class Client(object):
       raise ValueError('Must set at least one of owner or group.')
     messages = []
     if owner:
-      messages.append('owner to %r' % (owner, ))
+      messages.append('owner to {!r}'.format(owner))
     if group:
-      messages.append('group to %r' % (group, ))
+      messages.append('group to {!r}'.format(group))
     _logger.info('Changing %s of %r.', ', and'.join(messages), hdfs_path)
     self._set_owner(hdfs_path, owner=owner, group=group)
 
@@ -912,9 +912,9 @@ class Client(object):
       raise ValueError('At least one of time must be specified.')
     msgs = []
     if access_time:
-      msgs.append('access time to %r' % (access_time, ))
+      msgs.append('access time to {!r}'.format(access_time))
     if modification_time:
-      msgs.append('modification time to %r' % (modification_time, ))
+      msgs.append('modification time to {!r}'.format(modification_time))
     _logger.info('Updating %s of %r.', ' and '.join(msgs), hdfs_path)
     self._set_times(
       hdfs_path,

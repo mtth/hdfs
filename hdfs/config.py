@@ -82,7 +82,7 @@ class Config(RawConfigParser):
       _logger.info('Instantiated empty configuration.')
 
   def __repr__(self):
-    return '<Config(path=%r)>' % (self.path, )
+    return '<Config(path={!r})>'.format(self.path)
 
   def get_client(self, alias=None):
     """Load HDFS client.
@@ -105,7 +105,7 @@ class Config(RawConfigParser):
       alias = self.get(self.global_section, 'default.alias')
     if not alias in self._clients:
       for suffix in ('.alias', '_alias'):
-        section = '%s%s' % (alias, suffix)
+        section = '{}{}'.format(alias, suffix)
         if self.has_section(section):
           options = dict(self.items(section))
           class_name = options.pop('client', 'InsecureClient')
@@ -129,8 +129,8 @@ class Config(RawConfigParser):
       :class:`TimedRotatingFileHandler`.
 
     """
-    section = '%s.command' % (command, )
-    path = osp.join(gettempdir(), '%s.log' % (command, ))
+    section = '{}.command'.format(command)
+    path = osp.join(gettempdir(), '{}.log'.format(command))
     level = lg.DEBUG
     if self.has_section(section):
       key = 'log.disable'
@@ -156,7 +156,7 @@ class Config(RawConfigParser):
 
     def _load(suffix, loader):
       """Generic module loader."""
-      option = 'autoload.%s' % (suffix, )
+      option = 'autoload.{}'.format(suffix)
       if self.has_option(self.global_section, option):
         entries = self.get(self.global_section, option)
         for entry in entries.split(','):

@@ -57,7 +57,7 @@ class AsyncWriter(object):
     _logger.debug('Instantiated %r.', self)
 
   def __repr__(self):
-    return '<%s(consumer=%r)>' % (self.__class__.__name__, self._consumer)
+    return '<{}(consumer={!r})>'.format(self.__class__.__name__, self._consumer)
 
   def __enter__(self):
     if self._queue:
