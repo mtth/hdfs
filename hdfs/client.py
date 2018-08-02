@@ -1103,7 +1103,7 @@ class TokenClient(Client):
 # -------
 
 def _map_async(pool_size, func, args):
-  """Async map (threading), handling python 2.6 edge case.
+  """Async map (threading).
 
   :param pool_size: Maximum number of threads.
   :param func: Function to run.
@@ -1111,12 +1111,8 @@ def _map_async(pool_size, func, args):
 
   This is necessary since using `map` will in general prevent keyboard
   interrupts from functioning properly (see this thread for more details -
-  http://stackoverflow.com/a/1408476/1062617), but `map_async` hangs in python
-  2.6.
+  http://stackoverflow.com/a/1408476/1062617).
 
   """
   pool = ThreadPool(pool_size)
-  if sys.version_info <= (2, 6):
-    return pool.map(func, args)
-  else:
-    return pool.map_async(func, args).get(1 << 31)
+  return pool.map_async(func, args).get(1 << 31)
