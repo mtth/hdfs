@@ -621,7 +621,7 @@ class Client(object):
 
   @contextmanager
   def read(self, hdfs_path, offset=0, length=None, buffer_size=None,
-    encoding=None, chunk_size=None, delimiter=None, progress=None):
+    encoding=None, chunk_size=0, delimiter=None, progress=None):
     """Read a file from HDFS.
 
     :param hdfs_path: HDFS path.
@@ -663,7 +663,9 @@ class Client(object):
       possible or read the entire file before splitting it.
 
     """
-    if progress and chunk_size <= 0:
+    if chunk_size < 0:
+      raise ValueError('Read chunk size must be non-negative.')
+    if progress and not chunk_size:
       raise ValueError('Progress callback requires a positive chunk size.')
     if delimiter:
       if not encoding:
@@ -678,7 +680,7 @@ class Client(object):
       buffersize=buffer_size,
     )
     try:
-      if chunk_size <= 0 and not delimiter:
+      if not chunk_size and not delimiter:
         yield codecs.getreader(encoding)(res.raw) if encoding else res.raw
       else:
         # Patch in encoding  on the response object so that `iter_content` and
