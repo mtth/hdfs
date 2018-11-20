@@ -54,6 +54,10 @@ class TestSeekableReader(object):
 
 class TestInferSchema(object):
 
+  def setup(self):
+    if SKIP:
+      raise SkipTest
+
   def test_array(self):
     eq_(
       _SchemaInferrer().infer({'foo': 1, 'bar': ['hello']}),

@@ -36,9 +36,9 @@ usage() {
 # TODO: Test against several versions? (But they are very big...)
 #
 hadoop-download() {
-  local hadoop='hadoop-2.8.1'
+  local hadoop='hadoop-2.8.5'
   cd "$(mktemp -d 2>/dev/null || mktemp -d -t 'hadoop')"
-  curl -O "http://download.nextag.com/apache/hadoop/common/${hadoop}/${hadoop}.tar.gz"
+  curl -O "https://www-us.apache.org/dist/hadoop/common/${hadoop}/${hadoop}.tar.gz"
   tar -xzf "${hadoop}.tar.gz"
   echo "$(pwd)/${hadoop}"
 }

@@ -108,10 +108,9 @@ class _Request(object):
           )
         except (rq.exceptions.ReadTimeout, rq.exceptions.ConnectTimeout,
                 rq.exceptions.ConnectionError, HdfsError) as err:
-          if isinstance(err, HdfsError) and \
-             err.exception not in ('StandbyException', 'RetriableException'):
+          if (isinstance(err, HdfsError) and
+              err.exception not in ('RetriableException', 'StandbyException')):
             raise err
-
           attempted_hosts.add(host)
           if len(attempted_hosts) == len(client._urls):
             if len(client._urls) > 1:
