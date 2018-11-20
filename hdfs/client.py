@@ -1121,4 +1121,4 @@ def _map_async(pool_size, func, args):
   if sys.version_info <= (2, 6):
     return pool.map(func, args)
   else:
-    return pool.map_async(func, args).get(1 << 31)
+    return pool.map_async(func, args).get(1 << 24) # 6+ months.
