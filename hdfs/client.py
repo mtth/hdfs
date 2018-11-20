@@ -496,7 +496,7 @@ class Client(object):
     On success, this method returns the remote upload path.
 
     """
-    if not chunk_size:
+    if chunk_size <= 0:
       raise ValueError('Upload chunk size must be positive.')
     _logger.info('Uploading %r to %r.', local_path, hdfs_path)
 
@@ -663,7 +663,7 @@ class Client(object):
       possible or read the entire file before splitting it.
 
     """
-    if progress and not chunk_size:
+    if progress and chunk_size <= 0:
       raise ValueError('Progress callback requires a positive chunk size.')
     if delimiter:
       if not encoding:
@@ -678,7 +678,7 @@ class Client(object):
       buffersize=buffer_size,
     )
     try:
-      if not chunk_size and not delimiter:
+      if chunk_size <= 0 and not delimiter:
         yield codecs.getreader(encoding)(res.raw) if encoding else res.raw
       else:
         # Patch in encoding  on the response object so that `iter_content` and
