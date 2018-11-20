@@ -469,8 +469,8 @@ class Client(object):
     else:
       consumer(data)
 
-  def upload(self, hdfs_path, local_path, overwrite=False, n_threads=1,
-    temp_dir=None, chunk_size=2 ** 16, progress=None, cleanup=True, **kwargs):
+  def upload(self, hdfs_path, local_path, n_threads=1, temp_dir=None,
+    chunk_size=2 ** 16, progress=None, cleanup=True, **kwargs):
     """Upload a file or directory to HDFS.
 
     :param hdfs_path: Target HDFS path. If it already exists and is a
@@ -478,7 +478,6 @@ class Client(object):
     :param local_path: Local path to file or folder. If a folder, all the files
       inside of it will be uploaded (note that this implies that folders empty
       of files will not be created remotely).
-    :param overwrite: Overwrite any existing file or directory.
     :param n_threads: Number of threads to use for parallelization. A value of
       `0` (or negative) uses as many threads as there are files.
     :param temp_dir: Directory under which the files will first be uploaded
@@ -491,7 +490,8 @@ class Client(object):
       completion, it will be called once with `-1` as second argument.
     :param cleanup: Delete any uploaded files if an error occurs during the
       upload.
-    :param \*\*kwargs: Keyword arguments forwarded to :meth:`write`.
+    :param \*\*kwargs: Keyword arguments forwarded to :meth:`write`. In
+      particular, set `overwrite` to overwrite any existing file or directory.
 
     On success, this method returns the remote upload path.
 
@@ -532,7 +532,7 @@ class Client(object):
       message = str(err)
       if 'not a directory' in message:
         # Remote path is a normal file.
-        if not overwrite:
+        if not kwargs.get('overwrite'):
           raise HdfsError('Remote path %r already exists.', hdfs_path)
       elif 'does not exist' in message:
         # Remote path doesn't exist.
@@ -546,7 +546,7 @@ class Client(object):
       local_name = osp.basename(local_path)
       hdfs_path = psp.join(hdfs_path, local_name)
       if local_name in suffixes:
-        if not overwrite:
+        if not kwargs.get('overwrite'):
           raise HdfsError('Remote path %r already exists.', hdfs_path)
       else:
         temp_path = hdfs_path
