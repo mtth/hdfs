@@ -28,7 +28,7 @@ import time
 _logger = lg.getLogger(__name__)
 
 
-def _on_error(response):
+def _to_error(response):
   """Callback when an API response has a non 2XX status code.
 
   :param response: Response.
@@ -47,7 +47,7 @@ def _on_error(response):
     exception = response.json()['RemoteException']['exception']
   except ValueError:
     exception = None
-  raise HdfsError(message, exception=exception)
+  return HdfsError(message, exception=exception)
 
 
 class _Request(object):
@@ -97,8 +97,9 @@ class _Request(object):
           quote(client.resolve(hdfs_path), '/= '),
         )
 
+        err = None
         try:
-          return client._request(
+          res = client._request(
             method=self.method,
             url=url,
             data=data,
@@ -106,17 +107,22 @@ class _Request(object):
             **self.kwargs
           )
         except (rq.exceptions.ReadTimeout, rq.exceptions.ConnectTimeout,
-                rq.exceptions.ConnectionError, HdfsError) as err:
-          if (isinstance(err, HdfsError) and
-              err.exception not in ('RetriableException', 'StandbyException')):
-            if not strict:
-                return
-            raise err
-          attempted_hosts.add(host)
-          if len(attempted_hosts) == len(client._urls):
-            if len(client._urls) > 1:
-              _logger.warning('No reachable host, raising last error.')
-            raise err
+                rq.exceptions.ConnectionError) as retriable_err:
+          err = retriable_err # Retry.
+        else:
+          if res: # 2XX status code.
+            return res
+          err = _to_error(res)
+          if err.exception not in ('RetriableException', 'StandbyException'):
+            if strict:
+              raise err
+            return res
+
+        attempted_hosts.add(host)
+        if len(attempted_hosts) == len(client._urls):
+          if len(client._urls) > 1:
+            _logger.warning('No reachable host, raising last error.')
+          raise err
 
     api_handler.__name__ = '%s_handler' % (operation.lower(), )
     api_handler.__doc__ = 'Cf. %s#%s' % (self.doc_url, operation)
@@ -200,17 +206,13 @@ class Client(object):
       the instance's defaults.
 
     """
-    response = self._session.request(
+    return self._session.request(
       method=method,
       url=url,
       timeout=self._timeout,
       headers={'content-type': 'application/octet-stream'}, # For HttpFS.
       **kwargs
     )
-    if not response: # Non 2XX status code.
-      _on_error(response)
-    else:
-      return response
 
   # Raw API endpoints
 
@@ -456,14 +458,17 @@ class Client(object):
         replication=replication,
         buffersize=buffersize,
       )
+    loc = res.headers['location']
 
     def consumer(_data):
       """Thread target."""
-      self._request(
+      res = self._request(
         method='POST' if append else 'PUT',
-        url=res.headers['location'],
+        url=loc,
         data=(c.encode(encoding) for c in _data) if encoding else _data,
       )
+      if not res:
+        raise _to_error(res)
 
     if data is None:
       return AsyncWriter(consumer)
