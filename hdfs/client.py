@@ -5,7 +5,7 @@
 
 from .util import AsyncWriter, HdfsError
 from collections import deque
-from contextlib import contextmanager
+from contextlib import closing, contextmanager
 from getpass import getuser
 from itertools import repeat
 from multiprocessing.pool import ThreadPool
@@ -1124,11 +1124,10 @@ def _map_async(pool_size, func, args):
 
   """
   pool = ThreadPool(pool_size)
-  if sys.version_info <= (2, 6):
-    results = pool.map(func, args)
-  else:
-    results = pool.map_async(func, args).get(1 << 24) # 6+ months.
-  
-  pool.close()
+  with closing(pool):
+    if sys.version_info <= (2, 6):
+      results = pool.map(func, args)
+    else:
+      results = pool.map_async(func, args).get(1 << 24) # 6+ months.
   pool.join()
   return results
