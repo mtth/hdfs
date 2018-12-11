@@ -1125,6 +1125,10 @@ def _map_async(pool_size, func, args):
   """
   pool = ThreadPool(pool_size)
   if sys.version_info <= (2, 6):
-    return pool.map(func, args)
+    results = pool.map(func, args)
   else:
-    return pool.map_async(func, args).get(1 << 24) # 6+ months.
+    results = pool.map_async(func, args).get(1 << 24) # 6+ months.
+  
+  pool.close()
+  pool.join()
+  return results
