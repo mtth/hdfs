@@ -76,7 +76,7 @@ We first implement our new client and save it somewhere, for example
     def __init__(self, url, cert=None, verify=True, **kwargs):
       session = Session()
       if ',' in cert:
-        sessions.cert = [path.strip() for path in cert.split(',')]
+        session.cert = [path.strip() for path in cert.split(',')]
       else:
         session.cert = cert
       if isinstance(verify, basestring): # Python 2.
