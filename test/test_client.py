@@ -1013,6 +1013,12 @@ class TestWalk(_IntegrationTest):
       )
     )
 
+  def test_skip_missing_folder(self):
+    self.client.write('file', 'one')
+    self.client.write('folder/hey', 'two')
+    for info in self.client.walk('', ignore_missing=True):
+      eq_(info, (psp.join(self.client.root), ['folder'], ['file']))
+      self.client.delete('folder', recursive=True)
 
 class TestLatestExpansion(_IntegrationTest):
 

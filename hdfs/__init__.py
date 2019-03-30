@@ -9,7 +9,7 @@ from .util import HdfsError
 import logging as lg
 
 
-__version__ = '2.2.2'
+__version__ = '2.3.0'
 __license__ = 'MIT'
 
 

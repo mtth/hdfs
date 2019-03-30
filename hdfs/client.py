@@ -992,7 +992,7 @@ class Client(object):
     else:
       return [s['pathSuffix'] for s in statuses]
 
-  def walk(self, hdfs_path, depth=0, status=False):
+  def walk(self, hdfs_path, depth=0, status=False, ignore_missing=False):
     """Depth-first walk of remote filesystem.
 
     :param hdfs_path: Starting path. If the path doesn't exist, an
@@ -1000,6 +1000,8 @@ class Client(object):
       generator will be empty.
     :param depth: Maximum depth to explore. `0` for no limit.
     :param status: Also return each file or folder's corresponding FileStatus_.
+    :param ignore_missing: Ignore missing nested folders rather than raise an
+      exception. This can be useful when the tree is modified during a walk.
 
     This method returns a generator yielding tuples `(path, dirs, files)`
     where `path` is the absolute path to the current directory, `dirs` is the
@@ -1011,7 +1013,12 @@ class Client(object):
 
     def _walk(dir_path, dir_status, depth):
       """Recursion helper."""
-      infos = self.list(dir_path, status=True)
+      try:
+        infos = self.list(dir_path, status=True)
+      except HdfsError as err:
+        if ignore_missing and 'does not exist' in err.message:
+          return
+        raise
       dir_infos = [info for info in infos if info[1]['type'] == 'DIRECTORY']
       file_infos = [info for info in infos if info[1]['type'] == 'FILE']
       if status:
