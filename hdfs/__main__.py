@@ -215,8 +215,10 @@ def main(argv=None, client=None):
         chunk_size=chunk_size,
         progress=progress,
       ) as reader:
+        # https://stackoverflow.com/a/23932488/1062617
+        stdout = getattr(sys.stdout, 'buffer', sys.stdout)
         for chunk in reader:
-          sys.stdout.write(chunk)
+          stdout.write(chunk)
     else:
       if sys.stderr.isatty() and not silent:
         progress = _Progress.from_hdfs_path(client, hdfs_path)
