@@ -55,9 +55,9 @@ setup(
     'six>=1.9.0',
   ],
   extras_require={
-    'avro': ['fastavro==0.9.6'],
+    'avro': ['fastavro>=0.21.19'],
     'kerberos': ['requests-kerberos>=0.7.0'],
-    'dataframe': ['fastavro==0.9.6', 'pandas>=0.14.1'],
+    'dataframe': ['fastavro>=0.21.19', 'pandas>=0.14.1'],
   },
   entry_points={'console_scripts': [
     '%s = hdfs.__main__:main' % (ENTRY_POINT, ),

@@ -172,7 +172,7 @@ class TestWriter(_AvroIntegrationTest):
       self.client,
       'weather.avro',
       schema=self.schema,
-      sync_interval = 1 # Flush block on every write.
+      sync_interval=1 # Flush block on every write.
     )
     with writer:
       for record in self.records:
@@ -212,7 +212,7 @@ class TestMain(_AvroIntegrationTest):
         main(['schema', 'weather.avro'], client=self.client, stdout=writer)
       with open(tpath) as reader:
         schema = load(reader)
-      eq_(self.schema, schema)
+      eq_(self.schema['fields'], schema['fields'])
 
   def test_read(self):
     self.client.upload('weather.avro', osp.join(self.dpath, 'weather.avro'))

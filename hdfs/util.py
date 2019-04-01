@@ -72,7 +72,7 @@ class AsyncWriter(object):
         _logger.debug('Starting consumer.')
         self._consumer(data)
       except Exception as err: # pylint: disable=broad-except
-        _logger.debug('Exception in child.')
+        _logger.exception('Exception in child.')
         self._err = err
       finally:
         _logger.debug('Finished consumer.')
@@ -106,6 +106,18 @@ class AsyncWriter(object):
   def flush(self):
     """Pass-through implementation."""
     pass
+
+  def seekable(self):
+    """Implement file-like method expected by certain libraries.
+
+    `fastavro` relies on it in python 3.
+
+    """
+    return False
+
+  def tell(self):
+    """No-op implementation."""
+    return 0
 
   def write(self, chunk):
     """Stream data to the underlying consumer.

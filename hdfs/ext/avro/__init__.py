@@ -26,7 +26,7 @@ and more information:
 
 """
 
-from ...util import HdfsError
+from ...util import AsyncWriter, HdfsError
 from json import dumps
 from six import integer_types, string_types
 import fastavro
@@ -39,6 +39,9 @@ import sys
 
 _logger = lg.getLogger(__name__)
 
+
+# The number of bytes in a sync marker (http://mtth.xyz/_9lc9t3hjtx69x54).
+SYNC_SIZE = 16
 
 class _SchemaInferrer(object):
 
@@ -193,9 +196,9 @@ class AvroReader(object):
       """Record generator over all part-files."""
       for path in self._paths:
         with self._client.read(path) as bytes_reader:
-          reader = fastavro._reader.iter_avro(_SeekableReader(bytes_reader))
+          reader = fastavro.reader(_SeekableReader(bytes_reader))
           if not self._schema:
-            schema = reader.schema
+            schema = reader.writer_schema
             _logger.debug('Read schema from %r.', path)
             yield (schema, reader.metadata)
           for record in reader:
@@ -260,10 +263,13 @@ class AvroWriter(object):
     self._hdfs_path = hdfs_path
     self._fo = client.write(hdfs_path, **kwargs)
     self._schema = schema
-    self._codec = codec or 'null'
-    self._sync_interval = sync_interval or 1000 * fastavro._writer.SYNC_SIZE
-    self._sync_marker = sync_marker or os.urandom(fastavro._writer.SYNC_SIZE)
-    self._metadata = metadata
+    self._writer_kwargs = {
+      'codec': codec or 'null',
+      'metadata': metadata,
+      'sync_interval': sync_interval or 1000 * SYNC_SIZE,
+      'sync_marker': sync_marker or os.urandom(SYNC_SIZE),
+    }
+    self._entered = False
     self._writer = None
     _logger.info('Instantiated %r.', self)
 
@@ -271,21 +277,18 @@ class AvroWriter(object):
     return '<AvroWriter(hdfs_path=%r)>' % (self._hdfs_path, )
 
   def __enter__(self):
-    if self._writer:
+    if self._entered:
       raise HdfsError('Avro writer cannot be reused.')
-    _logger.debug('Opening underlying writer.')
-    self._writer = self._write(self._fo.__enter__())
-    try:
-      self._writer.send(None) # Prime coroutine.
-    except Exception: # pylint: disable=broad-except
-      if not self._fo.__exit__(*sys.exc_info()):
-        raise
-    else:
-      return self
+    self._entered = True
+    if self._schema:
+      self._start_writer()
+    return self
 
   def __exit__(self, *exc_info):
+    if not self._writer:
+      return # No header or records were written.
     try:
-      self._writer.close()
+      self._writer.__exit__(*exc_info)
       _logger.debug('Closed underlying writer.')
     finally:
       self._fo.__exit__(*exc_info)
@@ -305,63 +308,23 @@ class AvroWriter(object):
     Only available inside the `with` block.
 
     """
-    if not self._writer:
+    if not self._entered:
       raise HdfsError('Avro writer not available outside context block.')
-    self._writer.send(record)
+    if not self._schema:
+      self._schema = _SchemaInferrer().infer(record)
+      _logger.info('Inferred schema: %s', dumps(self._schema))
+      self._start_writer()
+    self._writer.write(record)
 
-  def _write(self, fo):
-    """Coroutine to write to a file object."""
-    buf = fastavro._writer.MemoryIO()
-    block_writer = fastavro._writer.BLOCK_WRITERS[self._codec]
-    n_records = 0
-    n_block_records = 0
+  def _start_writer(self):
+    _logger.debug('Starting underlying writer.')
 
-    # Cache a few variables.
-    sync_interval = self._sync_interval
-    write_data = fastavro._writer.write_data
-    write_long = fastavro._writer.write_long
+    def write(records):
+      fastavro.writer(
+        fo=self._fo.__enter__(),
+        schema=self._schema,
+        records=records,
+        **self._writer_kwargs
+      )
 
-    def dump_header():
-      """Write header."""
-      metadata = {
-        'avro.codec': self._codec,
-        'avro.schema': dumps(self._schema),
-      }
-      if self._metadata:
-        for key, value in self._metadata.items():
-          # Don't overwrite the codec or schema.
-          metadata.setdefault(key, value)
-      fastavro._writer.write_header(fo, metadata, self._sync_marker)
-      _logger.debug('Wrote header. Sync marker: %r', self._sync_marker)
-      fastavro._writer.acquaint_schema(self._schema)
-
-    def dump_data():
-      """Write contents of memory buffer to file object."""
-      write_long(fo, n_block_records)
-      block_writer(fo, buf.getvalue())
-      fo.write(self._sync_marker)
-      buf.seek(0)
-      buf.truncate(0)
-
-    if self._schema:
-      dump_header()
-    try:
-      while True:
-        record = (yield)
-        if not n_records:
-          if not self._schema:
-            self._schema = _SchemaInferrer().infer(record)
-            _logger.info('Inferred schema: %s', dumps(self._schema))
-            dump_header()
-          schema = self._schema
-        write_data(buf, record, schema)
-        n_block_records += 1
-        n_records += 1
-        if buf.tell() >= sync_interval:
-          dump_data()
-          n_block_records = 0
-    except GeneratorExit:
-      if buf.tell():
-        dump_data()
-      fo.flush()
-      _logger.info('Finished writing %s records.', n_records)
+    self._writer = AsyncWriter(write).__enter__()

@@ -6,7 +6,7 @@ python:
   - 3.5
   - 3.6
 install:
-  - pip install . fastavro==0.9.6 coverage mock
+  - pip install .[avro] coverage mock
 before_script:
   - export HADOOP_HOME="$(./scripts/hadoop.sh download)"
   - export HADOOP_CONF_DIR="$(./scripts/hadoop.sh config)"
