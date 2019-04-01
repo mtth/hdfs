@@ -1,7 +1,5 @@
 {
-  "namespace": "test",
-  "doc": "A weather reading.",
-  "name": "Weather",
+  "name": "test.Weather",
   "type": "record",
   "fields": [
     {"name": "station", "type": "string"},

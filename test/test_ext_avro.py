@@ -212,7 +212,7 @@ class TestMain(_AvroIntegrationTest):
         main(['schema', 'weather.avro'], client=self.client, stdout=writer)
       with open(tpath) as reader:
         schema = load(reader)
-      eq_(self.schema['fields'], schema['fields'])
+      eq_(self.schema, schema)
 
   def test_read(self):
     self.client.upload('weather.avro', osp.join(self.dpath, 'weather.avro'))
