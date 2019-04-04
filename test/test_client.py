@@ -483,6 +483,24 @@ class TestDelete(_IntegrationTest):
     self.client.write('de/foo', 'hello, world!')
     self.client.delete('de')
 
+  def test_trash_file(self):
+    self.client.write('foo', 'hello, world!')
+    ok_(self.client.delete('foo', skip_trash=False))
+    eq_(self.client.status('foo', strict=False), None)
+
+  def test_trash_missing_file(self):
+    ok_(not self.client.delete('foo', skip_trash=False))
+
+  @raises(HdfsError)
+  def test_trash_directory_non_recursive(self):
+    self.client.write('bar/foo', 'hello, world!')
+    self.client.delete('bar', skip_trash=False)
+
+  def test_trash_directory(self):
+    self.client.write('bar/foo', 'hello, world!')
+    ok_(self.client.delete('bar', recursive=True, skip_trash=False))
+    eq_(self.client.status('bar', strict=False), None)
+
 
 class TestRead(_IntegrationTest):
 

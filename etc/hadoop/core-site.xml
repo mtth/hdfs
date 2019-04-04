@@ -4,6 +4,14 @@
     <value>hdfs://localhost:51000</value>
   </property>
   <property>
+    <name>fs.trash.interval</name>
+    <value>10</value>
+  </property>
+  <property>
+    <name>fs.trash.checkpoint.interval</name>
+    <value>1</value>
+  </property>
+  <property>
     <name>hadoop.proxyuser.#USER#.hosts</name>
     <value>*</value>
   </property>

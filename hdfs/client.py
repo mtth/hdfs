@@ -60,7 +60,7 @@ class _Request(object):
   """
 
   webhdfs_prefix = '/webhdfs/v1'
-  doc_url = 'http://hadoop.apache.org/docs/r2.9.0/hadoop-project-dist/hadoop-hdfs/WebHDFS.html'
+  doc_url = 'https://hadoop.apache.org/docs/stable/hadoop-project-dist/hadoop-hdfs/WebHDFS.html'
 
   def __init__(self, method, **kwargs):
     self.method = method
@@ -563,7 +563,7 @@ class Client(object):
       temp_dir = temp_dir or remote_dpath
       temp_path = psp.join(
         temp_dir,
-        '%s.temp-%s' % (remote_name, int(time.time()))
+        '%s.temp-%s' % (remote_name, _current_micros())
       )
       _logger.debug(
         'Upload destination %r already exists. Using temporary path %r.',
@@ -768,7 +768,7 @@ class Client(object):
       temp_dir = temp_dir or local_dpath
       temp_path = osp.join(
         temp_dir,
-        '%s.temp-%s' % (local_name, int(time.time()))
+        '%s.temp-%s' % (local_name, _current_micros())
       )
       _logger.debug(
         'Download destination %r already exists. Using temporary path %r.',
@@ -841,56 +841,46 @@ class Client(object):
         )
     return local_path
 
-  def delete(self, hdfs_path, recursive=False, skip_trash=False):
+  def delete(self, hdfs_path, recursive=False, skip_trash=True):
     """Remove a file or directory from HDFS.
 
     :param hdfs_path: HDFS path.
     :param recursive: Recursively delete files and directories. By default,
       this method will raise an :class:`HdfsError` if trying to delete a
       non-empty directory.
-    :param skip_trash: Move items to be trashed into
-      /users/<current user>/.Trash/Current/<timestamp>/<path>.
+    :param skip_trash: When false, the deleted path will be moved to an
+      appropriate trash folder rather than deleted. This requires Hadoop 2.9+
+      and trash to be enabled on the cluster.
 
     This function returns `True` if the deletion was successful and `False` if
     no file or directory previously existed at `hdfs_path`.
 
     """
-    def _trash_root(hdfs_path, strict=True):
-      """Get TrashRoot_ for a folder on HDFS. Currently in DFS if the path "/foo" is a normal path, it returns
-      "/user/$USER/.Trash" for "/foo" and if "/foo" is an encrypted zone,
-      it returns "/foo/.Trash/$USER" for the child file/dir of "/foo". -- see HDFS-10756
-
-      :param hdfs_path: Remote path.
-      :param strict: If `False`, return `None` rather than raise an exception if
-        the path doesn't exist.
-
-      .. _TrashRoot: TR_
-      .. _TR: http://hadoop.apache.org/docs/r2.9.0/hadoop-project-dist/hadoop-hdfs/WebHDFS.html#Get_Trash_Root
-
-      """
-      _logger.info('Fetching Trash Root for %r.', hdfs_path)
-      res = self._get_trash_root(hdfs_path, strict=strict)
-      trash_root = None
-      if res.json()['Path']:
-        trash_root = psp.join(
-          res.json()['Path'],
-          '%s/Current/%s' % (res.json()['Path'], int(time.time()))
-        )
-      return trash_root
-
-    hdfs_dst_path = _trash_root(hdfs_path)
-    if hdfs_dst_path and not skip_trash:
-      self.makedirs(hdfs_dst_path)
-      self.rename(hdfs_path, hdfs_dst_path)
-      _logger.info(
-        '%r moved to Trash %r', hdfs_path, hdfs_dst_path
-      )
-      return self.list(hdfs_dst_path) is not None
-    else:
-      _logger.info(
-        'Deleting %r%s.', hdfs_path, ' recursively' if recursive else ''
-      )
+    verb = 'Deleting' if skip_trash else 'Trashing'
+    _logger.info(
+      '%s %r%s.', verb, hdfs_path, ' recursively' if recursive else ''
+    )
+    if skip_trash:
       return self._delete(hdfs_path, recursive=recursive).json()['boolean']
+    hdfs_path = self.resolve(hdfs_path)
+    status = self.status(hdfs_path, strict=False)
+    if not status:
+      return False
+    if status['type'] == 'DIRECTORY' and not recursive:
+      raise HdfsError('Non-recursive trashing of directory %r.', hdfs_path)
+    _logger.info('Fetching trash root for %r.', hdfs_path)
+    trash_path = self._get_trash_root(hdfs_path).json()['Path']
+    # The default trash policy (http://mtth.xyz/_9lc9t3hjtz276rx) expects
+    # folders to be under a `"Current"` subfolder. We also add a timestamped
+    # folder as a simple safeguard against path conflicts (note that the above
+    # policy implements a more involved variant).
+    dst_path = psp.join(trash_path, 'Current', _current_micros())
+    self.makedirs(dst_path)
+    # Note that there is a (hopefully small) race condition here: the path might
+    # have been deleted between the status call above and the rename here.
+    self.rename(hdfs_path, dst_path)
+    _logger.info('%r moved to trash at %r.', hdfs_path, dst_path)
+    return True
 
   def rename(self, hdfs_src_path, hdfs_dst_path):
     """Move a file or folder.
@@ -1151,6 +1141,10 @@ class TokenClient(Client):
 
 # Helpers
 # -------
+
+def _current_micros():
+  """Returns a string representing the current time in microseconds."""
+  return str(int(time.time() * 1e6))
 
 def _map_async(pool_size, func, args):
   """Async map (threading), handling python 2.6 edge case.
