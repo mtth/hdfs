@@ -14,9 +14,9 @@ class TestAsyncWriter(object):
     def consumer(gen):
       result.append(list(gen))
     with AsyncWriter(consumer) as writer:
-      writer.write(1)
-      writer.write(2)
-    eq_(result, [[1,2]])
+      writer.write('one')
+      writer.write('two')
+    eq_(result, [['one','two']])
 
   def test_multiple_writer_uses(self):
     result = []
@@ -24,24 +24,24 @@ class TestAsyncWriter(object):
       result.append(list(gen))
     writer = AsyncWriter(consumer)
     with writer:
-      writer.write(1)
-      writer.write(2)
+      writer.write('one')
+      writer.write('two')
     with writer:
-      writer.write(3)
-      writer.write(4)
-    eq_(result, [[1,2],[3,4]])
+      writer.write('three')
+      writer.write('four')
+    eq_(result, [['one','two'],['three','four']])
 
   def test_multiple_consumer_uses(self):
     result = []
     def consumer(gen):
       result.append(list(gen))
     with AsyncWriter(consumer) as writer:
-      writer.write(1)
-      writer.write(2)
+      writer.write('one')
+      writer.write('two')
     with AsyncWriter(consumer) as writer:
-      writer.write(3)
-      writer.write(4)
-    eq_(result, [[1,2],[3,4]])
+      writer.write('three')
+      writer.write('four')
+    eq_(result, [['one','two'],['three','four']])
 
   @raises(ValueError)
   def test_nested(self):
@@ -49,19 +49,19 @@ class TestAsyncWriter(object):
     def consumer(gen):
       result.append(list(gen))
     with AsyncWriter(consumer) as _writer:
-      _writer.write(1)
+      _writer.write('one')
       with _writer as writer:
-        writer.write(2)
+        writer.write('two')
 
   @raises(HdfsError)
   def test_child_error(self):
     def consumer(gen):
       for value in gen:
-        if value == 2:
+        if value == 'two':
           raise HdfsError('Yo')
     with AsyncWriter(consumer) as writer:
-      writer.write(1)
-      writer.write(2)
+      writer.write('one')
+      writer.write('two')
 
   @raises(HdfsError)
   def test_parent_error(self):
@@ -69,7 +69,7 @@ class TestAsyncWriter(object):
       for value in gen:
         pass
     def invalid(w):
-      w.write(1)
+      w.write('one')
       raise HdfsError('Ya')
     with AsyncWriter(consumer) as writer:
       invalid(writer)

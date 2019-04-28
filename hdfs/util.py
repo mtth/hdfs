@@ -126,6 +126,7 @@ class AsyncWriter(object):
       consumer reads them.
 
     """
+    _logger.debug('Queuing %s bytes.', len(chunk))
     self._queue.put(chunk)
 
 

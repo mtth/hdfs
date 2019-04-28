@@ -461,12 +461,25 @@ class Client(object):
       )
     loc = res.headers['location']
 
+    def generator(_data):
+      """Encoded chunk generator."""
+      for chunk in _data:
+        if not chunk:
+          # Skip empty chunks, otherwise they cause request to terminate the
+          # response stream. Note that these chunks can be produced by valid
+          # upstream encoders (e.g. bzip2).
+          continue
+        elif encoding:
+          yield chunk.encode(encoding)
+        else:
+          yield chunk
+
     def consumer(_data):
       """Thread target."""
       res = self._request(
         method='POST' if append else 'PUT',
         url=loc,
-        data=(c.encode(encoding) for c in _data) if encoding else _data,
+        data=generator(_data),
       )
       if not res:
         raise _to_error(res)
