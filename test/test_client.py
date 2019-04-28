@@ -164,21 +164,20 @@ class TestResolve(_IntegrationTest):
     # `"Unknown exception in doAs"`.
     path = 'fo&o/a%a'
     try:
-      self.client.write(path, data='hello')
+      self._write(path, b'hello')
     except HdfsError:
       pass
-    with self.client.read(path) as reader:
-      eq_(reader.read(), b'hello')
+    eq_(self._read(path), b'hello')
 
 
 class TestWrite(_IntegrationTest):
 
   def test_create_from_string(self):
-    self.client.write('up', u'hello, world!')
+    self.client.write('up', b'hello, world!')
     eq_(self._read('up'), b'hello, world!')
 
   def test_create_from_string_with_encoding(self):
-    self.client.write('up', u'hello, world!')
+    self.client.write('up', u'hello, world!', encoding='utf-8')
     eq_(self._read('up'), b'hello, world!')
 
   def test_create_from_generator(self):
@@ -200,18 +199,18 @@ class TestWrite(_IntegrationTest):
     eq_(self._read('up'), b'hello, world!')
 
   def test_create_set_permission(self):
-    self.client.write('up', 'hello, world!', permission='722')
+    self.client.write('up', b'hello, world!', permission='722')
     eq_(self._read('up'), b'hello, world!')
     eq_(self.client.status('up')['permission'], '722')
 
   @raises(HdfsError)
   def test_create_to_existing_file_without_overwrite(self):
-    self.client.write('up', 'hello, world!')
-    self.client.write('up', 'hello again, world!')
+    self.client.write('up', b'hello, world!')
+    self.client.write('up', b'hello again, world!')
 
   def test_create_and_overwrite_file(self):
-    self.client.write('up', 'hello, world!')
-    self.client.write('up', 'hello again, world!', overwrite=True)
+    self.client.write('up', b'hello, world!')
+    self.client.write('up', b'hello again, world!', overwrite=True)
     eq_(self._read('up'), b'hello again, world!')
 
   def test_as_context_manager(self):
@@ -242,8 +241,8 @@ class TestWrite(_IntegrationTest):
   @raises(HdfsError)
   def test_create_invalid_path(self):
     # conversely, can't overwrite a file with a directory
-    self.client.write('up', 'hello, world!')
-    self.client.write('up/up', 'hello again, world!')
+    self.client.write('up', b'hello, world!')
+    self.client.write('up/up', b'hello again, world!')
 
 
 class TestAppend(_IntegrationTest):
@@ -253,33 +252,31 @@ class TestAppend(_IntegrationTest):
     super(TestAppend, cls).setup_class()
     if cls.client:
       try:
-        cls.client.write('ap', '')
-        # can't append to an empty file
-        cls.client.write('ap', '', append=True)
-        # try a simple append
+        cls.client.write('ap', b'') # We can't append to an empty file.
+        cls.client.write('ap', b'', append=True) # Try a simple append.
       except HdfsError as err:
         if 'Append is not supported' in str(err):
           cls.client = None
-          # skip these tests if HDFS isn't configured to support appends
+          # Skip these tests if HDFS isn't configured to support appends.
         else:
           raise err
 
   def test_simple(self):
-    self.client.write('ap', 'hello,')
-    self.client.write('ap', ' world!', append=True)
+    self.client.write('ap', b'hello,')
+    self.client.write('ap', b' world!', append=True)
     eq_(self._read('ap'), b'hello, world!')
 
   @raises(HdfsError)
   def test_missing_file(self):
-    self.client.write('ap', 'hello!', append=True)
+    self.client.write('ap', b'hello!', append=True)
 
   @raises(ValueError)
   def test_overwrite_and_append(self):
-    self.client.write('ap', 'hello!', overwrite=True, append=True)
+    self.client.write('ap', b'hello!', overwrite=True, append=True)
 
   @raises(ValueError)
   def test_set_permission_and_append(self):
-    self.client.write('ap', 'hello!', permission='777', append=True)
+    self.client.write('ap', b'hello!', permission='777', append=True)
 
 
 class TestUpload(_IntegrationTest):
@@ -343,7 +340,7 @@ class TestUpload(_IntegrationTest):
       os.mkdir(osp.join(dpath, 'bar'))
       with open(osp.join(dpath, 'bar', 'baz'), 'w') as writer:
         writer.write('world!')
-      self.client.write('up', 'hi')
+      self._write('up', b'hi')
       self.client.upload('up', dpath, overwrite=True)
       eq_(self._read('up/foo'), b'hello!')
       eq_(self._read('up/bar/baz'), b'world!')
@@ -461,7 +458,7 @@ class TestUpload(_IntegrationTest):
 class TestDelete(_IntegrationTest):
 
   def test_delete_file(self):
-    self.client.write('foo', 'hello, world!')
+    self._write('foo', b'hello, world!')
     ok_(self.client.delete('foo'))
     ok_(not self._exists('foo'))
 
@@ -474,17 +471,17 @@ class TestDelete(_IntegrationTest):
     ok_(not self.client.delete('foo'))
 
   def test_delete_non_empty_directory(self):
-    self.client.write('de/foo', 'hello, world!')
+    self._write('de/foo', b'hello, world!')
     ok_(self.client.delete('de', recursive=True))
     ok_(not self._exists('de'))
 
   @raises(HdfsError)
   def test_delete_non_empty_directory_without_recursive(self):
-    self.client.write('de/foo', 'hello, world!')
+    self._write('de/foo', b'hello, world!')
     self.client.delete('de')
 
   def test_trash_file(self):
-    self.client.write('foo', 'hello, world!')
+    self._write('foo', b'hello, world!')
     ok_(self.client.delete('foo', skip_trash=False))
     eq_(self.client.status('foo', strict=False), None)
 
@@ -493,11 +490,11 @@ class TestDelete(_IntegrationTest):
 
   @raises(HdfsError)
   def test_trash_directory_non_recursive(self):
-    self.client.write('bar/foo', 'hello, world!')
+    self._write('bar/foo', b'hello, world!')
     self.client.delete('bar', skip_trash=False)
 
   def test_trash_directory(self):
-    self.client.write('bar/foo', 'hello, world!')
+    self._write('bar/foo', b'hello, world!')
     ok_(self.client.delete('bar', recursive=True, skip_trash=False))
     eq_(self.client.status('bar', strict=False), None)
 
@@ -506,24 +503,24 @@ class TestRead(_IntegrationTest):
 
   @raises(ValueError)
   def test_progress_without_chunk_size(self):
-    self.client.write('foo', 'hello, world!')
+    self._write('foo', b'hello, world!')
     with self.client.read('foo', progress=lambda path, nbytes: None) as reader:
       pass
 
   @raises(ValueError)
   def test_delimiter_without_encoding(self):
-    self.client.write('foo', 'hello, world!')
+    self._write('foo', b'hello, world!')
     with self.client.read('foo', delimiter=',') as reader:
       pass
 
   @raises(ValueError)
   def test_delimiter_with_chunk_size(self):
-    self.client.write('foo', 'hello, world!')
+    self._write('foo', b'hello, world!')
     with self.client.read('foo', delimiter=',', chunk_size=1) as reader:
       pass
 
   def test_read_file(self):
-    self.client.write('foo', 'hello, world!')
+    self._write('foo', b'hello, world!')
     with self.client.read('foo') as reader:
       eq_(reader.read(), b'hello, world!')
 
@@ -539,17 +536,17 @@ class TestRead(_IntegrationTest):
       pass
 
   def test_read_file_from_offset(self):
-    self.client.write('foo', 'hello, world!')
+    self._write('foo', b'hello, world!')
     with self.client.read('foo', offset=7) as reader:
       eq_(reader.read(), b'world!')
 
   def test_read_file_from_offset_with_limit(self):
-    self.client.write('foo', 'hello, world!')
+    self._write('foo', b'hello, world!')
     with self.client.read('foo', offset=7, length=5) as reader:
       eq_(reader.read(), b'world')
 
   def test_read_file_with_chunk_size(self):
-    self.client.write('foo', 'hello, world!')
+    self._write('foo', b'hello, world!')
     with self.client.read('foo', chunk_size=5) as reader:
       eq_(list(reader), [b'hello', b', wor', b'ld!'])
 
@@ -557,7 +554,7 @@ class TestRead(_IntegrationTest):
     def cb(path, nbytes, chunk_lengths=[]):
       chunk_lengths.append(nbytes)
       return chunk_lengths
-    self.client.write('foo', 'hello, world!')
+    self._write('foo', b'hello, world!')
     with temppath() as tpath:
       with open(tpath, 'wb') as writer:
         with self.client.read('foo', chunk_size=5, progress=cb) as reader:
@@ -569,25 +566,25 @@ class TestRead(_IntegrationTest):
 
   def test_read_with_encoding(self):
     s = u'hello, world!'
-    self.client.write('foo', s)
+    self._write('foo', s, encoding='utf-8')
     with self.client.read('foo', encoding='utf-8') as reader:
       eq_(reader.read(), s)
 
   def test_read_with_chunk_size_and_encoding(self):
     s = u'hello, world!'
-    self.client.write('foo', s)
+    self._write('foo', s, encoding='utf-8')
     with self.client.read('foo', chunk_size=5, encoding='utf-8') as reader:
       eq_(list(reader), [u'hello', u', wor', u'ld!'])
 
   def test_read_json(self):
     from json import dumps, load
     data = {'one': 1, 'two': 2}
-    self.client.write('foo', data=dumps(data), encoding='utf-8')
+    self._write('foo', data=dumps(data), encoding='utf-8')
     with self.client.read('foo', encoding='utf-8') as reader:
       eq_(load(reader), data)
 
   def test_read_with_delimiter(self):
-    self.client.write('foo', u'hi\nworld!\n')
+    self._write('foo', u'hi\nworld!\n', encoding='utf-8')
     with self.client.read('foo', delimiter='\n', encoding='utf-8') as reader:
       eq_(list(reader), [u'hi', u'world!', u''])
 
@@ -595,7 +592,7 @@ class TestRead(_IntegrationTest):
 class TestRename(_IntegrationTest):
 
   def test_rename_file(self):
-    self.client.write('foo', 'hello, world!')
+    self._write('foo', b'hello, world!')
     self.client.rename('foo', 'bar')
     eq_(self._read('bar'), b'hello, world!')
 
@@ -605,25 +602,25 @@ class TestRename(_IntegrationTest):
 
   @raises(HdfsError)
   def test_rename_file_to_existing_file(self):
-    self.client.write('foo', 'hello, world!')
-    self.client.write('bar', 'hello again, world!')
+    self._write('foo', b'hello, world!')
+    self._write('bar', b'hello again, world!')
     self.client.rename('foo', 'bar')
 
   def test_move_file_into_existing_directory(self):
-    self.client.write('foo', 'hello, world!')
+    self._write('foo', b'hello, world!')
     self.client._mkdirs('bar')
     self.client.rename('foo', 'bar')
     eq_(self._read('bar/foo'), b'hello, world!')
 
   def test_rename_file_into_existing_directory(self):
-    self.client.write('foo', 'hello, world!')
+    self._write('foo', b'hello, world!')
     self.client._mkdirs('bar')
     self.client.rename('foo', 'bar/baz')
     eq_(self._read('bar/baz'), b'hello, world!')
 
   def test_rename_file_with_special_characters(self):
     path = 'fo&oa ?a=1'
-    self.client.write('foo', 'hello, world!')
+    self._write('foo', b'hello, world!')
     self.client.rename('foo', path)
     eq_(self._read(path), b'hello, world!')
 
@@ -632,12 +629,12 @@ class TestDownload(_IntegrationTest):
 
   @raises(HdfsError)
   def test_missing_dir(self):
-    self.client.write('dl', 'hello')
+    self._write('dl', b'hello')
     with temppath() as tpath:
       self.client.download('dl', osp.join(tpath, 'foo'))
 
   def test_normal_file(self):
-    self.client.write('dl', 'hello')
+    self._write('dl', b'hello')
     with temppath() as tpath:
       fpath = self.client.download('dl', tpath)
       with open(fpath) as reader:
@@ -645,7 +642,7 @@ class TestDownload(_IntegrationTest):
 
   def test_nonpartitioned_file(self):
     partname = 'part-r-00000'
-    self.client.write('dl/' + partname, 'world')
+    self._write('dl/' + partname, b'world')
     with temppath() as tpath:
       fname = self.client.download('dl/' + partname, tpath)
       with open(fname) as reader:
@@ -653,7 +650,7 @@ class TestDownload(_IntegrationTest):
 
   def test_singly_partitioned_file(self):
     partname = 'part-r-00000'
-    self.client.write('dl/' + partname, 'world')
+    self._write('dl/' + partname, b'world')
     with temppath() as tpath:
       os.mkdir(tpath)
       fname = self.client.download('dl', tpath)
@@ -662,18 +659,18 @@ class TestDownload(_IntegrationTest):
 
   def _download_partitioned_file(self, n_threads):
     parts = {
-      'part-r-00000': 'fee',
-      'part-r-00001': 'faa',
-      'part-r-00002': 'foo',
+      'part-r-00000': b'fee',
+      'part-r-00001': b'faa',
+      'part-r-00002': b'foo',
     }
     for name, content in parts.items():
-      self.client.write('dl/%s' % (name, ), content)
+      self._write('dl/%s' % (name, ), content)
     with temppath() as tpath:
       self.client.download('dl', tpath, n_threads=-1)
       local_parts = os.listdir(tpath)
       eq_(set(local_parts), set(parts)) # We have all the parts.
       for part in local_parts:
-        with open(osp.join(tpath, part)) as reader:
+        with open(osp.join(tpath, part), mode='rb') as reader:
           eq_(reader.read(), parts[part]) # Their content is correct.
 
   def test_partitioned_file_max_threads(self):
@@ -687,23 +684,23 @@ class TestDownload(_IntegrationTest):
 
   def test_overwrite_file(self):
     with temppath() as tpath:
-      self.client.write('dl', 'hello')
+      self._write('dl', b'hello')
       self.client.download('dl', tpath)
-      self.client.write('dl', 'there', overwrite=True)
+      self.client.write('dl', b'there', overwrite=True)
       fname = self.client.download('dl', tpath, overwrite=True)
       with open(fname) as reader:
         eq_(reader.read(), 'there')
 
   @raises(HdfsError)
   def test_download_file_to_existing_file(self):
-    self.client.write('dl', 'hello')
+    self._write('dl', b'hello')
     with temppath() as tpath:
       with open(tpath, 'w') as writer:
         writer.write('hi')
       self.client.download('dl', tpath)
 
   def test_download_file_to_existing_file_with_overwrite(self):
-    self.client.write('dl', 'hello')
+    self._write('dl', b'hello')
     with temppath() as tpath:
       with open(tpath, 'w') as writer:
         writer.write('hi')
@@ -712,7 +709,7 @@ class TestDownload(_IntegrationTest):
         eq_(reader.read(), 'hello')
 
   def test_download_file_to_existing_folder(self):
-    self.client.write('dl', 'hello')
+    self._write('dl', b'hello')
     with temppath() as tpath:
       os.mkdir(tpath)
       self.client.download('dl', tpath)
@@ -721,7 +718,7 @@ class TestDownload(_IntegrationTest):
 
   @raises(HdfsError)
   def test_download_file_to_existing_folder_with_matching_file(self):
-    self.client.write('dl', 'hello')
+    self._write('dl', b'hello')
     with temppath() as tpath:
       os.mkdir(tpath)
       with open(osp.join(tpath, 'dl'), 'w') as writer:
@@ -729,7 +726,7 @@ class TestDownload(_IntegrationTest):
       self.client.download('dl', tpath)
 
   def test_download_file_to_existing_folder_overwrite_matching_file(self):
-    self.client.write('dl', 'hello')
+    self._write('dl', b'hello')
     with temppath() as tpath:
       os.mkdir(tpath)
       with open(osp.join(tpath, 'dl'), 'w') as writer:
@@ -739,8 +736,8 @@ class TestDownload(_IntegrationTest):
         eq_(reader.read(), 'hello')
 
   def test_download_folder_to_existing_folder(self):
-    self.client.write('foo/dl', 'hello')
-    self.client.write('foo/bar/dl', 'there')
+    self._write('foo/dl', b'hello')
+    self._write('foo/bar/dl', b'there')
     with temppath() as tpath:
       os.mkdir(tpath)
       self.client.download('foo', tpath)
@@ -750,8 +747,8 @@ class TestDownload(_IntegrationTest):
         eq_(reader.read(), 'there')
 
   def test_download_folder_to_existing_folder_parallel(self):
-    self.client.write('foo/dl', 'hello')
-    self.client.write('foo/bar/dl', 'there')
+    self._write('foo/dl', b'hello')
+    self._write('foo/bar/dl', b'there')
     with temppath() as tpath:
       os.mkdir(tpath)
       self.client.download('foo', tpath, n_threads=0)
@@ -761,8 +758,8 @@ class TestDownload(_IntegrationTest):
         eq_(reader.read(), 'there')
 
   def test_download_folder_to_missing_folder(self):
-    self.client.write('foo/dl', 'hello')
-    self.client.write('foo/bar/dl', 'there')
+    self._write('foo/dl', b'hello')
+    self._write('foo/bar/dl', b'there')
     with temppath() as tpath:
       self.client.download('foo', tpath)
       with open(osp.join(tpath, 'dl')) as reader:
@@ -771,8 +768,8 @@ class TestDownload(_IntegrationTest):
         eq_(reader.read(), 'there')
 
   def test_download_cleanup(self):
-    self.client.write('foo/dl', 'hello')
-    self.client.write('foo/bar/dl', 'there')
+    self._write('foo/dl', b'hello')
+    self._write('foo/bar/dl', b'there')
     _read = self.client.read
 
     def read(hdfs_path, *args, **kwargs):
@@ -798,14 +795,14 @@ class TestDownload(_IntegrationTest):
       self.client.download('foo', tpath)
 
   def test_download_dir_whitespace(self):
-    self.client.write('foo/foo bar.txt', 'hello')
+    self._write('foo/foo bar.txt', b'hello')
     with temppath() as tpath:
       self.client.download('foo', tpath)
       with open(osp.join(tpath, 'foo bar.txt')) as reader:
         eq_(reader.read(), 'hello')
 
   def test_download_file_whitespace(self):
-    self.client.write('foo/foo bar%.txt', 'hello')
+    self._write('foo/foo bar%.txt', b'hello')
     with temppath() as tpath:
       self.client.download('foo/foo bar%.txt', tpath)
       with open(tpath) as reader:
@@ -821,7 +818,7 @@ class TestStatus(_IntegrationTest):
     eq_(status['length'], 0)
 
   def test_file(self):
-    self.client.write('foo', 'hello, world!')
+    self._write('foo', b'hello, world!')
     status = self.client.status('foo')
     eq_(status['type'], 'FILE')
     eq_(status['length'], 13)
@@ -841,7 +838,7 @@ class TestSetOwner(_IntegrationTest):
     super(TestSetOwner, cls).setup_class()
     if cls.client:
       try:
-        cls.client.write('foo', '')
+        cls.client.write('foo', b'')
         cls.client.set_owner('foo', 'bar')
       except HdfsError as err:
         if 'Non-super user cannot change owner' in str(err):
@@ -860,7 +857,7 @@ class TestSetOwner(_IntegrationTest):
 
   def test_file_owner(self):
     new_owner = 'newowner'
-    self.client.write('foo', 'hello, world!')
+    self._write('foo', b'hello, world!')
     self.client.set_owner('foo', 'oldowner')
     self.client.set_owner('foo', new_owner)
     status = self.client.status('foo')
@@ -876,7 +873,7 @@ class TestSetOwner(_IntegrationTest):
 
   def test_file_for_group(self):
     new_group = 'newgroup'
-    self.client.write('foo', 'hello, world!')
+    self._write('foo', b'hello, world!')
     self.client.set_owner('foo', group='oldgroup')
     self.client.set_owner('foo', group=new_group)
     status = self.client.status('foo')
@@ -898,7 +895,7 @@ class TestSetPermission(_IntegrationTest):
 
   def test_file(self):
     new_permission = '755'
-    self.client.write('foo', 'hello, world!', permission='444')
+    self.client.write('foo', b'hello, world!', permission='444')
     self.client.set_permission('foo', new_permission)
     status = self.client.status('foo')
     eq_(status['permission'], new_permission)
@@ -911,14 +908,14 @@ class TestSetPermission(_IntegrationTest):
 class TestContent(_IntegrationTest):
 
   def test_directory(self):
-    self.client.write('foo', 'hello, world!')
+    self._write('foo', b'hello, world!')
     content = self.client.content('')
     eq_(content['directoryCount'], 1)
     eq_(content['fileCount'], 1)
     eq_(content['length'], 13)
 
   def test_file(self):
-    self.client.write('foo', 'hello, world!')
+    self._write('foo', b'hello, world!')
     content = self.client.content('foo')
     eq_(content['directoryCount'], 0)
     eq_(content['fileCount'], 1)
@@ -931,10 +928,11 @@ class TestContent(_IntegrationTest):
   def test_missing_non_strict(self):
     ok_(self.client.content('foo', strict=False) is None)
 
+
 class TestAcl(_IntegrationTest):
 
   def test_directory(self):
-    self.client.write('foo', 'hello, world!')
+    self._write('foo', b'hello, world!')
     content = self.client.acl_status('')
     ok_(len(content) > 1)
     ok_('entries' in content)

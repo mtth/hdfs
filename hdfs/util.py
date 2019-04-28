@@ -126,8 +126,11 @@ class AsyncWriter(object):
       consumer reads them.
 
     """
-    _logger.debug('Queuing %s bytes.', len(chunk))
-    self._queue.put(chunk)
+    if chunk:
+      # We skip empty chunks, otherwise they cause request to terminate the
+      # response stream. Note that these chunks can be produced by valid
+      # upstream encoders (e.g. bzip2).
+      self._queue.put(chunk)
 
 
 @contextmanager
