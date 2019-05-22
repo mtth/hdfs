@@ -411,7 +411,9 @@ class Client(object):
       file object. The last two options will allow streaming upload (i.e.
       without having to load the entire contents into memory). If `None`, this
       method will return a file-like object and should be called using a `with`
-      block (see below for examples).
+      block (see below for examples). In Python3, the file-like object expects 
+      to receive bytes instead of str - the encoding argument will not be 
+      honoured in such cases.
     :param overwrite: Overwrite any existing file or directory.
     :param permission: Octal permission to set on the newly created file.
       Leading zeros may be omitted.
