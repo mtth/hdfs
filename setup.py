@@ -33,8 +33,9 @@ setup(
   version=_get_version(),
   description=__doc__,
   long_description=_get_long_description(),
+  long_description_content_type='text/markdown',
   author='Matthieu Monsch',
-  author_email='monsch@alum.mit.edu',
+  author_email='mtth@apache.org',
   url='https://hdfscli.readthedocs.io',
   license='MIT',
   packages=find_packages(),
@@ -48,6 +49,7 @@ setup(
     'Programming Language :: Python :: 3.3',
     'Programming Language :: Python :: 3.4',
     'Programming Language :: Python :: 3.5',
+    'Programming Language :: Python :: 3.6',
   ],
   install_requires=[
     'docopt',
