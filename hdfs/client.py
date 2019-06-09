@@ -536,12 +536,11 @@ class Client(object):
     try:
       statuses = [status for _, status in self.list(hdfs_path, status=True)]
     except HdfsError as err:
-      message = str(err)
-      if 'not a directory' in message:
+      if 'not a directory' in err.message:
         # Remote path is a normal file.
         if not kwargs.get('overwrite'):
           raise HdfsError('Remote path %r already exists.', hdfs_path)
-      elif 'does not exist' in message:
+      elif 'does not exist' in err.message:
         # Remote path doesn't exist.
         temp_path = hdfs_path
       else:
