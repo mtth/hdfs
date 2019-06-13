@@ -50,12 +50,14 @@ class AsyncWriter(object):
 
   """
 
+  # Expected by pandas to write csv files (https://github.com/mtth/hdfs/pull/130).
+  __iter__ = None
+
   def __init__(self, consumer):
     self._consumer = consumer
     self._queue = None
     self._reader = None
     self._err = None
-    self.__iter__ = None # __iter__ attribute expected by pandas to write csv file since version 0.24.
     _logger.debug('Instantiated %r.', self)
 
   def __repr__(self):
