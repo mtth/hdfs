@@ -55,6 +55,7 @@ class AsyncWriter(object):
     self._queue = None
     self._reader = None
     self._err = None
+    self.__iter__ = None # __iter__ attribute expected by pandas to write csv file since version 0.24.
     _logger.debug('Instantiated %r.', self)
 
   def __repr__(self):
@@ -114,10 +115,6 @@ class AsyncWriter(object):
 
     """
     return False
-
-  def __iter__(self):
-    """Implement __iter__ method expected by pandas to write csv file since version 0.24. """
-    return
 
   def tell(self):
     """No-op implementation."""
