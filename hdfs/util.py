@@ -115,6 +115,10 @@ class AsyncWriter(object):
     """
     return False
 
+  def __iter__(self):
+    """Implement __iter__ method expected by pandas to write csv file since version 0.24. """
+    return
+
   def tell(self):
     """No-op implementation."""
     return 0
