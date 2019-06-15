@@ -19,11 +19,11 @@ script:
   - HDFSCLI_TEST_URL="$WEBHDFS_URL" nosetests --with-coverage --cover-package=hdfs
   - HDFSCLI_TEST_URL="$HTTPFS_URL" nosetests --with-coverage --cover-package=hdfs
 after_script:
-  - "./scripts/hadoop.sh stop"
+  - ./scripts/hadoop.sh stop
   - rm -r "$(dirname "$HADOOP_HOME")" "$HADOOP_CONF_DIR"
 jobs:
   include:
-    - stage: deploy to Pypi
+    - stage: deploy
       script: skip
       deploy:
         provider: pypi
