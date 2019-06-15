@@ -1,10 +1,10 @@
 language: python
 python:
-  - 2.7
-  - 3.3
-  - 3.4
-  - 3.5
   - 3.6
+  - 3.5
+  - 3.4
+  - 3.3
+  - 2.7
 install:
   - pip install .[avro] coverage mock
 before_script:
@@ -19,12 +19,16 @@ script:
   - HDFSCLI_TEST_URL="$WEBHDFS_URL" nosetests --with-coverage --cover-package=hdfs
   - HDFSCLI_TEST_URL="$HTTPFS_URL" nosetests --with-coverage --cover-package=hdfs
 after_script:
-  - ./scripts/hadoop.sh stop
+  - "./scripts/hadoop.sh stop"
   - rm -r "$(dirname "$HADOOP_HOME")" "$HADOOP_CONF_DIR"
-deploy:
-  provider: pypi
-  user: mtth
-  password:
-    secure: pJUxlxpB92jDCsAaMP67opcnu61A78BO02qhpvsdkXwCpJFBNBitgvqc8pfD1yCvkIPnCMjdhFKkJEUAqf3aCwAsLiCtL0xWqdwTpb9Ae3BkOsV4CpZZL3jkWAjiPWaPjZi3wbfJoSelTPB9NL6LuJ4KUfbBo4S1esQ1B3vCKuI=
-  on:
-    tags: true
+jobs:
+  include:
+    - stage: deploy to Pypi
+      script: skip
+      deploy:
+        provider: pypi
+        user: mtth
+        password:
+          secure: Oslw+ounXMBnCgUTF5wfXXvt/Tdxpm+pawVCP9EXdQyTO9zqmZ+aydXYhXl8Tlon/Cf4nHUWw43J67/SUx/gozSrkSRfsZ1kA9I9J6SvaxQpdHGwKTEFGuWVHNIwfRgeJ8GGPr8lBCG2LSnhRu1YPDO6R/jPdbcFbi7wMIAPjQA=
+        on:
+          tags: true
