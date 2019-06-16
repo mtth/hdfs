@@ -24,6 +24,7 @@ after_script:
 jobs:
   include:
     - stage: deploy
+      if: tag =~ ^[\d\.]+$
       before_script: skip
       script: skip
       after_script: skip
@@ -33,4 +34,4 @@ jobs:
         password:
           secure: Oslw+ounXMBnCgUTF5wfXXvt/Tdxpm+pawVCP9EXdQyTO9zqmZ+aydXYhXl8Tlon/Cf4nHUWw43J67/SUx/gozSrkSRfsZ1kA9I9J6SvaxQpdHGwKTEFGuWVHNIwfRgeJ8GGPr8lBCG2LSnhRu1YPDO6R/jPdbcFbi7wMIAPjQA=
         on:
-          tags: true
+          repo: mtth/hdfs
