@@ -1036,6 +1036,16 @@ class TestWalk(_IntegrationTest):
       eq_(info, (psp.join(self.client.root), ['folder'], ['file']))
       self.client.delete('folder', recursive=True)
 
+  def test_allow_dir_changes(self):
+    self.client.write('foo/file1', 'one')
+    self.client.write('bar/file2', 'two')
+    infos = self.client.walk('', allow_dir_changes=True)
+    info = next(infos)
+    info[1][:] = ['bar']
+    info = next(infos)
+    eq_(info, (psp.join(self.client.root, 'bar'), [], ['file2']))
+
+
 class TestLatestExpansion(_IntegrationTest):
 
   def test_resolve_simple(self):

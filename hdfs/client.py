@@ -1017,7 +1017,7 @@ class Client(object):
     else:
       return [s['pathSuffix'] for s in statuses]
 
-  def walk(self, hdfs_path, depth=0, status=False, ignore_missing=False):
+  def walk(self, hdfs_path, depth=0, status=False, ignore_missing=False, allow_dir_changes=False):
     """Depth-first walk of remote filesystem.
 
     :param hdfs_path: Starting path. If the path doesn't exist, an
@@ -1049,11 +1049,22 @@ class Client(object):
       if status:
         yield ((dir_path, dir_status), dir_infos, file_infos)
       else:
+        dir_names = [dir_name for dir_name, _ in dir_infos]
         yield (
           dir_path,
-          [name for name, _ in dir_infos],
-          [name for name, _ in file_infos],
+          dir_names,
+          [file_name for file_name, _ in file_infos],
         )
+        if allow_dir_changes:
+            dir_infos = []
+            dir_infos_map = dict((dir_name, s) for dir_name, s in dir_infos)
+            for dir_name in dir_names:
+                if dir_name in dir_infos_map:
+                    s = dir_infos_map[dir_name]
+                else:
+                    s = self.status(os.path.join(dir_path, dir_name), strict=not ignore_missing)
+                if s is not None:
+                    dir_infos.append((dir_name, s))
       if depth != 1:
         for name, s in dir_infos:
           path = psp.join(dir_path, name)
