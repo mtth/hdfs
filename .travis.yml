@@ -35,3 +35,4 @@ jobs:
           secure: Oslw+ounXMBnCgUTF5wfXXvt/Tdxpm+pawVCP9EXdQyTO9zqmZ+aydXYhXl8Tlon/Cf4nHUWw43J67/SUx/gozSrkSRfsZ1kA9I9J6SvaxQpdHGwKTEFGuWVHNIwfRgeJ8GGPr8lBCG2LSnhRu1YPDO6R/jPdbcFbi7wMIAPjQA=
         on:
           repo: mtth/hdfs
+          tags: true
