@@ -1036,12 +1036,25 @@ class TestWalk(_IntegrationTest):
       eq_(info, (psp.join(self.client.root), ['folder'], ['file']))
       self.client.delete('folder', recursive=True)
 
-  def test_allow_dir_changes(self):
+  @raises(ValueError)
+  def test_status_and_allow_dir_changes(self):
+    list(self.client.walk('.', status=True, allow_dir_changes=True))
+
+  def test_allow_dir_changes_subset(self):
     self.client.write('foo/file1', 'one')
     self.client.write('bar/file2', 'two')
-    infos = self.client.walk('', allow_dir_changes=True)
+    infos = self.client.walk('.', allow_dir_changes=True)
     info = next(infos)
     info[1][:] = ['bar']
+    info = next(infos)
+    eq_(info, (psp.join(self.client.root, 'bar'), [], ['file2']))
+
+  def test_allow_dir_changes_insert(self):
+    self.client.write('foo/file1', 'one')
+    infos = self.client.walk('.', allow_dir_changes=True)
+    info = next(infos)
+    self.client.write('bar/file2', 'two')
+    info[1][:] = ['bar'] # Insert new directory.
     info = next(infos)
     eq_(info, (psp.join(self.client.root, 'bar'), [], ['file2']))
 

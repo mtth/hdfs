@@ -1017,7 +1017,8 @@ class Client(object):
     else:
       return [s['pathSuffix'] for s in statuses]
 
-  def walk(self, hdfs_path, depth=0, status=False, ignore_missing=False, allow_dir_changes=False):
+  def walk(self, hdfs_path, depth=0, status=False, ignore_missing=False,
+    allow_dir_changes=False):
     """Depth-first walk of remote filesystem.
 
     :param hdfs_path: Starting path. If the path doesn't exist, an
@@ -1027,6 +1028,10 @@ class Client(object):
     :param status: Also return each file or folder's corresponding FileStatus_.
     :param ignore_missing: Ignore missing nested folders rather than raise an
       exception. This can be useful when the tree is modified during a walk.
+    :param allow_dir_changes: Allow changes to the directories' list to affect
+      the walk. For example clearing it by setting `dirs[:] = []` would prevent
+      the walk from entering any nested directories. This option can only be set
+      when `status` is false.
 
     This method returns a generator yielding tuples `(path, dirs, files)`
     where `path` is the absolute path to the current directory, `dirs` is the
@@ -1035,6 +1040,8 @@ class Client(object):
 
     """
     _logger.info('Walking %r (depth %r).', hdfs_path, depth)
+    if status and allow_dir_changes:
+      raise ValueError('Cannot set both status and allow_dir_changes')
 
     def _walk(dir_path, dir_status, depth):
       """Recursion helper."""
@@ -1056,15 +1063,15 @@ class Client(object):
           [file_name for file_name, _ in file_infos],
         )
         if allow_dir_changes:
-            dir_infos = []
-            dir_infos_map = dict((dir_name, s) for dir_name, s in dir_infos)
-            for dir_name in dir_names:
-                if dir_name in dir_infos_map:
-                    s = dir_infos_map[dir_name]
-                else:
-                    s = self.status(os.path.join(dir_path, dir_name), strict=not ignore_missing)
-                if s is not None:
-                    dir_infos.append((dir_name, s))
+          infos_by_name = dict(dir_infos)
+          strict = not ignore_missing
+          dir_infos = []
+          for dir_name in dir_names:
+            info = infos_by_name.get(dir_name)
+            if not info:
+              info = self.status(psp.join(dir_path, dir_name), strict=strict)
+            if info:
+              dir_infos.append((dir_name, info))
       if depth != 1:
         for name, s in dir_infos:
           path = psp.join(dir_path, name)
