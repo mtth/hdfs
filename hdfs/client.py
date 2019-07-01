@@ -26,6 +26,7 @@ import time
 
 
 _logger = lg.getLogger(__name__)
+DEFAULT_TIMEOUT = 1 << 22
 
 
 def _to_error(response):
@@ -477,7 +478,8 @@ class Client(object):
       consumer(data)
 
   def upload(self, hdfs_path, local_path, n_threads=1, temp_dir=None,
-    chunk_size=2 ** 16, progress=None, cleanup=True, **kwargs):
+    chunk_size=2 ** 16, progress=None, cleanup=True,
+             timeout=DEFAULT_TIMEOUT, **kwargs):
     """Upload a file or directory to HDFS.
 
     :param hdfs_path: Target HDFS path. If it already exists and is a
@@ -497,6 +499,7 @@ class Client(object):
       completion, it will be called once with `-1` as second argument.
     :param cleanup: Delete any uploaded files if an error occurs during the
       upload.
+    :param timeout: upload timeouts.
     :param \*\*kwargs: Keyword arguments forwarded to :meth:`write`. In
       particular, set `overwrite` to overwrite any existing file or directory.
 
@@ -599,7 +602,7 @@ class Client(object):
         for path_tuple in fpath_tuples:
           _upload(path_tuple)
       else:
-        _map_async(n_threads, _upload, fpath_tuples)
+        _map_async(n_threads, _upload, fpath_tuples, timeout=timeout)
     except Exception as err: # pylint: disable=broad-except
       if cleanup:
         _logger.exception('Error while uploading. Attempting cleanup.')
@@ -716,7 +719,7 @@ class Client(object):
       _logger.debug('Closed response for reading file %r.', hdfs_path)
 
   def download(self, hdfs_path, local_path, overwrite=False, n_threads=1,
-    temp_dir=None, **kwargs):
+    temp_dir=None, timeout=DEFAULT_TIMEOUT, **kwargs):
     """Download a file or folder from HDFS and save it locally.
 
     :param hdfs_path: Path on HDFS of the file or folder to download. If a
@@ -729,6 +732,7 @@ class Client(object):
     :param temp_dir: Directory under which the files will first be downloaded
       when `overwrite=True` and the final destination path already exists. Once
       the download successfully completes, it will be swapped in.
+    :param timeout: download timeouts.
     :param \*\*kwargs: Keyword arguments forwarded to :meth:`read`. If no
       `chunk_size` argument is passed, a default value of 64 kB will be used.
       If a `progress` argument is passed and threading is used, care must be
@@ -1163,7 +1167,7 @@ def _current_micros():
   """Returns a string representing the current time in microseconds."""
   return str(int(time.time() * 1e6))
 
-def _map_async(pool_size, func, args):
+def _map_async(pool_size, func, args, timeout=DEFAULT_TIMEOUT):
   """Async map (threading), handling python 2.6 edge case.
 
   :param pool_size: Maximum number of threads.
@@ -1181,6 +1185,6 @@ def _map_async(pool_size, func, args):
     if sys.version_info <= (2, 6):
       results = pool.map(func, args)
     else:
-      results = pool.map_async(func, args).get(1 << 22) # 6+ weeks.
+      results = pool.map_async(func, args).get(timeout)
   pool.join()
   return results
