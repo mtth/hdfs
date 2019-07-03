@@ -148,6 +148,27 @@ class TestRead(_AvroIntegrationTest):
     with AvroReader(self.client, 'weather.avro') as reader:
       eq_(list(reader), self.records)
 
+  def test_read_with_same_schema(self):
+    self.client.upload('w.avro', osp.join(self.dpath, 'weather.avro'))
+    with AvroReader(self.client, 'w.avro', reader_schema=self.schema) as reader:
+      eq_(list(reader), self.records)
+
+  def test_read_with_compatible_schema(self):
+    self.client.upload('w.avro', osp.join(self.dpath, 'weather.avro'))
+    schema = {
+      'name': 'test.Weather',
+      'type': 'record',
+      'fields': [
+        {'name': 'temp', 'type': 'int'},
+        {'name': 'tag', 'type': 'string', 'default': ''},
+      ],
+    }
+    with AvroReader(self.client, 'w.avro', reader_schema=schema) as reader:
+      eq_(
+        list(reader),
+        [{'temp': r['temp'], 'tag': ''} for r in self.records]
+      )
+
 
 class TestWriter(_AvroIntegrationTest):
 

@@ -105,11 +105,9 @@ class _SeekableReader(object):
 
   """
 
-  sync_size = 16
-
   def __init__(self, reader, size=None):
     self._reader = reader
-    self._size = size or self.sync_size
+    self._size = size or SYNC_SIZE
     self._buffer = None
     self._saught = False
 
@@ -152,6 +150,8 @@ class AvroReader(object):
   :param parts: Part-files to read, when reading a distributed file. The
     default is to read all part-files in order. See
     :meth:`hdfs.client.Client.parts` for details.
+  :param reader_schema: Schema to read the data as. If specified, it must be
+    compatible with the writer's schema (the default).
 
   The contents of the file will be decoded in a streaming manner, as the data
   is transferred. This makes it possible to use on files of arbitrary size. As
@@ -163,17 +163,18 @@ class AvroReader(object):
   .. code-block:: python
 
     with AvroReader(client, 'foo.avro') as reader:
-      schema = reader.schema # The remote file's Avro schema.
+      schema = reader.writer_schema # The remote file's Avro schema.
       content = reader.content # Content metadata (e.g. size).
       for record in reader:
         pass # and its records
 
   """
 
-  def __init__(self, client, hdfs_path, parts=None):
+  def __init__(self, client, hdfs_path, parts=None, reader_schema=None):
     self.content = client.content(hdfs_path) #: Content summary of Avro file.
     self.metadata = None #: Avro header metadata.
-    self._schema = None
+    self.reader_schema = reader_schema #: Input reader schema.
+    self._writer_schema = None
     if self.content['directoryCount']:
       # This is a folder.
       self._paths = [
@@ -196,8 +197,11 @@ class AvroReader(object):
       """Record generator over all part-files."""
       for path in self._paths:
         with self._client.read(path) as bytes_reader:
-          reader = fastavro.reader(_SeekableReader(bytes_reader))
-          if not self._schema:
+          reader = fastavro.reader(
+            _SeekableReader(bytes_reader),
+            reader_schema=self.reader_schema
+          )
+          if not self._writer_schema:
             schema = reader.writer_schema
             _logger.debug('Read schema from %r.', path)
             yield (schema, reader.metadata)
@@ -205,7 +209,7 @@ class AvroReader(object):
             yield record
 
     self._records = _reader()
-    self._schema, self.metadata = next(self._records)
+    self._writer_schema, self.metadata = next(self._records)
     return self
 
   def __exit__(self, exc_type, exc_value, traceback):
@@ -218,16 +222,19 @@ class AvroReader(object):
     return self._records
 
   @property
-  def schema(self):
+  def writer_schema(self):
     """Get the underlying file's schema.
 
     The schema will only be available after entering the reader's corresponding
     `with` block.
 
     """
-    if not self._schema:
+    if not self._writer_schema:
       raise HdfsError('Schema not yet inferred.')
-    return self._schema
+    return self._writer_schema
+
+  # Legacy property, preserved for backwards-compatibility.
+  schema = writer_schema
 
 
 class AvroWriter(object):

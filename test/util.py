@@ -71,7 +71,7 @@ class _IntegrationTest(object):
         self.client.delete('', recursive=True)
         # Wrapped inside a `ConnectionError` block because this causes failures
         # when trying to reuse some streamed connections when they aren't fully
-        # read (even though it is closed explicitely, it acts differently than
+        # read (even though it is closed explicitly, it acts differently than
         # when all its content has been read), but only on HttpFS. A test which
         # needs this for example is `test_ext_avro.py:TestMain.test_schema`.
         # This seems related to this issue:
