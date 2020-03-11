@@ -6,7 +6,6 @@
 from hdfs import Config
 from imp import load_source
 from nose.plugins.skip import SkipTest
-from six import add_metaclass
 from util import _IntegrationTest
 import os
 import os.path as osp
@@ -42,10 +41,11 @@ class _ExamplesType(type):
     return super(_ExamplesType, mcs).__new__(mcs, cls, bases, attrs)
 
 
-@add_metaclass(_ExamplesType)
 class TestExamples(_IntegrationTest):
 
   """Empty since tests are injected by the metaclass."""
+
+  __metaclass__ = _ExamplesType
 
   _get_client = None
 

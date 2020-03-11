@@ -4,8 +4,8 @@
 """Common utilities."""
 
 from contextlib import contextmanager
+from queue import Queue
 from shutil import rmtree
-from six.moves.queue import Queue
 from tempfile import mkstemp
 from threading import Thread
 import logging as lg

@@ -10,7 +10,6 @@ from util import _IntegrationTest
 from nose.tools import eq_, nottest, ok_, raises
 from requests.exceptions import ConnectTimeout, ReadTimeout
 from shutil import rmtree
-from six import b
 from tempfile import mkdtemp
 import os
 import os.path as osp

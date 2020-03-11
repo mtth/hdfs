@@ -11,9 +11,9 @@ from itertools import repeat
 from multiprocessing.pool import ThreadPool
 from random import sample
 from shutil import move, rmtree
-from six import add_metaclass
-from six.moves.urllib.parse import quote
 from threading import Lock
+from urllib.parse import quote
+
 import codecs
 import logging as lg
 import os
@@ -151,7 +151,6 @@ class _ClientType(type):
     return client
 
 
-@add_metaclass(_ClientType)
 class Client(object):
 
   """Base HDFS web client.
@@ -177,6 +176,7 @@ class Client(object):
   .. _requests: http://docs.python-requests.org/en/latest/api/#requests.request
 
   """
+  __metaclass__ = _ClientType
 
   __registry__ = {}
 

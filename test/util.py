@@ -3,13 +3,13 @@
 
 """Test helpers."""
 
+from configparser import NoOptionError, NoSectionError
 from hdfs import InsecureClient
 from hdfs.config import Config
 from hdfs.util import HdfsError
 from nose.plugins.skip import SkipTest
 from nose.tools import eq_
 from requests.exceptions import ConnectionError
-from six.moves.configparser import NoOptionError, NoSectionError
 from time import sleep
 import os
 import posixpath as psp

@@ -28,7 +28,6 @@ and more information:
 
 from ...util import AsyncWriter, HdfsError
 from json import dumps
-from six import integer_types, string_types
 import fastavro
 import io
 import logging as lg
@@ -64,9 +63,9 @@ class _SchemaInferrer(object):
     """
     if isinstance(obj, bool):
       return 'boolean'
-    elif isinstance(obj, string_types):
+    elif isinstance(obj, str):
       return 'string'
-    elif isinstance(obj, integer_types): # Python 3 doesn't have `long`.
+    elif isinstance(obj, int):
       return 'int'
     elif isinstance(obj, float):
       return 'float'

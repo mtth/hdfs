@@ -42,7 +42,6 @@ support a Kerberized production grid:
 
 from ..client import Client
 from ..util import HdfsError
-from six import string_types
 from threading import Lock, Semaphore
 from time import sleep, time
 import requests as rq
@@ -110,7 +109,7 @@ class KerberosClient(Client):
   def __init__(self, url, mutual_auth='OPTIONAL', max_concurrency=1, root=None,
     proxy=None, timeout=None, session=None, **kwargs):
     # We allow passing in a string as mutual authentication value.
-    if isinstance(mutual_auth, string_types):
+    if isinstance(mutual_auth, str):
       try:
         mutual_auth = getattr(requests_kerberos, mutual_auth)
       except AttributeError:

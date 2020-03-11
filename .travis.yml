@@ -1,8 +1,7 @@
 language: python
 python:
-  - 3.6
   - 3.5
-  - 2.7
+  - 3.6
 install:
   - pip install .[avro] coverage mock
 before_script:
