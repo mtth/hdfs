@@ -82,7 +82,7 @@ def iglob(client, hdfs_path):
 def glob1(client, dirname, pattern):
   if not dirname:
     if isinstance(pattern, bytes):
-      dirname = bytes(client.resolve('.'), 'ASCII')
+      dirname = bytes(client.resolve('.'))
     else:
       dirname = client.resolve('.')
   names = client.list(dirname)
