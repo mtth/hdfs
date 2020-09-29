@@ -60,7 +60,8 @@ def iglob(client, hdfs_path):
         yield hdfs_path
     return
   if not dirname:
-    yield from glob1(client, None, basename)
+    for p in glob1(client, None, basename):
+      yield p
     return
   # `os.path.split()` returns the argument itself as a dirname if it is a
   # drive or UNC path.  Prevent an infinite recursion if a drive or UNC path
