@@ -9,7 +9,7 @@ from util import _IntegrationTest
 class TestGlob(_IntegrationTest):
 
   def setup(self):
-    super().setup()
+    super(TestGlob, self).setup()
     self.__build_dirs()
 
   def __build_dirs(self):
