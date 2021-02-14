@@ -7,7 +7,7 @@ from collections import defaultdict
 from hdfs.client import *
 from hdfs.util import HdfsError, temppath
 from util import _IntegrationTest
-from nose.tools import eq_, nottest, ok_, raises
+from nose.tools import eq_, nottest, ok_, raises, assert_regex
 from requests.exceptions import ConnectTimeout, ReadTimeout
 from shutil import rmtree
 from six import b
@@ -123,6 +123,111 @@ class TestApi(_IntegrationTest):
   @raises(HdfsError)
   def test_get_file_checksum_on_folder(self):
     self.client._get_file_checksum('')
+
+  def test_allow_snapshot(self):
+    self.client._mkdirs('foo')
+    self.client._allow_snapshot('foo')
+
+  def test_disallow_snapshot(self):
+    self.client._mkdirs('foo')
+    self.client._allow_snapshot('foo')
+    self.client._disallow_snapshot('foo')
+
+  @raises(HdfsError)
+  def test_allow_snapshot_not_exists(self):
+    self.client._allow_snapshot('foo')
+
+  @raises(HdfsError)
+  def test_disallow_snapshot_not_exists(self):
+    self.client._disallow_snapshot('foo')
+
+  @raises(HdfsError)
+  def test_allow_snapshot_file(self):
+    self._write('foo', b'hello')
+    self.client._allow_snapshot('foo')
+
+  @raises(HdfsError)
+  def test_disallow_snapshot_file(self):
+    self._write('foo', b'hello')
+    self.client._disallow_snapshot('foo')
+
+  def test_create_delete_snapshot(self):
+    # One cannot test creation and deletion separately, as one cannot
+    # clean HDFS for test isolation if a created snapshot remains
+    # undeleted.
+    self.client._mkdirs('foo')
+    self.client._allow_snapshot('foo')
+    self.client._create_snapshot('foo', snapshotname='mysnap')
+    self.client._delete_snapshot('foo', snapshotname='mysnap')
+
+  @raises(HdfsError)
+  def test_delete_snapshot_other(self):
+    self.client._mkdirs('foo')
+    self.client._allow_snapshot('foo')
+    self.client._create_snapshot('foo', snapshotname='mysnap')
+    try:
+      self.client._delete_snapshot('foo', snapshotname='othersnap')
+    finally:
+      # Cleanup, as it breaks other tests otherwise: the dir cannot be
+      # removed with an active snapshots.
+      self.client._delete_snapshot('foo', snapshotname='mysnap')
+
+  @raises(HdfsError)
+  def test_disallow_snapshot_exists(self):
+    self.client._mkdirs('foo_disallow')
+    self.client._allow_snapshot('foo_disallow')
+    self.client._create_snapshot('foo_disallow', snapshotname='mysnap')
+    try:
+      self.client._disallow_snapshot('foo_disallow')
+    finally:
+      # Cleanup, as it breaks other tests otherwise: the dir cannot be
+      # removed with an active snapshots.
+      self.client._delete_snapshot('foo_disallow', snapshotname='mysnap')
+
+  @raises(HdfsError)
+  def test_create_snapshot_noallow(self):
+    self.client._mkdirs('foo')
+    self.client._create_snapshot('foo', snapshotname='mysnap')
+
+  @raises(HdfsError)
+  def test_delete_snapshot_noallow(self):
+    self.client._mkdirs('foo')
+    self.client._delete_snapshot('foo', snapshotname='mysnap')
+
+  @raises(HdfsError)
+  def test_create_snapshot_noexist(self):
+    self.client._create_snapshot('foo', snapshotname='mysnap')
+
+  def test_rename_snapshot(self):
+    self.client._mkdirs('foo')
+    self.client._allow_snapshot('foo')
+    self.client._create_snapshot('foo', snapshotname='myspan')
+    try:
+      self.client._rename_snapshot('foo',
+                                   oldsnapshotname='myspan',
+                                   snapshotname='yourspan')
+    finally:
+      self.client._delete_snapshot('foo', snapshotname='yourspan')
+
+  @raises(HdfsError)
+  def test_rename_snapshot_not_exists(self):
+    self.client._rename_snapshot('foo',
+                                 oldsnapshotname='myspan',
+                                 snapshotname='yourspan')
+
+  @raises(HdfsError)
+  def test_rename_snapshot_not_overwrite(self):
+    self.client._mkdirs('foo')
+    self.client._allow_snapshot('foo')
+    self.client._create_snapshot('foo', snapshotname='myspan')
+    self.client._create_snapshot('foo', snapshotname='yourspan')
+    try:
+      self.client._rename_snapshot('foo',
+                                   oldsnapshotname='myspan',
+                                   snapshotname='yourspan')
+    finally:
+      self.client._delete_snapshot('foo', snapshotname='myspan')
+      self.client._delete_snapshot('foo', snapshotname='yourspan')
 
 
 class TestResolve(_IntegrationTest):
@@ -1277,3 +1382,124 @@ class TestTokenClient(object):
     session = rq.Session()
     client = TokenClient('url', '123', session=session)
     eq_(session.params['delegation'], '123')
+
+
+class TestSnapshot(_IntegrationTest):
+
+  def test_allow_snapshot(self):
+    self.client._mkdirs('foo')
+    self.client.allow_snapshot('foo')
+
+  def test_allow_snapshot_double(self):
+    self.client._mkdirs('foo')
+    self.client.allow_snapshot('foo')
+
+  def test_disallow_snapshot(self):
+    self.client._mkdirs('foo')
+    self.client.allow_snapshot('foo')
+    self.client.disallow_snapshot('foo')
+
+  def test_disallow_no_allow(self):
+    self.client._mkdirs('foo')
+    self.client.disallow_snapshot('foo')
+
+  @raises(HdfsError)
+  def test_allow_snapshot_not_exists(self):
+    self.client.allow_snapshot('foo')
+
+  @raises(HdfsError)
+  def test_disallow_snapshot_not_exists(self):
+    self.client.disallow_snapshot('foo')
+
+  @raises(HdfsError)
+  def test_allow_snapshot_file(self):
+    self._write('foo', b'hello')
+    self.client.allow_snapshot('foo')
+
+  @raises(HdfsError)
+  def test_disallow_snapshot_file(self):
+    self._write('foo', b'hello')
+    self.client.disallow_snapshot('foo')
+
+  def test_create_delete_snapshot(self):
+    # One cannot test creation and deletion separately, as one cannot
+    # clean HDFS for test isolation if a created snapshot remains
+    # undeleted.
+    self.client._mkdirs('foo')
+    self.client.allow_snapshot('foo')
+    self.client.create_snapshot('foo', 'mysnap')
+    self.client.delete_snapshot('foo', 'mysnap')
+
+  def test_create_snapshot_name(self):
+    self.client._mkdirs('foo')
+    self.client.allow_snapshot('foo')
+    try:
+      snapshot_path = self.client.create_snapshot('foo', 'mysnap')
+      assert_regex(snapshot_path, r'/foo/\.snapshot/mysnap$')
+    finally:
+      # Cleanup, as it breaks other tests otherwise: the dir cannot be
+      # removed with an active snapshots.
+      self.client.delete_snapshot('foo', 'mysnap')
+
+  @raises(HdfsError)
+  def test_delete_snapshot_other(self):
+    self.client._mkdirs('foo')
+    self.client.allow_snapshot('foo')
+    self.client.create_snapshot('foo', 'mysnap')
+    try:
+      self.client.delete_snapshot('foo', 'othersnap')
+    finally:
+      # Cleanup, as it breaks other tests otherwise: the dir cannot be
+      # removed with an active snapshots.
+      self.client.delete_snapshot('foo', 'mysnap')
+
+  @raises(HdfsError)
+  def test_disallow_snapshot_exists(self):
+    self.client._mkdirs('foo_disallow')
+    self.client.allow_snapshot('foo_disallow')
+    self.client.create_snapshot('foo_disallow', 'mysnap')
+    try:
+      self.client.disallow_snapshot('foo_disallow')
+    finally:
+      # Cleanup, as it breaks other tests otherwise: the dir cannot be
+      # removed with an active snapshots.
+      self.client.delete_snapshot('foo_disallow', 'mysnap')
+
+  @raises(HdfsError)
+  def test_create_snapshot_noallow(self):
+    self.client._mkdirs('foo')
+    self.client.create_snapshot('foo', 'mysnap')
+
+  @raises(HdfsError)
+  def test_delete_snapshot_noallow(self):
+    self.client._mkdirs('foo')
+    self.client.delete_snapshot('foo', 'mysnap')
+
+  @raises(HdfsError)
+  def test_create_snapshot_noexist(self):
+    self.client.create_snapshot('foo', 'mysnap')
+
+  def test_rename_snapshot(self):
+    self.client._mkdirs('foo')
+    self.client.allow_snapshot('foo')
+    self.client.create_snapshot('foo', 'myspan')
+    try:
+      self.client.rename_snapshot('foo', 'myspan', 'yourspan')
+    finally:
+      self.client.delete_snapshot('foo', 'yourspan')
+
+  @raises(HdfsError)
+  def test_rename_snapshot_not_exists(self):
+    self.client.rename_snapshot('foo', 'myspan', 'yourspan')
+
+  @raises(HdfsError)
+  def test_rename_snapshot_not_overwrite(self):
+    self.client._mkdirs('foo')
+    self.client.allow_snapshot('foo')
+    self.client.create_snapshot('foo', 'myspan')
+    self.client.create_snapshot('foo', 'yourspan')
+    try:
+      self.client.rename_snapshot('foo', 'myspan', 'yourspan')
+    finally:
+      self.client.delete_snapshot('foo', 'myspan')
+      self.client.delete_snapshot('foo', 'yourspan')
