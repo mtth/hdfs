@@ -235,6 +235,11 @@ class Client(object):
   _set_permission = _Request('PUT')
   _set_replication = _Request('PUT')
   _set_times = _Request('PUT')
+  _allow_snapshot = _Request('PUT')
+  _disallow_snapshot = _Request('PUT')
+  _create_snapshot = _Request('PUT')
+  _delete_snapshot = _Request('DELETE')
+  _rename_snapshot = _Request('PUT')
 
   # Exposed endpoints
 
@@ -993,6 +998,74 @@ class Client(object):
     """
     _logger.info('Getting checksum for %r.', hdfs_path)
     return self._get_file_checksum(hdfs_path).json()['FileChecksum']
+
+  def allow_snapshot(self, hdfs_path):
+    """Allow snapshots for a remote folder.
+
+    :param hdfs_path: Remote path to a direcotry.  If `hdfs_path`
+      doesn't exist or does points to a normal file, an
+      :class:`HdfsError` will be raised.  No-op if snapshotting is
+      already allowed.
+    """
+    _logger.info('Allowing snapshots in %r.', hdfs_path)
+    hdfs_path = self.resolve(hdfs_path)
+    self._allow_snapshot(hdfs_path)
+
+  def disallow_snapshot(self, hdfs_path):
+    """Disallow snapshots for a remote folder.
+
+    :param hdfs_path: Remote path to a direcotry.  If `hdfs_path`
+      doesn't exist, points to a normal file or there are some
+      snapshots, an :class:`HdfsError` will be raised.
+
+    No-op if snapshotting is disallowed/never allowed.
+    """
+    _logger.info('Disallowing snapshots in %r.', hdfs_path)
+    hdfs_path = self.resolve(hdfs_path)
+    self._disallow_snapshot(hdfs_path)
+
+  def create_snapshot(self, hdfs_path, snapshotname=None):
+    """Create snapshot for a remote folder where it was allowed.
+
+    :param hdfs_path: Remote path to a direcotry.  If `hdfs_path`
+      doesn't exist, doesn't allow to create snapshot or points to a
+      normal file, an :class:`HdfsError` will be raised.
+    :param snapshotname snapshot name; if absent, name is generated
+      by the server.
+
+    Returns a path to created snapshot.
+    """
+    _logger.info('Creating snapshot %r in %r.', snapshotname, hdfs_path)
+    hdfs_path = self.resolve(hdfs_path)
+    return self._create_snapshot(hdfs_path, snapshotname=snapshotname).json()['Path']
+
+  def delete_snapshot(self, hdfs_path, snapshotname):
+    """Remove snapshot for a remote folder where it was allowed.
+
+    :param hdfs_path: Remote path to a direcotry.  If `hdfs_path` doesn't exist
+      or points to a normal file, an :class:`HdfsError` will be raised.
+    :param snapshotname snapshot name; if it does not exist, an
+      :class:`HdfsError` will be raised.
+    """
+    _logger.info('Deleting snapshot %r in %r.', snapshotname, hdfs_path)
+    hdfs_path = self.resolve(hdfs_path)
+    self._delete_snapshot(hdfs_path, snapshotname=snapshotname)
+
+  def rename_snapshot(self, hdfs_path, oldsnapshotname, snapshotname):
+    """Rename snapshot for a remote folder.
+
+    :param hdfs_path: Remote path to a direcotry.  If `hdfs_path` doesn't exist
+      or points to a normal file, an :class:`HdfsError` will be raised.
+    :param oldsnapshotname snapshot name; if it does not exist,
+      an :class:`HdfsError` will be raised.
+    :param snapshotname new snapshot name; if it does already exist,
+      an :class:`HdfsError` will be raised.
+    """
+    _logger.info('Renaming snapshot %r to %r in %r.', oldsnapshotname, snapshotname, hdfs_path)
+    hdfs_path = self.resolve(hdfs_path)
+    self._rename_snapshot(hdfs_path,
+                          oldsnapshotname=oldsnapshotname,
+                          snapshotname=snapshotname)
 
   def list(self, hdfs_path, status=False):
     """Return names of files contained in a remote folder.
