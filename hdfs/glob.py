@@ -47,7 +47,7 @@ def iglob(client, hdfs_path):
 
   """
   dirname, basename = posixpath.split(hdfs_path)
-  if not has_magic(hdfs_path):
+  if not _has_magic(hdfs_path):
     if basename:
       if client.status(hdfs_path, strict=False):
         yield hdfs_path
@@ -57,26 +57,26 @@ def iglob(client, hdfs_path):
         yield hdfs_path
     return
   if not dirname:
-    for p in glob1(client, None, basename):
+    for p in _glob1(client, None, basename):
       yield p
     return
   # `os.path.split()` returns the argument itself as a dirname if it is a
   # drive or UNC path.  Prevent an infinite recursion if a drive or UNC path
   # contains magic characters (i.e. r'\\?\C:').
-  if dirname != hdfs_path and has_magic(dirname):
+  if dirname != hdfs_path and _has_magic(dirname):
     dirs = iglob(client, dirname)
   else:
     dirs = [dirname]
-  if has_magic(basename):
-    glob_in_dir = glob1
+  if _has_magic(basename):
+    glob_in_dir = _glob1
   else:
-    glob_in_dir = glob0
+    glob_in_dir = _glob0
   for dirname in dirs:
     for name in glob_in_dir(client, dirname, basename):
       yield posixpath.join(dirname, name)
 
 
-def glob1(client, dirname, pattern):
+def _glob1(client, dirname, pattern):
   if not dirname:
     if isinstance(pattern, bytes):
       dirname = bytes(client.resolve('.'))
@@ -88,7 +88,7 @@ def glob1(client, dirname, pattern):
   return fnmatch.filter(names, pattern)
 
 
-def glob0(client, dirname, basename):
+def _glob0(client, dirname, basename):
   if not basename:
     # `os.path.split()` returns an empty basename for paths ending with a
     # directory separator.  'q*x/' should match only directories.
@@ -104,7 +104,7 @@ magic_check = re.compile('([*?[])')
 magic_check_bytes = re.compile(b'([*?[])')
 
 
-def has_magic(s):
+def _has_magic(s):
   if isinstance(s, bytes):
     match = magic_check_bytes.search(s)
   else:
