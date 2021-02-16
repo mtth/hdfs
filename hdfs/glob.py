@@ -1,8 +1,5 @@
 import fnmatch
 import re
-
-from hdfs import Client
-
 import posixpath
 
 
@@ -17,13 +14,13 @@ def glob(client, hdfs_path):
   :param client: Instance of :class:`Client`.
   :param hdfs_path: HDFS path. May contain special characters like '*', '?' and '['.
 
-    Sample usages:
+  Sample usages:
 
-    .. code-block:: python
+  .. code-block:: python
 
-      glob(client, './foo/bar/*')
-      glob(client, './foo/bar/file[0-9].txt')
-      glob(client, './foo/bar/file?.txt')
+  glob(client, './foo/bar/*')
+  glob(client, './foo/bar/file[0-9].txt')
+  glob(client, './foo/bar/file?.txt')
 
   """
   return list(iglob(client, hdfs_path))
@@ -40,13 +37,13 @@ def iglob(client, hdfs_path):
   :param client: Instance of :class:`Client`.
   :param hdfs_path: HDFS path. May contain special characters like '*', '?' and '['.
 
-    Sample usages:
+  Sample usages:
 
-    .. code-block:: python
+  .. code-block:: python
 
-      iglob(client, './foo/bar/*')
-      iglob(client, './foo/bar/file[0-9].txt')
-      iglob(client, './foo/bar/file?.txt')
+  iglob(client, './foo/bar/*')
+  iglob(client, './foo/bar/file[0-9].txt')
+  iglob(client, './foo/bar/file?.txt')
 
   """
   dirname, basename = posixpath.split(hdfs_path)
