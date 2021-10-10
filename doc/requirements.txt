@@ -1,4 +1,4 @@
 avro
 docopt
 requests>=2.0.1
-mock
+mock; python_version<'3.3'
