@@ -14,7 +14,10 @@
 
 import os
 import sys
-import mock
+try:
+    from unittest import mock
+except ImportError:
+    import mock
 
 MOCK_MODULES = ['fastavro', 'pandas', 'requests_kerberos']
 for mod_name in MOCK_MODULES:
