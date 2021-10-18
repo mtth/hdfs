@@ -32,15 +32,31 @@ usage() {
 
 # Download Hadoop binary.
 #
-# TODO: Verify download?
 # TODO: Test against several versions? (But they are very big...)
 #
 hadoop-download() {
+  # Verification as per https://web.archive.org/web/20211018165755/https://hadoop.apache.org/releases.html#to-verify-hadoop-releases-using-gpg
   local hadoop='hadoop-2.9.2'
+  export TEMP_HADOOP_FILE="/tmp/${hadoop}.tar.gz"
+  export TEMP_HASH_FILE="$TEMP_HADOOP_FILE.asc"
   cd "$(mktemp -d 2>/dev/null || mktemp -d -t 'hadoop')"
-  curl -O "https://www-us.apache.org/dist/hadoop/common/${hadoop}/${hadoop}.tar.gz"
-  tar -xzf "${hadoop}.tar.gz"
-  echo "$(pwd)/${hadoop}"
+  if [ ! -f "$TEMP_HADOOP_FILE" ]; then
+    curl "https://archive.apache.org/dist/hadoop/common/${hadoop}/${hadoop}.tar.gz" --output "$TEMP_HADOOP_FILE"
+  fi
+  curl "https://archive.apache.org/dist/hadoop/common/${hadoop}/${hadoop}.tar.gz.asc" --output "$TEMP_HASH_FILE"
+  curl "https://downloads.apache.org/hadoop/common/KEYS" --output "/tmp/KEYS"
+  cd /tmp
+  gpg --import "/tmp/KEYS" 2> /dev/null
+  if gpg --verify hadoop-2.9.2.tar.gz.asc 2>&1| grep -q "Primary key fingerprint"; then
+    # "2>&1" means "to > (redirect) 2 (stderr) to &1 (input of stdout)"; otherwise the grep doesn't work.
+    cd - > /dev/null # go back, but don't output
+    tar -xzf "${TEMP_HADOOP_FILE}"
+    echo "$(pwd)/${hadoop}"
+  else
+    echo "removing $TEMP_HADOOP_FILE and redownloading it"
+    rm -f $TEMP_HADOOP_FILE
+    hadoop-download
+  fi
 }
 
 # Generate configuration and print corresponding path.
