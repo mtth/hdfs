@@ -32,15 +32,19 @@ usage() {
 
 # Download Hadoop binary.
 #
-# TODO: Verify download?
 # TODO: Test against several versions? (But they are very big...)
 #
 hadoop-download() {
-  local hadoop='hadoop-2.9.2'
-  cd "$(mktemp -d 2>/dev/null || mktemp -d -t 'hadoop')"
-  curl -O "https://www-us.apache.org/dist/hadoop/common/${hadoop}/${hadoop}.tar.gz"
-  tar -xzf "${hadoop}.tar.gz"
-  echo "$(pwd)/${hadoop}"
+  # Verification as per https://web.archive.org/web/20211018165755/https://hadoop.apache.org/releases.html#to-verify-hadoop-releases-using-gpg
+  local hadoop=hadoop-2.9.2
+  cd "$(mktemp -d 2>/dev/null || mktemp -d -t hadoop)"
+  curl -O "https://archive.apache.org/dist/hadoop/common/$hadoop/$hadoop.tar.gz"
+  curl -O "https://archive.apache.org/dist/hadoop/common/$hadoop/$hadoop.tar.gz.asc"
+  curl -O https://downloads.apache.org/hadoop/common/KEYS
+  gpg -q --import KEYS
+  gpg --verify "$hadoop.tar.gz.asc" "$hadoop.tar.gz"
+  tar -xzf "$hadoop.tar.gz"
+  echo "$(pwd)/$hadoop"
 }
 
 # Generate configuration and print corresponding path.
