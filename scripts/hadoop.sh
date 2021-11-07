@@ -38,7 +38,7 @@ usage() {
 hadoop-download() {
   local hadoop='hadoop-2.9.2'
   cd "$(mktemp -d 2>/dev/null || mktemp -d -t 'hadoop')"
-  curl -O "https://www-us.apache.org/dist/hadoop/common/${hadoop}/${hadoop}.tar.gz"
+  curl -O "https://downloads.apache.org/hadoop/common/${hadoop}/${hadoop}.tar.gz"
   tar -xzf "${hadoop}.tar.gz"
   echo "$(pwd)/${hadoop}"
 }

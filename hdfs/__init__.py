@@ -6,6 +6,7 @@
 from .client import Client, InsecureClient, TokenClient
 from .config import Config, NullHandler
 from .util import HdfsError
+from .glob import glob, iglob
 import logging as lg
 
 
