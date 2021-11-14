@@ -1386,6 +1386,21 @@ class TestTokenClient(object):
 
 class TestSnapshot(_IntegrationTest):
 
+  @classmethod
+  def setup_class(cls):
+    super(TestSnapshot, cls).setup_class()
+    if cls.client:
+      try:
+        cls.client._mkdirs('foo')
+        cls.client.allow_snapshot('foo')
+      except HdfsError as err:
+        if 'No enum constant' in str(err):
+          cls.client = None
+          # Skip these tests if we get this error message from HDFS (currently
+          # happens using HTTPFS) which causes all snapshot operations to fail.
+        else:
+          raise err
+
   def test_allow_snapshot(self):
     self.client._mkdirs('foo')
     self.client.allow_snapshot('foo')
