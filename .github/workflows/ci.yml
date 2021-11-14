@@ -28,14 +28,14 @@ jobs:
           python-version: '3.x'
       - name: Download Hadoop
         run: |
-          echo "HADOOP_HOME=\"$(./scripts/hadoop.sh download)\"" >>"$GITHUB_ENV"
+          echo "HADOOP_HOME=$(./scripts/hadoop.sh download)" >>"$GITHUB_ENV"
       - name: Configure Hadoop
         run: |
-          echo "HADOOP_CONF_DIR=\"$(./scripts/hadoop.sh config)\"" >>"$GITHUB_ENV"
+          echo "HADOOP_CONF_DIR=$(./scripts/hadoop.sh config)" >>"$GITHUB_ENV"
       - name: Start HDFS
         run: |
           ./scripts/hadoop.sh start
-          echo "WEBHDFS_URL=\"http://$("$HADOOP_HOME/bin/hdfs" getconf -confKey dfs.namenode.http-address)\"" >>"$GITHUB_ENV"
+          echo "WEBHDFS_URL=http://$("$HADOOP_HOME/bin/hdfs" getconf -confKey dfs.namenode.http-address)" >>"$GITHUB_ENV"
           echo "HTTPFS_URL=http://localhost:1400" >>"$GITHUB_ENV"
           sleep 5 # TODO: Find a better way to wait for all datanodes to become reachable.
       - name: Install
