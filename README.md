@@ -1,4 +1,4 @@
-# HdfsCLI [![Build badge](https://travis-ci.org/mtth/hdfs.png?branch=master)](https://travis-ci.org/mtth/hdfs) [![Pypi badge](https://badge.fury.io/py/hdfs.svg)](https://pypi.python.org/pypi/hdfs/) [![Downloads badge](https://img.shields.io/pypi/dm/hdfs.svg)](https://pypistats.org/packages/hdfs)
+# HdfsCLI [![CI](https://github.com/mtth/hdfs/actions/workflows/ci.yml/badge.svg)](https://github.com/mtth/hdfs/actions/workflows/ci.yml) [![Pypi badge](https://badge.fury.io/py/hdfs.svg)](https://pypi.python.org/pypi/hdfs/) [![Downloads badge](https://img.shields.io/pypi/dm/hdfs.svg)](https://pypistats.org/packages/hdfs)
 
 API and command line interface for HDFS.
 

@@ -1,0 +1,49 @@
+name: CI
+on:
+  push:
+    branches:
+      - master
+    paths-ignore:
+      - '**.md'
+  pull_request:
+    branches:
+      - master
+    paths-ignore:
+      - '**.md'
+jobs:
+  test:
+    name: Test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out
+        uses: actions/checkout@v2
+      - name: Setup Java
+        uses: actions/setup-java@v2
+        with:
+          distribution: 'adopt'
+          java-version: '8'
+      - name: Setup Python
+        uses: actions/setup-python@v2
+        with:
+          python-version: '3.6'
+      - name: Download Hadoop
+        run: |
+          echo "HADOOP_HOME=$(./scripts/hadoop.sh download)" >>"$GITHUB_ENV"
+      - name: Configure Hadoop
+        run: |
+          echo "HADOOP_CONF_DIR=$(./scripts/hadoop.sh config)" >>"$GITHUB_ENV"
+      - name: Start HDFS
+        run: |
+          ./scripts/hadoop.sh start
+          echo "WEBHDFS_URL=http://$("$HADOOP_HOME/bin/hdfs" getconf -confKey dfs.namenode.http-address)" >>"$GITHUB_ENV"
+          echo "HTTPFS_URL=http://localhost:14000" >>"$GITHUB_ENV"
+          sleep 5 # TODO: Find a better way to wait for all datanodes to become reachable.
+      - name: Install
+        run: pip install .[avro] coverage mock nose
+      - name: Test on WebHDFS
+        run: HDFSCLI_TEST_URL="$WEBHDFS_URL" python -m nose --with-coverage --cover-package=hdfs
+      - name: Test on HTTPFS
+        run: HDFSCLI_TEST_URL="$HTTPFS_URL" HDFSCLI_NOSNAPSHOT=1 python -m nose --with-coverage --cover-package=hdfs
+      - name: Stop HDFS
+        if: always()
+        run: ./scripts/hadoop.sh stop
