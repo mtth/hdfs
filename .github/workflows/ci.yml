@@ -25,7 +25,7 @@ jobs:
       - name: Setup Python
         uses: actions/setup-python@v2
         with:
-          python-version: '3.x'
+          python-version: '3.6'
       - name: Download Hadoop
         run: |
           echo "HADOOP_HOME=$(./scripts/hadoop.sh download)" >>"$GITHUB_ENV"
