@@ -41,9 +41,9 @@ jobs:
       - name: Install
         run: pip install .[avro] coverage mock
       - name: Test on WebHDFS
-        run: HDFSCLI_TEST_URL="$WEBHDFS_URL" pip -m nose --with-coverage --cover-package=hdfs
+        run: HDFSCLI_TEST_URL="$WEBHDFS_URL" python -m nose --with-coverage --cover-package=hdfs
       - name: Test on HTTPFS
-        run: HDFSCLI_TEST_URL="$HTTPFS_URL" pip -m nose --with-coverage --cover-package=hdfs
+        run: HDFSCLI_TEST_URL="$HTTPFS_URL" python -m nose --with-coverage --cover-package=hdfs
       - name: Stop HDFS
         if: always()
         run: ./scripts/hadoop.sh stop
