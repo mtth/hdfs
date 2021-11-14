@@ -124,111 +124,6 @@ class TestApi(_IntegrationTest):
   def test_get_file_checksum_on_folder(self):
     self.client._get_file_checksum('')
 
-  def test_allow_snapshot(self):
-    self.client._mkdirs('foo')
-    self.client._allow_snapshot('foo')
-
-  def test_disallow_snapshot(self):
-    self.client._mkdirs('foo')
-    self.client._allow_snapshot('foo')
-    self.client._disallow_snapshot('foo')
-
-  @raises(HdfsError)
-  def test_allow_snapshot_not_exists(self):
-    self.client._allow_snapshot('foo')
-
-  @raises(HdfsError)
-  def test_disallow_snapshot_not_exists(self):
-    self.client._disallow_snapshot('foo')
-
-  @raises(HdfsError)
-  def test_allow_snapshot_file(self):
-    self._write('foo', b'hello')
-    self.client._allow_snapshot('foo')
-
-  @raises(HdfsError)
-  def test_disallow_snapshot_file(self):
-    self._write('foo', b'hello')
-    self.client._disallow_snapshot('foo')
-
-  def test_create_delete_snapshot(self):
-    # One cannot test creation and deletion separately, as one cannot
-    # clean HDFS for test isolation if a created snapshot remains
-    # undeleted.
-    self.client._mkdirs('foo')
-    self.client._allow_snapshot('foo')
-    self.client._create_snapshot('foo', snapshotname='mysnap')
-    self.client._delete_snapshot('foo', snapshotname='mysnap')
-
-  @raises(HdfsError)
-  def test_delete_snapshot_other(self):
-    self.client._mkdirs('foo')
-    self.client._allow_snapshot('foo')
-    self.client._create_snapshot('foo', snapshotname='mysnap')
-    try:
-      self.client._delete_snapshot('foo', snapshotname='othersnap')
-    finally:
-      # Cleanup, as it breaks other tests otherwise: the dir cannot be
-      # removed with an active snapshots.
-      self.client._delete_snapshot('foo', snapshotname='mysnap')
-
-  @raises(HdfsError)
-  def test_disallow_snapshot_exists(self):
-    self.client._mkdirs('foo_disallow')
-    self.client._allow_snapshot('foo_disallow')
-    self.client._create_snapshot('foo_disallow', snapshotname='mysnap')
-    try:
-      self.client._disallow_snapshot('foo_disallow')
-    finally:
-      # Cleanup, as it breaks other tests otherwise: the dir cannot be
-      # removed with an active snapshots.
-      self.client._delete_snapshot('foo_disallow', snapshotname='mysnap')
-
-  @raises(HdfsError)
-  def test_create_snapshot_noallow(self):
-    self.client._mkdirs('foo')
-    self.client._create_snapshot('foo', snapshotname='mysnap')
-
-  @raises(HdfsError)
-  def test_delete_snapshot_noallow(self):
-    self.client._mkdirs('foo')
-    self.client._delete_snapshot('foo', snapshotname='mysnap')
-
-  @raises(HdfsError)
-  def test_create_snapshot_noexist(self):
-    self.client._create_snapshot('foo', snapshotname='mysnap')
-
-  def test_rename_snapshot(self):
-    self.client._mkdirs('foo')
-    self.client._allow_snapshot('foo')
-    self.client._create_snapshot('foo', snapshotname='myspan')
-    try:
-      self.client._rename_snapshot('foo',
-                                   oldsnapshotname='myspan',
-                                   snapshotname='yourspan')
-    finally:
-      self.client._delete_snapshot('foo', snapshotname='yourspan')
-
-  @raises(HdfsError)
-  def test_rename_snapshot_not_exists(self):
-    self.client._rename_snapshot('foo',
-                                 oldsnapshotname='myspan',
-                                 snapshotname='yourspan')
-
-  @raises(HdfsError)
-  def test_rename_snapshot_not_overwrite(self):
-    self.client._mkdirs('foo')
-    self.client._allow_snapshot('foo')
-    self.client._create_snapshot('foo', snapshotname='myspan')
-    self.client._create_snapshot('foo', snapshotname='yourspan')
-    try:
-      self.client._rename_snapshot('foo',
-                                   oldsnapshotname='myspan',
-                                   snapshotname='yourspan')
-    finally:
-      self.client._delete_snapshot('foo', snapshotname='myspan')
-      self.client._delete_snapshot('foo', snapshotname='yourspan')
-
 
 class TestResolve(_IntegrationTest):
 
@@ -1389,11 +1284,17 @@ class TestSnapshot(_IntegrationTest):
   @classmethod
   def setup_class(cls):
     super(TestSnapshot, cls).setup_class()
-    if os.getenv('HDFSCLI_NOSNAPSHOT'):
-      # HTTPFS sometimes throws 'IllegalArgumentException: No enum constant'
-      # errors on snapshot operations. Since it doesn't appear to be consistent
-      # we introduce an environment variable to skip them for now.
-      cls.client = None
+    if cls.client:
+      cls.client._mkdirs('foo')
+      try:
+        cls.client.allow_snapshot('foo')
+      except HdfsError as err:
+        if 'java.lang.IllegalArgumentException: No enum constant' in str(err):
+          cls.client = None
+          # Skip these tests if we get this error message from HDFS (currently
+          # happens using HTTPFS) which causes all snapshot operations to fail.
+        else:
+          raise err
 
   def test_allow_snapshot(self):
     self.client._mkdirs('foo')
