@@ -36,7 +36,7 @@ jobs:
         run: |
           ./scripts/hadoop.sh start
           echo "WEBHDFS_URL=http://$("$HADOOP_HOME/bin/hdfs" getconf -confKey dfs.namenode.http-address)" >>"$GITHUB_ENV"
-          echo "HTTPFS_URL=http://localhost:1400" >>"$GITHUB_ENV"
+          echo "HTTPFS_URL=http://localhost:14000" >>"$GITHUB_ENV"
           sleep 5 # TODO: Find a better way to wait for all datanodes to become reachable.
       - name: Install
         run: pip install .[avro] coverage mock nose
