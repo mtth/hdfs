@@ -43,7 +43,7 @@ jobs:
       - name: Test on WebHDFS
         run: HDFSCLI_TEST_URL="$WEBHDFS_URL" python -m nose --with-coverage --cover-package=hdfs
       - name: Test on HTTPFS
-        run: HDFSCLI_TEST_URL="$HTTPFS_URL" python -m nose --with-coverage --cover-package=hdfs
+        run: HDFSCLI_TEST_URL="$HTTPFS_URL" HDFSCLI_NOSNAPSHOT=1 python -m nose --with-coverage --cover-package=hdfs
       - name: Stop HDFS
         if: always()
         run: ./scripts/hadoop.sh stop

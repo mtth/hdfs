@@ -1389,17 +1389,11 @@ class TestSnapshot(_IntegrationTest):
   @classmethod
   def setup_class(cls):
     super(TestSnapshot, cls).setup_class()
-    if cls.client:
-      try:
-        cls.client._mkdirs('foo')
-        cls.client.allow_snapshot('foo')
-      except HdfsError as err:
-        if 'No enum constant' in str(err):
-          cls.client = None
-          # Skip these tests if we get this error message from HDFS (currently
-          # happens using HTTPFS) which causes all snapshot operations to fail.
-        else:
-          raise err
+    if os.getenv('HDFSCLI_NOSNAPSHOT'):
+      # HTTPFS sometimes throws 'IllegalArgumentException: No enum constant'
+      # errors on snapshot operations. Since it doesn't appear to be consistent
+      # we introduce an environment variable to skip them for now.
+      cls.client = None
 
   def test_allow_snapshot(self):
     self.client._mkdirs('foo')
@@ -1407,6 +1401,7 @@ class TestSnapshot(_IntegrationTest):
 
   def test_allow_snapshot_double(self):
     self.client._mkdirs('foo')
+    self.client.allow_snapshot('foo')
     self.client.allow_snapshot('foo')
 
   def test_disallow_snapshot(self):
