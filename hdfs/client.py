@@ -517,23 +517,29 @@ class Client(object):
       _local_path, _temp_path = _path_tuple
       _logger.debug('Uploading %r to %r.', _local_path, _temp_path)
 
-      def wrap(_reader, _chunk_size, _progress):
-        """Generator that can track progress."""
-        nbytes = 0
-        while True:
-          chunk = _reader.read(_chunk_size)
+      def enhance(_reader, _chunk_size, _progress):
+        """Enhances the _reader with a progress callback, keeps other features such as tell and seek."""
+
+        inner_read = _reader.read
+        def _read(ignore):
+          chunk = inner_read(_chunk_size)
           if chunk:
             if _progress:
-              nbytes += len(chunk)
-              _progress(_local_path, nbytes)
-            yield chunk
-          else:
-            break
-        if _progress:
-          _progress(_local_path, -1)
+              setattr(_reader, '__nbytes', len(chunk) + getattr(_reader, '__nbytes', 0))
+              _progress(_local_path, getattr(_reader, '__nbytes', 0))
+            return chunk
+
+          if _progress:
+            _progress(_local_path, -1)
+          setattr(_reader, '__nbytes', 0)
+          return chunk
+
+        # "override" read with our progress flavor function
+        _reader.read = _read
+        return _reader
 
       with open(_local_path, 'rb') as reader:
-        self.write(_temp_path, wrap(reader, chunk_size, progress), **kwargs)
+        self.write(_temp_path, enhance(reader, chunk_size, progress), **kwargs)
 
     # First, we gather information about remote paths.
     hdfs_path = self.resolve(hdfs_path)
