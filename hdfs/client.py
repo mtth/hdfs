@@ -91,7 +91,7 @@ class _Request(object):
           while client._urls[0] in attempted_hosts:
             client._urls.rotate(-1)
           host = client._urls[0]
-        url = '%s%s%s' % (
+        url = '{}{}{}'.format(
           host.rstrip('/'),
           self.webhdfs_prefix,
           quote(client.resolve(hdfs_path), '/= '),
@@ -124,8 +124,8 @@ class _Request(object):
             _logger.warning('No reachable host, raising last error.')
           raise err
 
-    api_handler.__name__ = '%s_handler' % (operation.lower(), )
-    api_handler.__doc__ = 'Cf. %s#%s' % (self.doc_url, operation)
+    api_handler.__name__ = '{}_handler'.format(operation.lower())
+    api_handler.__doc__ = 'Cf. {}#{}'.format(self.doc_url, operation)
     return api_handler
 
 
@@ -192,12 +192,12 @@ class Client(object):
     _logger.info('Instantiated %r.', self)
 
   def __repr__(self):
-    return '<%s(url=%r)>' % (self.__class__.__name__, self.url)
+    return '<{}(url={!r})>'.format(self.__class__.__name__, self.url)
 
   # Generic request handler
 
   def _request(self, method, url, **kwargs):
-    """Send request to WebHDFS API.
+    r"""Send request to WebHDFS API.
 
     :param method: HTTP verb.
     :param url: Url to send the request to.
@@ -271,10 +271,10 @@ class Client(object):
       n = match.group(1) # n as in {N} syntax
       for _ in repeat(None, int(n) if n else 1):
         statuses = self._list_status(psp.join(prefix, suffix)).json()
-        candidates = sorted([
+        candidates = sorted(
           (-status['modificationTime'], status['pathSuffix'])
           for status in statuses['FileStatuses']['FileStatus']
-        ])
+        )
         if not candidates:
           raise HdfsError('Cannot expand #LATEST. %r is empty.', prefix)
         elif len(candidates) == 1 and candidates[0][1] == '':
@@ -378,11 +378,11 @@ class Client(object):
       (name, pattern.match(name), s)
       for name, s in self.list(hdfs_path, status=True)
     )
-    part_files = dict(
-      (int(match.group(1)), (name, s))
+    part_files = {
+      int(match.group(1)): (name, s)
       for name, match, s in matches
       if match
-    )
+    }
     if not part_files:
       raise HdfsError('No part-files found in %r.', hdfs_path)
     _logger.debug('Found %s part-files for %r.', len(part_files), hdfs_path)
@@ -483,7 +483,7 @@ class Client(object):
 
   def upload(self, hdfs_path, local_path, n_threads=1, temp_dir=None,
     chunk_size=2 ** 16, progress=None, cleanup=True, **kwargs):
-    """Upload a file or directory to HDFS.
+    r"""Upload a file or directory to HDFS.
 
     :param hdfs_path: Target HDFS path. If it already exists and is a
       directory, files will be uploaded inside.
@@ -553,7 +553,7 @@ class Client(object):
         raise err
     else:
       # Remote path is a directory.
-      suffixes = set(status['pathSuffix'] for status in statuses)
+      suffixes = {status['pathSuffix'] for status in statuses}
       local_name = osp.basename(local_path)
       hdfs_path = psp.join(hdfs_path, local_name)
       if local_name in suffixes:
@@ -567,7 +567,7 @@ class Client(object):
       temp_dir = temp_dir or remote_dpath
       temp_path = psp.join(
         temp_dir,
-        '%s.temp-%s' % (remote_name, _current_micros())
+        '{}.temp-{}'.format(remote_name, _current_micros())
       )
       _logger.debug(
         'Upload destination %r already exists. Using temporary path %r.',
@@ -722,7 +722,7 @@ class Client(object):
 
   def download(self, hdfs_path, local_path, overwrite=False, n_threads=1,
     temp_dir=None, **kwargs):
-    """Download a file or folder from HDFS and save it locally.
+    r"""Download a file or folder from HDFS and save it locally.
 
     :param hdfs_path: Path on HDFS of the file or folder to download. If a
       folder, all the files under it will be downloaded.
@@ -772,7 +772,7 @@ class Client(object):
       temp_dir = temp_dir or local_dpath
       temp_path = osp.join(
         temp_dir,
-        '%s.temp-%s' % (local_name, _current_micros())
+        '{}.temp-{}'.format(local_name, _current_micros())
       )
       _logger.debug(
         'Download destination %r already exists. Using temporary path %r.',
@@ -919,9 +919,9 @@ class Client(object):
       raise ValueError('Must set at least one of owner or group.')
     messages = []
     if owner:
-      messages.append('owner to %r' % (owner, ))
+      messages.append('owner to {!r}'.format(owner))
     if group:
-      messages.append('group to %r' % (group, ))
+      messages.append('group to {!r}'.format(group))
     _logger.info('Changing %s of %r.', ', and'.join(messages), hdfs_path)
     self._set_owner(hdfs_path, owner=owner, group=group)
 
@@ -949,9 +949,9 @@ class Client(object):
       raise ValueError('At least one of time must be specified.')
     msgs = []
     if access_time:
-      msgs.append('access time to %r' % (access_time, ))
+      msgs.append('access time to {!r}'.format(access_time))
     if modification_time:
-      msgs.append('modification time to %r' % (modification_time, ))
+      msgs.append('modification time to {!r}'.format(modification_time))
     _logger.info('Updating %s of %r.', ' and '.join(msgs), hdfs_path)
     self._set_times(
       hdfs_path,
@@ -1185,7 +1185,7 @@ class Client(object):
 
 class InsecureClient(Client):
 
-  """HDFS web client to use when security is off.
+  r"""HDFS web client to use when security is off.
 
   :param url: Hostname or IP address of HDFS namenode, prefixed with protocol,
     followed by WebHDFS port on namenode
@@ -1209,7 +1209,7 @@ class InsecureClient(Client):
 
 class TokenClient(Client):
 
-  """HDFS web client using Hadoop token delegation security.
+  r"""HDFS web client using Hadoop token delegation security.
 
   :param url: Hostname or IP address of HDFS namenode, prefixed with protocol,
     followed by WebHDFS port on namenode

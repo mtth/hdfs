@@ -47,4 +47,4 @@ class TestKerberosClient(object):
     t2.start()
     t1.join()
     t2.join()
-    eq_(auth._calls, set([1, 2]))
+    eq_(auth._calls, {1, 2})

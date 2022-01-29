@@ -102,7 +102,7 @@ def configure_client(command, args, config=None):
       sys.stdout.write('No log file active.\n')
       sys.exit(1)
     else:
-      sys.stdout.write('%s\n' % (handler.baseFilename, ))
+      sys.stdout.write('{}\n'.format(handler.baseFilename))
       sys.exit(0)
   logger.addHandler(handler)
   return config.get_client(args['--alias'])

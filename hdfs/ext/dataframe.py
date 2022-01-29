@@ -34,7 +34,7 @@ def read_dataframe(client, hdfs_path):
 
 
 def write_dataframe(client, hdfs_path, df, **kwargs):
-  """Save dataframe to HDFS as Avro.
+  r"""Save dataframe to HDFS as Avro.
 
   :param client: :class:`hdfs.client.Client` instance.
   :param hdfs_path: Remote path where the dataframe will be stored.

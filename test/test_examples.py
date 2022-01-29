@@ -31,8 +31,8 @@ class _ExamplesType(type):
           # Unmet dependency.
           raise SkipTest
 
-      test.__name__ = 'test_%s' % (module, )
-      test.__doc__ = 'Test for example %s.' % (fpath, )
+      test.__name__ = 'test_{}'.format(module)
+      test.__doc__ = 'Test for example {}.'.format(fpath)
       return test
 
     for fname in os.listdir(mcs.dpath):

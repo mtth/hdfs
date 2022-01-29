@@ -254,7 +254,7 @@ class TestMain(_AvroIntegrationTest):
       'part-m-00001.avro': [{'name': 'john'}, {'name': 'liz'}],
     }
     for fname, records in data.items():
-      with AvroWriter(self.client, 'data.avro/%s' % (fname, )) as writer:
+      with AvroWriter(self.client, 'data.avro/{}'.format(fname)) as writer:
         for record in records:
           writer.write(record)
     with temppath() as tpath:
