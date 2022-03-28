@@ -59,7 +59,7 @@ setup(
     'dataframe': ['fastavro>=0.21.19', 'pandas>=0.14.1'],
   },
   entry_points={'console_scripts': [
-    '%s = hdfs.__main__:main' % (ENTRY_POINT, ),
-    '%s-avro = hdfs.ext.avro.__main__:main' % (ENTRY_POINT, ),
+    '{} = hdfs.__main__:main'.format(ENTRY_POINT),
+    '{}-avro = hdfs.ext.avro.__main__:main'.format(ENTRY_POINT),
   ]},
 )

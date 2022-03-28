@@ -61,7 +61,7 @@ import sys
 
 class _Encoder(JSONEncoder):
 
-  """Custom encoder to support bytes and fixed strings.
+  r"""Custom encoder to support bytes and fixed strings.
 
   :param \*\*kwargs: Keyword arguments forwarded to the base constructor.
 
@@ -116,7 +116,7 @@ def main(argv=None, client=None, stdin=sys.stdin, stdout=sys.stdout):
     reader = AvroReader(client, args['HDFS_PATH'], parts=parts)
     with reader:
       if args['schema']:
-        stdout.write('%s\n' % (dumps(reader.schema, indent=2), ))
+        stdout.write('{}\n'.format(dumps(reader.schema, indent=2)))
       elif args['read']:
         encoder = _Encoder()
         num = parse_arg(args, '--num', int)

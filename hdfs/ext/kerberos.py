@@ -79,7 +79,7 @@ class _HdfsHTTPKerberosAuth(requests_kerberos.HTTPKerberosAuth):
 
 class KerberosClient(Client):
 
-  """HDFS web client using Kerberos authentication.
+  r"""HDFS web client using Kerberos authentication.
 
   :param url: Hostname or IP address of HDFS namenode, prefixed with protocol,
     followed by WebHDFS port on namenode.
