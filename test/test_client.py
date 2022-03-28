@@ -57,7 +57,7 @@ class TestOptions(_IntegrationTest):
   """Test client options."""
 
   def test_timeout(self):
-    self.client._timeout = 1e-4 # Small enough for it to always timeout.
+    self.client._timeout = 1e-5 # Small enough for it to always timeout.
     try:
       self.client.status('.')
     except (ConnectTimeout, ReadTimeout):
