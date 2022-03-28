@@ -961,6 +961,27 @@ class TestAcl(_IntegrationTest):
   def test_missing_non_strict(self):
     ok_(self.client.acl_status('foo', strict=False) is None)
 
+  def test_remove_acl_entries(self):
+    self.client.write('foo', 'hello, world!')
+    self.client.set_acl('foo', 'user:baruser:rwx,user:foouser:rw-', clear=False)
+    self.client.remove_acl_entries('foo', 'user:foouser:')
+    content = self.client.acl_status('foo')
+    ok_(not any('user:foouser:rw-' in s for s in content['entries']))
+    ok_(any('user:baruser:rwx' in s for s in content['entries']))
+
+  def test_remove_default_acl(self):
+    self.client.write('foo', 'hello, world!')
+    self.client.set_acl('foo', 'user:foouser:rwx', clear=False)
+    self.client.remove_default_acl('foo')
+    content = self.client.acl_status('foo')
+    ok_(not any('user::rwx' in s for s in content['entries']))
+
+  def test_remove_acl(self):
+    self.client.write('foo', 'hello, world!')
+    self.client.remove_acl('foo')
+    content = self.client.acl_status('foo')
+    eq_(content.get('entries'), [])
+
 
 class TestList(_IntegrationTest):
 

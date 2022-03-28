@@ -228,6 +228,9 @@ class Client(object):
   _list_status = _Request('GET')
   _mkdirs = _Request('PUT')
   _modify_acl_entries = _Request('PUT')
+  _remove_acl_entries = _Request('PUT')
+  _remove_default_acl = _Request('PUT')
+  _remove_acl = _Request('PUT')
   _open = _Request('GET', stream=True)
   _rename = _Request('PUT')
   _set_acl = _Request('PUT')
@@ -358,6 +361,48 @@ class Client(object):
     else:
       _logger.info('Modifying ACL spec for %r to %r.', hdfs_path, acl_spec)
       self._modify_acl_entries(hdfs_path, aclspec=acl_spec)
+
+  def remove_acl_entries(self, hdfs_path, acl_spec):
+    """RemoveACL_ for a file or folder on HDFS.
+
+    :param hdfs_path: Path to an existing remote file or directory. An
+      :class:`HdfsError` will be raised if the path doesn't exist.
+    :param acl_spec: String representation of an ACL spec. Must be a valid
+      string with entries for user, group and other. For example:
+      `"user::rwx,user:foo:rw-,group::r--,other::---"`.
+
+    .. _RemoveAcl: REMOVEACLENTRIES_
+    .. REMOVEACLENTRIES_: https://hadoop.apache.org/docs/stable2/hadoop-project-dist/hadoop-hdfs/WebHDFS.html#Remove_ACL_Entries
+
+    """
+    _logger.info('Removing ACL spec on %r for %r.', hdfs_path, acl_spec)
+    self._remove_acl_entries(hdfs_path, aclspec=acl_spec)
+
+  def remove_default_acl(self, hdfs_path):
+    """RemoveDefaultACL_ for a file or folder on HDFS.
+
+        :param hdfs_path: Path to an existing remote file or directory. An
+          :class:`HdfsError` will be raised if the path doesn't exist.
+
+        .. _RemoveDefaultAcl: REMOVEDEFAULTACL_
+        .. REMOVEDEFAULTACL_: https://hadoop.apache.org/docs/stable2/hadoop-project-dist/hadoop-hdfs/WebHDFS.html#Remove_Default_ACL
+
+        """
+    _logger.info('Removing default acl for %r', hdfs_path)
+    self._remove_default_acl(hdfs_path)
+
+  def remove_acl(self, hdfs_path):
+    """RemoveACL_ for a file or folder on HDFS.
+
+        :param hdfs_path: Path to an existing remote file or directory. An
+          :class:`HdfsError` will be raised if the path doesn't exist.
+
+        .. _RemoveAcl: REMOVEACL_
+        .. REMOVEACL_: https://hadoop.apache.org/docs/stable2/hadoop-project-dist/hadoop-hdfs/WebHDFS.html#Remove_ACL
+
+        """
+    _logger.info('Removing all ACL for %r', hdfs_path)
+    self._remove_acl(hdfs_path)
 
   def parts(self, hdfs_path, parts=None, status=False):
     """Returns a dictionary of part-files corresponding to a path.
