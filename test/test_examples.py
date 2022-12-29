@@ -4,7 +4,7 @@
 """Test that the examples run correctly."""
 
 from hdfs import Config
-from imp import load_source
+from importlib import load_source
 from nose.plugins.skip import SkipTest
 from six import add_metaclass
 from util import _IntegrationTest
