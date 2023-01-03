@@ -12,7 +12,6 @@ In particular it exposes the ability to instantiate clients from aliases (see
 from .client import Client
 from .util import HdfsError
 from functools import wraps
-from importlib import load_source
 from logging.handlers import TimedRotatingFileHandler
 from six.moves.configparser import ParsingError, RawConfigParser
 from tempfile import gettempdir
@@ -21,6 +20,12 @@ import os
 import os.path as osp
 import sys
 
+try:
+  # python 3.12 and above
+  from importlib import load_source
+except ImportError:
+  # Bellow python 3.12
+  from imp import load_source
 
 _logger = lg.getLogger(__name__)
 

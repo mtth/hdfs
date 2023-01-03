@@ -4,13 +4,18 @@
 """Test that the examples run correctly."""
 
 from hdfs import Config
-from importlib import load_source
 from nose.plugins.skip import SkipTest
 from six import add_metaclass
 from util import _IntegrationTest
 import os
 import os.path as osp
 
+try:
+  # python 3.12 and above
+  from importlib import load_source
+except ImportError:
+  # Bellow python 3.12
+  from imp import load_source
 
 class _ExamplesType(type):
 
