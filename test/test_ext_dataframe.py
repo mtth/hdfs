@@ -13,7 +13,7 @@ import os.path as osp
 try:
   from hdfs.ext.avro import AvroReader
   from hdfs.ext.dataframe import read_dataframe, write_dataframe
-  from pandas.util.testing import assert_frame_equal
+  from pandas.testing import assert_frame_equal
   import pandas as pd
 except ImportError:
   SKIP = True
