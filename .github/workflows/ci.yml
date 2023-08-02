@@ -15,6 +15,7 @@ jobs:
     name: Test
     runs-on: ubuntu-latest
     strategy:
+      fail-fast: false
       matrix:
         python-version:
           # - '3.6' see https://github.com/actions/setup-python/issues/544
