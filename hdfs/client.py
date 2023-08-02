@@ -3,7 +3,7 @@
 
 """WebHDFS API clients."""
 
-from .util import AsyncWriter, HdfsError
+from .util import AsyncWriter, BoundedAsyncWriter, HdfsError
 from collections import deque
 from contextlib import closing, contextmanager
 from getpass import getuser
@@ -515,7 +515,10 @@ class Client(object):
         raise _to_error(res)
 
     if data is None:
-      return AsyncWriter(consumer)
+      if buffersize is None:
+        return AsyncWriter(consumer)
+      else:
+        return BoundedAsyncWriter(consumer, buffer_size=buffersize)
     else:
       consumer(data)
 
