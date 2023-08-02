@@ -1,4 +1,1 @@
-avro
-docopt
-requests>=2.0.1
 mock; python_version<'3.3'

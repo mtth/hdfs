@@ -7,4 +7,8 @@ sphinx:
   configuration: doc/conf.py
 python:
   install:
+    - path: .
+      method: pip
+      extra_requirements:
+        - avro
     - requirements: doc/requirements.txt
