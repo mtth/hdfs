@@ -18,12 +18,12 @@ jobs:
       fail-fast: false
       matrix:
         python-version:
-          # - '3.6' see https://github.com/actions/setup-python/issues/544
+          # - '3.6' (see https://github.com/actions/setup-python/issues/544)
           - '3.7'
           - '3.8'
           - '3.9'
-          - '3.10'
-          - '3.11'
+          # - '3.10' 3.10+ require moving off of nose (https://github.com/nose-devs/nose/issues/1099)
+          # - '3.11'
     steps:
       - name: Check out
         uses: actions/checkout@v3
