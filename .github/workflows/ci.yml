@@ -14,18 +14,28 @@ jobs:
   test:
     name: Test
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version:
+          # - '3.6' (see https://github.com/actions/setup-python/issues/544)
+          - '3.7'
+          - '3.8'
+          - '3.9'
+          # - '3.10' 3.10+ require moving off of nose (https://github.com/nose-devs/nose/issues/1099)
+          # - '3.11'
     steps:
       - name: Check out
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
       - name: Setup Java
-        uses: actions/setup-java@v2
+        uses: actions/setup-java@v3
         with:
           distribution: 'adopt'
           java-version: '8'
       - name: Setup Python
-        uses: actions/setup-python@v2
+        uses: actions/setup-python@v4
         with:
-          python-version: '3.6'
+          python-version: ${{ matrix.python-version }}
       - name: Download Hadoop
         run: |
           echo "HADOOP_HOME=$(./scripts/hadoop.sh download)" >>"$GITHUB_ENV"
