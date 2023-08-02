@@ -328,8 +328,7 @@ class Client(object):
     :param strict: If `False`, return `None` rather than raise an exception if
       the path doesn't exist.
 
-    .. _AclStatus: ACLS_
-    .. _ACLS: https://hadoop.apache.org/docs/stable2/hadoop-project-dist/hadoop-hdfs/WebHDFS.html#Get_ACL_Status
+    .. _AclStatus: https://hadoop.apache.org/docs/stable2/hadoop-project-dist/hadoop-hdfs/WebHDFS.html#Get_ACL_Status
 
     """
     _logger.info('Fetching ACL status for %r.', hdfs_path)
@@ -348,11 +347,8 @@ class Client(object):
       entries that are not specified in this call are retained without changes,
       behaving like ModifyAcl_. For example: `"user:foo:rwx"`.
 
-    .. _SetAcl: SETACL_
-    .. SETACL_: https://hadoop.apache.org/docs/stable2/hadoop-project-dist/hadoop-hdfs/WebHDFS.html#Set_ACL
-
-    .. ModifyAcl_: MODACL_
-    .. MODACL_: https://hadoop.apache.org/docs/stable2/hadoop-project-dist/hadoop-hdfs/WebHDFS.html#Modify_ACL_Entries
+    .. _SetAcl: https://hadoop.apache.org/docs/stable2/hadoop-project-dist/hadoop-hdfs/WebHDFS.html#Set_ACL
+    .. _ModifyAcl: https://hadoop.apache.org/docs/stable2/hadoop-project-dist/hadoop-hdfs/WebHDFS.html#Modify_ACL_Entries
 
     """
     if clear:
@@ -363,7 +359,7 @@ class Client(object):
       self._modify_acl_entries(hdfs_path, aclspec=acl_spec)
 
   def remove_acl_entries(self, hdfs_path, acl_spec):
-    """RemoveACL_ for a file or folder on HDFS.
+    """RemoveAcl_ for a file or folder on HDFS.
 
     :param hdfs_path: Path to an existing remote file or directory. An
       :class:`HdfsError` will be raised if the path doesn't exist.
@@ -371,34 +367,31 @@ class Client(object):
       string with entries for user, group and other. For example:
       `"user::rwx,user:foo:rw-,group::r--,other::---"`.
 
-    .. _RemoveAcl: REMOVEACLENTRIES_
-    .. REMOVEACLENTRIES_: https://hadoop.apache.org/docs/stable2/hadoop-project-dist/hadoop-hdfs/WebHDFS.html#Remove_ACL_Entries
+    .. _RemoveAcl: https://hadoop.apache.org/docs/stable2/hadoop-project-dist/hadoop-hdfs/WebHDFS.html#Remove_ACL_Entries
 
     """
     _logger.info('Removing ACL spec on %r for %r.', hdfs_path, acl_spec)
     self._remove_acl_entries(hdfs_path, aclspec=acl_spec)
 
   def remove_default_acl(self, hdfs_path):
-    """RemoveDefaultACL_ for a file or folder on HDFS.
+    """RemoveDefaultAcl_ for a file or folder on HDFS.
 
         :param hdfs_path: Path to an existing remote file or directory. An
           :class:`HdfsError` will be raised if the path doesn't exist.
 
-        .. _RemoveDefaultAcl: REMOVEDEFAULTACL_
-        .. REMOVEDEFAULTACL_: https://hadoop.apache.org/docs/stable2/hadoop-project-dist/hadoop-hdfs/WebHDFS.html#Remove_Default_ACL
+        .. _RemoveDefaultAcl: https://hadoop.apache.org/docs/stable2/hadoop-project-dist/hadoop-hdfs/WebHDFS.html#Remove_Default_ACL
 
         """
     _logger.info('Removing default acl for %r', hdfs_path)
     self._remove_default_acl(hdfs_path)
 
   def remove_acl(self, hdfs_path):
-    """RemoveACL_ for a file or folder on HDFS.
+    """RemoveAcl_ for a file or folder on HDFS.
 
         :param hdfs_path: Path to an existing remote file or directory. An
           :class:`HdfsError` will be raised if the path doesn't exist.
 
-        .. _RemoveAcl: REMOVEACL_
-        .. REMOVEACL_: https://hadoop.apache.org/docs/stable2/hadoop-project-dist/hadoop-hdfs/WebHDFS.html#Remove_ACL
+        .. _RemoveAcl: https://hadoop.apache.org/docs/stable2/hadoop-project-dist/hadoop-hdfs/WebHDFS.html#Remove_ACL
 
         """
     _logger.info('Removing all ACL for %r', hdfs_path)
