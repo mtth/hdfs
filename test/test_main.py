@@ -7,20 +7,21 @@ from hdfs.__main__ import _Progress, configure_client, main, parse_arg
 from hdfs.config import Config, NullHandler
 from hdfs.util import HdfsError, temppath
 from logging.handlers import TimedRotatingFileHandler
-from nose.tools import eq_, nottest, ok_, raises
+from nose.tools import eq_, ok_
 from util import _IntegrationTest, save_config
 import filecmp
 import logging as lg
 import os
 import os.path as osp
+import pytest
 import sys
 
 
 class TestParseArg(object):
 
-  @raises(HdfsError)
   def test_parse_invalid(self):
-    parse_arg({'foo': 'a'}, 'foo', int)
+    with pytest.raises(HdfsError):
+      parse_arg({'foo': 'a'}, 'foo', int)
 
   def test_parse_int(self):
     eq_(parse_arg({'foo': '1'}, 'foo', int), 1)
@@ -124,25 +125,25 @@ class TestMain(_IntegrationTest):
       with open(tpath) as reader:
         eq_(reader.read(), 'hello')
 
-  @raises(SystemExit)
   def test_download_stream_multiple_files(self):
-    self.client.upload('foo', self.dpath)
-    main(
-      ['download', 'foo', '-', '--silent', '--threads', '1'],
-      self.client
-    )
-
-  @raises(SystemExit)
-  def test_download_overwrite(self):
-    self.client.upload('foo', self.dpath)
-    with temppath() as tpath:
-      with open(tpath, 'w'):
-        pass
+    with pytest.raises(SystemExit):
+      self.client.upload('foo', self.dpath)
       main(
-        ['download', 'foo', tpath, '--silent', '--threads', '1'],
+        ['download', 'foo', '-', '--silent', '--threads', '1'],
         self.client
       )
-      self._dircmp(tpath)
+
+  def test_download_overwrite(self):
+    with pytest.raises(SystemExit):
+      self.client.upload('foo', self.dpath)
+      with temppath() as tpath:
+        with open(tpath, 'w'):
+          pass
+        main(
+          ['download', 'foo', tpath, '--silent', '--threads', '1'],
+          self.client
+        )
+        self._dircmp(tpath)
 
   def test_download_force(self):
     self.client.write('foo', 'hey')
@@ -165,13 +166,13 @@ class TestMain(_IntegrationTest):
       self.client.download('bar', tpath)
       self._dircmp(tpath)
 
-  @raises(SystemExit)
   def test_upload_overwrite(self):
-    self.client.write('bar', 'hey')
-    main(
-      ['upload', self.dpath, 'bar', '--silent', '--threads', '1'],
-      self.client
-    )
+    with pytest.raises(SystemExit):
+      self.client.write('bar', 'hey')
+      main(
+        ['upload', self.dpath, 'bar', '--silent', '--threads', '1'],
+        self.client
+      )
 
   def test_upload_force(self):
     self.client.write('bar', 'hey')
@@ -195,7 +196,7 @@ class TestMain(_IntegrationTest):
     with self.client.read('bar') as reader:
       eq_(reader.read(), b'heyhey')
 
-  @raises(SystemExit)
   def test_upload_append_folder(self):
-    with temppath() as tpath:
-      main(['upload', self.dpath, '--silent', '--append'], self.client)
+    with pytest.raises(SystemExit):
+      with temppath() as tpath:
+        main(['upload', self.dpath, '--silent', '--append'], self.client)

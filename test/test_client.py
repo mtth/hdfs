@@ -7,7 +7,7 @@ from collections import defaultdict
 from hdfs.client import *
 from hdfs.util import HdfsError, temppath
 from util import _IntegrationTest
-from nose.tools import eq_, nottest, ok_, raises, assert_regex
+from nose.tools import eq_, ok_, assert_regex
 from requests.exceptions import ConnectTimeout, ReadTimeout
 from shutil import rmtree
 from six import b
@@ -15,6 +15,7 @@ from tempfile import mkdtemp
 import os
 import os.path as osp
 import posixpath as psp
+import pytest
 
 
 class TestLoad(object):
@@ -33,17 +34,17 @@ class TestLoad(object):
     client = Client.from_options({'url': 'bar', 'bar': 2}, 'NewClient')
     eq_(client.bar, 2)
 
-  @raises(HdfsError)
   def test_missing_options(self):
-    Client.from_options({}, 'KerberosClient')
+    with pytest.raises(HdfsError):
+      Client.from_options({}, 'KerberosClient')
 
-  @raises(HdfsError)
   def test_invalid_options(self):
-    Client.from_options({'foo': 123})
+    with pytest.raises(HdfsError):
+      Client.from_options({'foo': 123})
 
-  @raises(HdfsError)
   def test_missing_type(self):
-    Client.from_options({}, 'MissingClient')
+    with pytest.raises(HdfsError):
+      Client.from_options({}, 'MissingClient')
 
   def test_timeout(self):
     eq_(Client('')._timeout, None)
@@ -56,14 +57,14 @@ class TestOptions(_IntegrationTest):
 
   """Test client options."""
 
-  @nottest # TODO: Investigate why this fails in Python 3.7 and 3.9
-  @raises(ConnectTimeout, ReadTimeout)
+  @pytest.mark.skip(reason="TODO: Investigate why this fails in Python 3.7 and 3.9")
   def test_timeout(self):
-    self.client._timeout = 1e-6 # Small enough for it to always timeout.
-    try:
-      self.client.status('.')
-    finally:
-      self.client._timeout = None
+    with pytest.raises(ConnectTimeout, ReadTimeout):
+      self.client._timeout = 1e-6 # Small enough for it to always timeout.
+      try:
+        self.client.status('.')
+      finally:
+        self.client._timeout = None
 
 
 class TestApi(_IntegrationTest):
@@ -120,9 +121,9 @@ class TestApi(_IntegrationTest):
     eq_(sorted(data), ['algorithm', 'bytes', 'length'])
     ok_(int(data['length']))
 
-  @raises(HdfsError)
   def test_get_file_checksum_on_folder(self):
-    self.client._get_file_checksum('')
+    with pytest.raises(HdfsError):
+      self.client._get_file_checksum('')
 
 
 class TestResolve(_IntegrationTest):
@@ -203,10 +204,10 @@ class TestWrite(_IntegrationTest):
     eq_(self._read('up'), b'hello, world!')
     eq_(self.client.status('up')['permission'], '722')
 
-  @raises(HdfsError)
   def test_create_to_existing_file_without_overwrite(self):
-    self.client.write('up', b'hello, world!')
-    self.client.write('up', b'hello again, world!')
+    with pytest.raises(HdfsError):
+      self.client.write('up', b'hello, world!')
+      self.client.write('up', b'hello again, world!')
 
   def test_create_and_overwrite_file(self):
     self.client.write('up', b'hello, world!')
@@ -232,17 +233,17 @@ class TestWrite(_IntegrationTest):
       dump(data, writer)
     eq_(loads(self._read('up', encoding='utf-8')), data)
 
-  @raises(HdfsError)
   def test_create_and_overwrite_directory(self):
-    # can't overwrite a directory with a file
-    self.client._mkdirs('up')
-    self.client.write('up', b'hello, world!')
+    with pytest.raises(HdfsError):
+      # can't overwrite a directory with a file
+      self.client._mkdirs('up')
+      self.client.write('up', b'hello, world!')
 
-  @raises(HdfsError)
   def test_create_invalid_path(self):
-    # conversely, can't overwrite a file with a directory
-    self.client.write('up', b'hello, world!')
-    self.client.write('up/up', b'hello again, world!')
+    with pytest.raises(HdfsError):
+      # conversely, can't overwrite a file with a directory
+      self.client.write('up', b'hello, world!')
+      self.client.write('up/up', b'hello again, world!')
 
 
 class TestAppend(_IntegrationTest):
@@ -266,17 +267,17 @@ class TestAppend(_IntegrationTest):
     self.client.write('ap', b' world!', append=True)
     eq_(self._read('ap'), b'hello, world!')
 
-  @raises(HdfsError)
   def test_missing_file(self):
-    self.client.write('ap', b'hello!', append=True)
+    with pytest.raises(HdfsError):
+      self.client.write('ap', b'hello!', append=True)
 
-  @raises(ValueError)
   def test_overwrite_and_append(self):
-    self.client.write('ap', b'hello!', overwrite=True, append=True)
+    with pytest.raises(ValueError):
+      self.client.write('ap', b'hello!', overwrite=True, append=True)
 
-  @raises(ValueError)
   def test_set_permission_and_append(self):
-    self.client.write('ap', b'hello!', permission='777', append=True)
+    with pytest.raises(ValueError):
+      self.client.write('ap', b'hello!', permission='777', append=True)
 
 
 class TestUpload(_IntegrationTest):
@@ -288,18 +289,18 @@ class TestUpload(_IntegrationTest):
       self.client.upload('up', tpath)
     eq_(self._read('up'), b'hello, world!')
 
-  @raises(HdfsError)
   def test_upload_missing(self):
-    with temppath() as tpath:
-      self.client.upload('up', tpath)
+    with pytest.raises(HdfsError):
+      with temppath() as tpath:
+        self.client.upload('up', tpath)
 
-  @raises(HdfsError)
   def test_upload_empty_directory(self):
-    dpath = mkdtemp()
-    try:
-      self.client.upload('up', dpath)
-    finally:
-      os.rmdir(dpath)
+    with pytest.raises(HdfsError):
+      dpath = mkdtemp()
+      try:
+        self.client.upload('up', dpath)
+      finally:
+        os.rmdir(dpath)
 
   def test_upload_directory_to_existing_directory(self):
     dpath = mkdtemp()
@@ -358,13 +359,13 @@ class TestUpload(_IntegrationTest):
       self.client.upload('up', tpath, overwrite=True)
     eq_(self._read('up'), b'there')
 
-  @raises(HdfsError)
   def test_upload_overwrite_error(self):
-    with temppath() as tpath:
-      with open(tpath, 'w') as writer:
-        writer.write('here')
-      self.client.upload('up', tpath)
-      self.client.upload('up', tpath)
+    with pytest.raises(HdfsError):
+      with temppath() as tpath:
+        with open(tpath, 'w') as writer:
+          writer.write('here')
+        self.client.upload('up', tpath)
+        self.client.upload('up', tpath)
 
   def test_upload_cleanup(self):
     dpath = mkdtemp()
@@ -475,10 +476,10 @@ class TestDelete(_IntegrationTest):
     ok_(self.client.delete('de', recursive=True))
     ok_(not self._exists('de'))
 
-  @raises(HdfsError)
   def test_delete_non_empty_directory_without_recursive(self):
-    self._write('de/foo', b'hello, world!')
-    self.client.delete('de')
+    with pytest.raises(HdfsError):
+      self._write('de/foo', b'hello, world!')
+      self.client.delete('de')
 
   def test_trash_file(self):
     self._write('foo', b'hello, world!')
@@ -488,10 +489,10 @@ class TestDelete(_IntegrationTest):
   def test_trash_missing_file(self):
     ok_(not self.client.delete('foo', skip_trash=False))
 
-  @raises(HdfsError)
   def test_trash_directory_non_recursive(self):
-    self._write('bar/foo', b'hello, world!')
-    self.client.delete('bar', skip_trash=False)
+    with pytest.raises(HdfsError):
+      self._write('bar/foo', b'hello, world!')
+      self.client.delete('bar', skip_trash=False)
 
   def test_trash_directory(self):
     self._write('bar/foo', b'hello, world!')
@@ -501,39 +502,39 @@ class TestDelete(_IntegrationTest):
 
 class TestRead(_IntegrationTest):
 
-  @raises(ValueError)
   def test_progress_without_chunk_size(self):
-    self._write('foo', b'hello, world!')
-    with self.client.read('foo', progress=lambda path, nbytes: None) as reader:
-      pass
+    with pytest.raises(ValueError):
+      self._write('foo', b'hello, world!')
+      with self.client.read('foo', progress=lambda path, nbytes: None) as reader:
+        pass
 
-  @raises(ValueError)
   def test_delimiter_without_encoding(self):
-    self._write('foo', b'hello, world!')
-    with self.client.read('foo', delimiter=',') as reader:
-      pass
+    with pytest.raises(ValueError):
+      self._write('foo', b'hello, world!')
+      with self.client.read('foo', delimiter=',') as reader:
+        pass
 
-  @raises(ValueError)
   def test_delimiter_with_chunk_size(self):
-    self._write('foo', b'hello, world!')
-    with self.client.read('foo', delimiter=',', chunk_size=1) as reader:
-      pass
+    with pytest.raises(ValueError):
+      self._write('foo', b'hello, world!')
+      with self.client.read('foo', delimiter=',', chunk_size=1) as reader:
+        pass
 
   def test_read_file(self):
     self._write('foo', b'hello, world!')
     with self.client.read('foo') as reader:
       eq_(reader.read(), b'hello, world!')
 
-  @raises(HdfsError)
   def test_read_directory(self):
-    self.client._mkdirs('foo')
-    with self.client.read('foo') as reader:
-      pass
+    with pytest.raises(HdfsError):
+      self.client._mkdirs('foo')
+      with self.client.read('foo') as reader:
+        pass
 
-  @raises(HdfsError)
   def test_read_missing_file(self):
-    with self.client.read('foo') as reader:
-      pass
+    with pytest.raises(HdfsError):
+      with self.client.read('foo') as reader:
+        pass
 
   def test_read_file_from_offset(self):
     self._write('foo', b'hello, world!')
@@ -596,15 +597,15 @@ class TestRename(_IntegrationTest):
     self.client.rename('foo', 'bar')
     eq_(self._read('bar'), b'hello, world!')
 
-  @raises(HdfsError)
   def test_rename_missing_file(self):
-    self.client.rename('foo', 'bar')
+    with pytest.raises(HdfsError):
+      self.client.rename('foo', 'bar')
 
-  @raises(HdfsError)
   def test_rename_file_to_existing_file(self):
-    self._write('foo', b'hello, world!')
-    self._write('bar', b'hello again, world!')
-    self.client.rename('foo', 'bar')
+    with pytest.raises(HdfsError):
+      self._write('foo', b'hello, world!')
+      self._write('bar', b'hello again, world!')
+      self.client.rename('foo', 'bar')
 
   def test_move_file_into_existing_directory(self):
     self._write('foo', b'hello, world!')
@@ -627,11 +628,11 @@ class TestRename(_IntegrationTest):
 
 class TestDownload(_IntegrationTest):
 
-  @raises(HdfsError)
   def test_missing_dir(self):
-    self._write('dl', b'hello')
-    with temppath() as tpath:
-      self.client.download('dl', osp.join(tpath, 'foo'))
+    with pytest.raises(HdfsError):
+      self._write('dl', b'hello')
+      with temppath() as tpath:
+        self.client.download('dl', osp.join(tpath, 'foo'))
 
   def test_normal_file(self):
     self._write('dl', b'hello')
@@ -691,13 +692,13 @@ class TestDownload(_IntegrationTest):
       with open(fname) as reader:
         eq_(reader.read(), 'there')
 
-  @raises(HdfsError)
   def test_download_file_to_existing_file(self):
-    self._write('dl', b'hello')
-    with temppath() as tpath:
-      with open(tpath, 'w') as writer:
-        writer.write('hi')
-      self.client.download('dl', tpath)
+    with pytest.raises(HdfsError):
+      self._write('dl', b'hello')
+      with temppath() as tpath:
+        with open(tpath, 'w') as writer:
+          writer.write('hi')
+        self.client.download('dl', tpath)
 
   def test_download_file_to_existing_file_with_overwrite(self):
     self._write('dl', b'hello')
@@ -716,14 +717,14 @@ class TestDownload(_IntegrationTest):
       with open(osp.join(tpath, 'dl')) as reader:
         eq_(reader.read(), 'hello')
 
-  @raises(HdfsError)
   def test_download_file_to_existing_folder_with_matching_file(self):
-    self._write('dl', b'hello')
-    with temppath() as tpath:
-      os.mkdir(tpath)
-      with open(osp.join(tpath, 'dl'), 'w') as writer:
-        writer.write('hey')
-      self.client.download('dl', tpath)
+    with pytest.raises(HdfsError):
+      self._write('dl', b'hello')
+      with temppath() as tpath:
+        os.mkdir(tpath)
+        with open(osp.join(tpath, 'dl'), 'w') as writer:
+          writer.write('hey')
+        self.client.download('dl', tpath)
 
   def test_download_file_to_existing_folder_overwrite_matching_file(self):
     self._write('dl', b'hello')
@@ -788,11 +789,11 @@ class TestDownload(_IntegrationTest):
       finally:
         self.client.read = _read
 
-  @raises(HdfsError)
   def test_download_empty_folder(self):
-    self.client._mkdirs('foo')
-    with temppath() as tpath:
-      self.client.download('foo', tpath)
+    with pytest.raises(HdfsError):
+      self.client._mkdirs('foo')
+      with temppath() as tpath:
+        self.client.download('foo', tpath)
 
   def test_download_dir_whitespace(self):
     self._write('foo/foo bar.txt', b'hello')
@@ -823,9 +824,9 @@ class TestStatus(_IntegrationTest):
     eq_(status['type'], 'FILE')
     eq_(status['length'], 13)
 
-  @raises(HdfsError)
   def test_missing(self):
-    self.client.status('foo')
+    with pytest.raises(HdfsError):
+      self.client.status('foo')
 
   def test_missing_non_strict(self):
     ok_(self.client.status('foo', strict=False) is None)
@@ -879,9 +880,9 @@ class TestSetOwner(_IntegrationTest):
     status = self.client.status('foo')
     eq_(status['group'], new_group)
 
-  @raises(HdfsError)
   def test_missing_for_group(self):
-    self.client.set_owner('foo', group='blah')
+    with pytest.raises(HdfsError):
+      self.client.set_owner('foo', group='blah')
 
 
 class TestSetPermission(_IntegrationTest):
@@ -900,9 +901,9 @@ class TestSetPermission(_IntegrationTest):
     status = self.client.status('foo')
     eq_(status['permission'], new_permission)
 
-  @raises(HdfsError)
   def test_missing(self):
-    self.client.set_permission('foo', '755')
+    with pytest.raises(HdfsError):
+      self.client.set_permission('foo', '755')
 
 
 class TestContent(_IntegrationTest):
@@ -921,9 +922,9 @@ class TestContent(_IntegrationTest):
     eq_(content['fileCount'], 1)
     eq_(content['length'], 13)
 
-  @raises(HdfsError)
   def test_missing(self):
-    self.client.content('foo')
+    with pytest.raises(HdfsError):
+      self.client.content('foo')
 
   def test_missing_non_strict(self):
     ok_(self.client.content('foo', strict=False) is None)
@@ -954,9 +955,9 @@ class TestAcl(_IntegrationTest):
     content = self.client.acl_status('foo')
     ok_(any('user:foouser:rw-' in s for s in content['entries']))
 
-  @raises(HdfsError)
   def test_missing(self):
-    self.client.acl_status('foo')
+    with pytest.raises(HdfsError):
+      self.client.acl_status('foo')
 
   def test_missing_non_strict(self):
     ok_(self.client.acl_status('foo', strict=False) is None)
@@ -985,14 +986,14 @@ class TestAcl(_IntegrationTest):
 
 class TestList(_IntegrationTest):
 
-  @raises(HdfsError)
   def test_file(self):
-    self.client.write('foo', 'hello, world!')
-    self.client.list('foo')
+    with pytest.raises(HdfsError):
+      self.client.write('foo', 'hello, world!')
+      self.client.list('foo')
 
-  @raises(HdfsError)
   def test_missing(self):
-    self.client.list('foo')
+    with pytest.raises(HdfsError):
+      self.client.list('foo')
 
   def test_empty_dir(self):
     self.client._mkdirs('foo')
@@ -1013,9 +1014,9 @@ class TestList(_IntegrationTest):
 
 class TestWalk(_IntegrationTest):
 
-  @raises(HdfsError)
   def test_missing(self):
-    list(self.client.walk('foo'))
+    with pytest.raises(HdfsError):
+      list(self.client.walk('foo'))
 
   def test_file(self):
     self.client.write('foo', 'hello, world!')
@@ -1057,9 +1058,9 @@ class TestWalk(_IntegrationTest):
       eq_(info, (psp.join(self.client.root), ['folder'], ['file']))
       self.client.delete('folder', recursive=True)
 
-  @raises(ValueError)
   def test_status_and_allow_dir_changes(self):
-    list(self.client.walk('.', status=True, allow_dir_changes=True))
+    with pytest.raises(ValueError):
+      list(self.client.walk('.', status=True, allow_dir_changes=True))
 
   def test_allow_dir_changes_subset(self):
     self.client.write('foo/file1', 'one')
@@ -1106,38 +1107,38 @@ class TestLatestExpansion(_IntegrationTest):
     latest = self.client.resolve('#LATEST{2}')
     eq_(latest, osp.join(self.client.root, 'bar', 'foo'))
 
-  @nottest # HttpFS is inconsistent here.
-  @raises(HdfsError)
+  @pytest.mark.skip(reason="HttpFS is inconsistent here.")
   def test_resolve_file(self):
-    self.client.write('bar', 'hello, world!')
-    self.client.resolve('bar/#LATEST')
+    with pytest.raises(HdfsError):
+      self.client.write('bar', 'hello, world!')
+      self.client.resolve('bar/#LATEST')
 
-  @raises(HdfsError)
   def test_resolve_empty_directory(self):
-    self.client._mkdirs('bar')
-    self.client.resolve('bar/#LATEST')
+    with pytest.raises(HdfsError):
+      self.client._mkdirs('bar')
+      self.client.resolve('bar/#LATEST')
 
 
 class TestParts(_IntegrationTest):
 
-  @raises(HdfsError)
   def test_missing(self):
-    self.client.parts('foo')
+    with pytest.raises(HdfsError):
+      self.client.parts('foo')
 
-  @raises(HdfsError)
   def test_file(self):
-    self.client.write('foo', 'hello')
-    self.client.parts('foo')
+    with pytest.raises(HdfsError):
+      self.client.write('foo', 'hello')
+      self.client.parts('foo')
 
-  @raises(HdfsError)
   def test_empty_folder(self):
-    self.client._mkdirs('foo')
-    self.client.parts('foo')
+    with pytest.raises(HdfsError):
+      self.client._mkdirs('foo')
+      self.client.parts('foo')
 
-  @raises(HdfsError)
   def test_folder_without_parts(self):
-    self.client.write('foo/bar', 'hello')
-    self.client.parts('foo')
+    with pytest.raises(HdfsError):
+      self.client.write('foo/bar', 'hello')
+      self.client.parts('foo')
 
   def test_folder_with_single_part(self):
     fname = 'part-m-00000.avro'
@@ -1196,10 +1197,10 @@ class TestMakeDirs(_IntegrationTest):
     self.client.makedirs('foo', permission='733')
     eq_(self.client.status('foo')['permission'], '733')
 
-  @raises(HdfsError)
   def test_overwrite_file(self):
-    self.client.write('foo', 'hello')
-    self.client.makedirs('foo')
+    with pytest.raises(HdfsError):
+      self.client.write('foo', 'hello')
+      self.client.makedirs('foo')
 
   def test_overwrite_directory_with_permission(self):
     self.client.makedirs('foo', permission='733')
@@ -1210,20 +1211,20 @@ class TestMakeDirs(_IntegrationTest):
 
 class TestSetTimes(_IntegrationTest):
 
-  @raises(ValueError)
   def test_none(self):
-    self.client.makedirs('foo')
-    self.client.set_times('foo')
+    with pytest.raises(ValueError):
+      self.client.makedirs('foo')
+      self.client.set_times('foo')
 
-  @raises(HdfsError)
   def test_missing(self):
-    self.client.set_times('foo', 1234)
+    with pytest.raises(HdfsError):
+      self.client.set_times('foo', 1234)
 
-  @nottest # HttpFS doesn't raise an error here.
-  @raises(HdfsError)
+  @pytest.mark.skip() # HttpFS doesn't raise an error here.
   def test_negative(self):
-    self.client.write('foo', 'hello')
-    self.client.set_times('foo', access_time=-1234)
+    with pytest.raises(HdfsError):
+      self.client.write('foo', 'hello')
+      self.client.set_times('foo', access_time=-1234)
 
   def test_file(self):
     self.client.write('foo', 'hello')
@@ -1250,14 +1251,14 @@ class TestSetTimes(_IntegrationTest):
 
 class TestChecksum(_IntegrationTest):
 
-  @raises(HdfsError)
   def test_missing(self):
-    self.client.checksum('foo')
+    with pytest.raises(HdfsError):
+      self.client.checksum('foo')
 
-  @raises(HdfsError)
   def test_folder(self):
-    self.client.makedirs('foo')
-    self.client.checksum('foo')
+    with pytest.raises(HdfsError):
+      self.client.makedirs('foo')
+      self.client.checksum('foo')
 
   def test_file(self):
     self.client.write('foo', 'hello')
@@ -1267,19 +1268,19 @@ class TestChecksum(_IntegrationTest):
 
 class TestSetReplication(_IntegrationTest):
 
-  @raises(HdfsError)
   def test_missing(self):
-    self.client.set_replication('foo', 1)
+    with pytest.raises(HdfsError):
+      self.client.set_replication('foo', 1)
 
-  @raises(HdfsError)
   def test_folder(self):
-    self.client.makedirs('foo')
-    self.client.set_replication('foo', 1)
+    with pytest.raises(HdfsError):
+      self.client.makedirs('foo')
+      self.client.set_replication('foo', 1)
 
-  @raises(HdfsError)
   def test_invalid_replication(self):
-    self.client.write('foo', 'hello')
-    self.client.set_replication('foo', 0)
+    with pytest.raises(HdfsError):
+      self.client.write('foo', 'hello')
+      self.client.set_replication('foo', 0)
 
   def test_file(self):
     self.client.write('foo', 'hello')
@@ -1335,23 +1336,23 @@ class TestSnapshot(_IntegrationTest):
     self.client._mkdirs('foo')
     self.client.disallow_snapshot('foo')
 
-  @raises(HdfsError)
   def test_allow_snapshot_not_exists(self):
-    self.client.allow_snapshot('foo')
+    with pytest.raises(HdfsError):
+      self.client.allow_snapshot('foo')
 
-  @raises(HdfsError)
   def test_disallow_snapshot_not_exists(self):
-    self.client.disallow_snapshot('foo')
+    with pytest.raises(HdfsError):
+      self.client.disallow_snapshot('foo')
 
-  @raises(HdfsError)
   def test_allow_snapshot_file(self):
-    self._write('foo', b'hello')
-    self.client.allow_snapshot('foo')
+    with pytest.raises(HdfsError):
+      self._write('foo', b'hello')
+      self.client.allow_snapshot('foo')
 
-  @raises(HdfsError)
   def test_disallow_snapshot_file(self):
-    self._write('foo', b'hello')
-    self.client.disallow_snapshot('foo')
+    with pytest.raises(HdfsError):
+      self._write('foo', b'hello')
+      self.client.disallow_snapshot('foo')
 
   def test_create_delete_snapshot(self):
     # One cannot test creation and deletion separately, as one cannot
@@ -1373,43 +1374,43 @@ class TestSnapshot(_IntegrationTest):
       # removed with an active snapshots.
       self.client.delete_snapshot('foo', 'mysnap')
 
-  @raises(HdfsError)
   def test_delete_snapshot_other(self):
-    self.client._mkdirs('foo')
-    self.client.allow_snapshot('foo')
-    self.client.create_snapshot('foo', 'mysnap')
-    try:
-      self.client.delete_snapshot('foo', 'othersnap')
-    finally:
-      # Cleanup, as it breaks other tests otherwise: the dir cannot be
-      # removed with an active snapshots.
+    with pytest.raises(HdfsError):
+      self.client._mkdirs('foo')
+      self.client.allow_snapshot('foo')
+      self.client.create_snapshot('foo', 'mysnap')
+      try:
+        self.client.delete_snapshot('foo', 'othersnap')
+      finally:
+        # Cleanup, as it breaks other tests otherwise: the dir cannot be
+        # removed with an active snapshots.
+        self.client.delete_snapshot('foo', 'mysnap')
+
+  def test_disallow_snapshot_exists(self):
+    with pytest.raises(HdfsError):
+      self.client._mkdirs('foo_disallow')
+      self.client.allow_snapshot('foo_disallow')
+      self.client.create_snapshot('foo_disallow', 'mysnap')
+      try:
+        self.client.disallow_snapshot('foo_disallow')
+      finally:
+        # Cleanup, as it breaks other tests otherwise: the dir cannot be
+        # removed with an active snapshots.
+        self.client.delete_snapshot('foo_disallow', 'mysnap')
+
+  def test_create_snapshot_noallow(self):
+    with pytest.raises(HdfsError):
+      self.client._mkdirs('foo')
+      self.client.create_snapshot('foo', 'mysnap')
+
+  def test_delete_snapshot_noallow(self):
+    with pytest.raises(HdfsError):
+      self.client._mkdirs('foo')
       self.client.delete_snapshot('foo', 'mysnap')
 
-  @raises(HdfsError)
-  def test_disallow_snapshot_exists(self):
-    self.client._mkdirs('foo_disallow')
-    self.client.allow_snapshot('foo_disallow')
-    self.client.create_snapshot('foo_disallow', 'mysnap')
-    try:
-      self.client.disallow_snapshot('foo_disallow')
-    finally:
-      # Cleanup, as it breaks other tests otherwise: the dir cannot be
-      # removed with an active snapshots.
-      self.client.delete_snapshot('foo_disallow', 'mysnap')
-
-  @raises(HdfsError)
-  def test_create_snapshot_noallow(self):
-    self.client._mkdirs('foo')
-    self.client.create_snapshot('foo', 'mysnap')
-
-  @raises(HdfsError)
-  def test_delete_snapshot_noallow(self):
-    self.client._mkdirs('foo')
-    self.client.delete_snapshot('foo', 'mysnap')
-
-  @raises(HdfsError)
   def test_create_snapshot_noexist(self):
-    self.client.create_snapshot('foo', 'mysnap')
+    with pytest.raises(HdfsError):
+     self.client.create_snapshot('foo', 'mysnap')
 
   def test_rename_snapshot(self):
     self.client._mkdirs('foo')
@@ -1420,18 +1421,18 @@ class TestSnapshot(_IntegrationTest):
     finally:
       self.client.delete_snapshot('foo', 'yourspan')
 
-  @raises(HdfsError)
   def test_rename_snapshot_not_exists(self):
-    self.client.rename_snapshot('foo', 'myspan', 'yourspan')
-
-  @raises(HdfsError)
-  def test_rename_snapshot_not_overwrite(self):
-    self.client._mkdirs('foo')
-    self.client.allow_snapshot('foo')
-    self.client.create_snapshot('foo', 'myspan')
-    self.client.create_snapshot('foo', 'yourspan')
-    try:
+    with pytest.raises(HdfsError):
       self.client.rename_snapshot('foo', 'myspan', 'yourspan')
-    finally:
-      self.client.delete_snapshot('foo', 'myspan')
-      self.client.delete_snapshot('foo', 'yourspan')
+
+  def test_rename_snapshot_not_overwrite(self):
+    with pytest.raises(HdfsError):
+      self.client._mkdirs('foo')
+      self.client.allow_snapshot('foo')
+      self.client.create_snapshot('foo', 'myspan')
+      self.client.create_snapshot('foo', 'yourspan')
+      try:
+        self.client.rename_snapshot('foo', 'myspan', 'yourspan')
+      finally:
+        self.client.delete_snapshot('foo', 'myspan')
+        self.client.delete_snapshot('foo', 'yourspan')

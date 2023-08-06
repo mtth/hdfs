@@ -3,7 +3,7 @@
 
 """Test Kerberos extension."""
 
-from nose.tools import eq_, nottest, ok_, raises
+from nose.tools import eq_, ok_
 from threading import Lock, Thread
 from time import sleep, time
 import sys

@@ -7,18 +7,19 @@ from hdfs.client import Client
 from hdfs.config import Config
 from hdfs.util import HdfsError, temppath
 from logging.handlers import TimedRotatingFileHandler
-from nose.tools import eq_, ok_, nottest, raises
+from nose.tools import eq_, ok_
 from string import Template
 from util import save_config
 import logging as lg
 import os
 import os.path as osp
+import pytest
 import sys
 
 
 class TestConfig(object):
 
-  @nottest # TODO: Find cross-platform way to reset the environment variable.
+  @pytest.mark.skip(reason="TODO: Find cross-platform way to reset the environment variable.")
   def test_config_path(self):
     path = os.getenv('HDFSCLI_CONFIG')
     try:
@@ -53,14 +54,14 @@ class TestConfig(object):
         client = Client.from_options({'url': ''}, 'PathClient')
         eq_(client.one, 1)
 
-  @raises(SystemExit)
   def test_autoload_missing_path(self):
-    with temppath() as module_path:
-      with temppath() as config_path:
-        config = Config(config_path)
-        config.add_section(config.global_section)
-        config.set(config.global_section, 'autoload.paths', module_path)
-        config._autoload()
+    with pytest.raises(SystemExit):
+      with temppath() as module_path:
+        with temppath() as config_path:
+          config = Config(config_path)
+          config.add_section(config.global_section)
+          config.set(config.global_section, 'autoload.paths', module_path)
+          config._autoload()
 
   def test_autoload_client_from_module(self):
     with temppath() as module_dpath:
@@ -101,15 +102,15 @@ class TestConfig(object):
       save_config(config)
       eq_(Config(path=tpath).get_client('dev')._timeout, (1,2))
 
-  @raises(HdfsError)
   def test_create_client_with_missing_alias(self):
-    with temppath() as tpath:
-      Config(tpath).get_client('dev')
+    with pytest.raises(HdfsError):
+      with temppath() as tpath:
+        Config(tpath).get_client('dev')
 
-  @raises(HdfsError)
   def test_create_client_with_no_alias_without_default(self):
-    with temppath() as tpath:
-      Config(tpath).get_client()
+    with pytest.raises(HdfsError):
+      with temppath() as tpath:
+        Config(tpath).get_client()
 
   def test_create_client_with_default_alias(self):
     with temppath() as tpath:
