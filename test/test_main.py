@@ -7,7 +7,7 @@ from hdfs.__main__ import _Progress, configure_client, main, parse_arg
 from hdfs.config import Config, NullHandler
 from hdfs.util import HdfsError, temppath
 from logging.handlers import TimedRotatingFileHandler
-from util import _IntegrationTest, save_config
+from test.util import _IntegrationTest
 import filecmp
 import logging as lg
 import os

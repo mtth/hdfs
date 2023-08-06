@@ -8,7 +8,7 @@ from hdfs.config import Config
 from hdfs.util import HdfsError, temppath
 from logging.handlers import TimedRotatingFileHandler
 from string import Template
-from util import save_config
+from test.util import save_config
 import logging as lg
 import os
 import os.path as osp

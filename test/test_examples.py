@@ -6,7 +6,7 @@
 from hdfs import Config
 from imp import load_source
 from six import add_metaclass
-from util import _IntegrationTest
+from test.util import _IntegrationTest
 import os
 import os.path as osp
 import pytest

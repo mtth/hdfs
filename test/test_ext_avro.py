@@ -5,7 +5,7 @@
 
 from hdfs.util import HdfsError, temppath
 from json import dumps, load, loads
-from util import _IntegrationTest
+from test.util import _IntegrationTest
 import os
 import os.path as osp
 import pytest
