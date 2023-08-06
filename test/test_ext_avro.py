@@ -22,7 +22,7 @@ else:
 
 class TestSeekableReader(object):
 
-  def setup(self):
+  def setup_method(self):
     if SKIP:
       pytest.skip()
 
@@ -52,7 +52,7 @@ class TestSeekableReader(object):
 
 class TestInferSchema(object):
 
-  def setup(self):
+  def setup_method(self):
     if SKIP:
       pytest.skip()
 

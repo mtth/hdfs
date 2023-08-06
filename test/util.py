@@ -62,7 +62,7 @@ class _IntegrationTest(object):
     if cls.client:
       cls.client.delete('', recursive=True)
 
-  def setup(self):
+  def setup_method(self):
     if not self.client:
       pytest.skip()
     else:

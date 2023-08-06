@@ -85,12 +85,12 @@ class TestMain(_IntegrationTest):
 
   dpath = osp.join(osp.dirname(__file__), 'dat')
 
-  def setup(self):
+  def setup_method(self):
     self._root_logger = lg.getLogger()
     self._handlers = self._root_logger.handlers
-    super(TestMain, self).setup()
+    super(TestMain, self).setup_method()
 
-  def teardown(self):
+  def teardown_method(self):
     self._root_logger.handlers = self._handlers
 
   def _dircmp(self, dpath):
