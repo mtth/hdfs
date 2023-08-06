@@ -7,7 +7,6 @@ from hdfs.client import Client
 from hdfs.config import Config
 from hdfs.util import HdfsError, temppath
 from logging.handlers import TimedRotatingFileHandler
-from nose.tools import eq_, ok_
 from string import Template
 from util import save_config
 import logging as lg

@@ -7,7 +7,6 @@ from collections import defaultdict
 from hdfs.client import *
 from hdfs.util import HdfsError, temppath
 from util import _IntegrationTest
-from nose.tools import eq_, ok_, assert_regex
 from requests.exceptions import ConnectTimeout, ReadTimeout
 from shutil import rmtree
 from six import b

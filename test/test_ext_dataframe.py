@@ -5,8 +5,6 @@
 
 from hdfs.util import HdfsError, temppath
 from json import loads
-from nose.plugins.skip import SkipTest
-from nose.tools import *
 from util import _IntegrationTest
 import os.path as osp
 

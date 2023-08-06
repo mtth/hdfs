@@ -6,13 +6,12 @@
 from hdfs import InsecureClient
 from hdfs.config import Config
 from hdfs.util import HdfsError
-from nose.plugins.skip import SkipTest
-from nose.tools import eq_
 from requests.exceptions import ConnectionError
 from six.moves.configparser import NoOptionError, NoSectionError
 from time import sleep
 import os
 import posixpath as psp
+import pytest
 
 
 def save_config(config, path=None):
@@ -65,7 +64,7 @@ class _IntegrationTest(object):
 
   def setup(self):
     if not self.client:
-      raise SkipTest
+      pytest.skip()
     else:
       try:
         self.client.delete('', recursive=True)

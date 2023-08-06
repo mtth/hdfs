@@ -5,12 +5,10 @@
 
 from hdfs.util import HdfsError, temppath
 from json import dumps, load, loads
-from nose.plugins.skip import SkipTest
-from nose.tools import eq_, ok_, raises
 from util import _IntegrationTest
 import os
 import os.path as osp
-import sys
+import pytest
 
 try:
   from hdfs.ext.avro import (_SeekableReader, _SchemaInferrer, AvroReader,
@@ -26,7 +24,7 @@ class TestSeekableReader(object):
 
   def setup(self):
     if SKIP:
-      raise SkipTest
+      pytest.skip()
 
   def test_normal_read(self):
     with temppath() as tpath:
@@ -56,7 +54,8 @@ class TestInferSchema(object):
 
   def setup(self):
     if SKIP:
-      raise SkipTest
+      pytest.skip()
+
 
   def test_array(self):
     assert (
@@ -203,13 +202,13 @@ class TestWriter(_AvroIntegrationTest):
       assert reader.schema == self.schema
       assert list(reader) == []
 
-  @raises(HdfsError)
   def test_write_overwrite_error(self):
-    # To check that the background `AsyncWriter` thread doesn't hang.
-    self.client.makedirs('weather.avro')
-    with AvroWriter(self.client, 'weather.avro', schema=self.schema) as writer:
-      for record in self.records:
-        writer.write(record)
+    with pytest.raises(HdfsError):
+      # To check that the background `AsyncWriter` thread doesn't hang.
+      self.client.makedirs('weather.avro')
+      with AvroWriter(self.client, 'weather.avro', schema=self.schema) as writer:
+        for record in self.records:
+          writer.write(record)
 
   def test_infer_schema(self):
     with AvroWriter(self.client, 'weather.avro') as writer:
