@@ -27,7 +27,7 @@ class TestConfig(object):
         os.environ['HDFSCLI_CONFIG'] = tpath
         with open(tpath, 'w') as writer:
           writer.write('[foo]\nbar=hello')
-        eq_(Config().get('foo', 'bar'), 'hello')
+        assert Config().get('foo', 'bar') == 'hello'
     finally:
       if path:
         os['HDFSCLI_CONFIG'] = path
@@ -52,7 +52,7 @@ class TestConfig(object):
         config.set(config.global_section, 'autoload.paths', module_path)
         config._autoload()
         client = Client.from_options({'url': ''}, 'PathClient')
-        eq_(client.one, 1)
+        assert client.one == 1
 
   def test_autoload_missing_path(self):
     with pytest.raises(SystemExit):
@@ -76,7 +76,7 @@ class TestConfig(object):
           config.set(config.global_section, 'autoload.modules', 'mclient')
           config._autoload()
           client = Client.from_options({'url': ''}, 'ModuleClient')
-          eq_(client.one, 1)
+          assert client.one == 1
       finally:
         sys.path.remove(module_dpath)
 
@@ -97,10 +97,10 @@ class TestConfig(object):
       config.set(section, 'url', 'http://host:port')
       config.set(section, 'timeout', '1')
       save_config(config)
-      eq_(Config(path=tpath).get_client('dev')._timeout, 1)
+      assert Config(path=tpath).get_client('dev')._timeout == 1
       config.set(section, 'timeout', '1,2')
       save_config(config)
-      eq_(Config(path=tpath).get_client('dev')._timeout, (1,2))
+      assert Config(path=tpath).get_client('dev')._timeout == (1,2)
 
   def test_create_client_with_missing_alias(self):
     with pytest.raises(HdfsError):
@@ -127,7 +127,7 @@ class TestConfig(object):
     with temppath() as tpath:
       config = Config(tpath)
       handler = config.get_log_handler('cmd')
-      ok_(isinstance(handler, TimedRotatingFileHandler))
+      assert isinstance(handler, TimedRotatingFileHandler)
 
   def test_disable_file_logging(self):
     with temppath() as tpath:
@@ -137,4 +137,4 @@ class TestConfig(object):
       save_config(config)
       config = Config(tpath)
       handler = config.get_log_handler('cmd')
-      ok_(not isinstance(handler, TimedRotatingFileHandler))
+      assert not isinstance(handler, TimedRotatingFileHandler)

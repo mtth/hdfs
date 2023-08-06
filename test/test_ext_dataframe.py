@@ -52,7 +52,7 @@ class TestWriteDataFrame(_DataFrameIntegrationTest):
   def test_write(self):
     write_dataframe(self.client, 'weather.avro', self.df)
     with AvroReader(self.client, 'weather.avro') as reader:
-      eq_(list(reader), self.records)
+      assert list(reader) == self.records
 
 
 class TestReadWriteDataFrame(_DataFrameIntegrationTest):

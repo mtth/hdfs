@@ -24,15 +24,15 @@ class TestParseArg(object):
       parse_arg({'foo': 'a'}, 'foo', int)
 
   def test_parse_int(self):
-    eq_(parse_arg({'foo': '1'}, 'foo', int), 1)
-    eq_(parse_arg({'foo': '1'}, 'foo', int, ','), 1)
+    assert parse_arg({'foo': '1'}, 'foo', int) == 1
+    assert parse_arg({'foo': '1'}, 'foo', int, ',') == 1
 
   def test_parse_float(self):
-    eq_(parse_arg({'foo': '123.4'}, 'foo', float), 123.4)
+    assert parse_arg({'foo': '123.4'}, 'foo', float) == 123.4
 
   def test_parse_int_list(self):
-    eq_(parse_arg({'foo': '1,'}, 'foo', int, ','), [1])
-    eq_(parse_arg({'foo': '1,2'}, 'foo', int, ','), [1,2])
+    assert parse_arg({'foo': '1,'}, 'foo', int, ',') == [1]
+    assert parse_arg({'foo': '1,2'}, 'foo', int, ',') == [1,2]
 
 
 class TestConfigureClient(object):
@@ -46,8 +46,8 @@ class TestConfigureClient(object):
       config.set(section, 'url', url)
       args = {'--alias': 'dev', '--log': False, '--verbose': 0}
       client = configure_client('test', args, config=config)
-      eq_(client.url, url)
-      eq_(client.urls, [url])
+      assert client.url == url
+      assert client.urls == [url]
 
 
 class TestProgress(object):
@@ -57,13 +57,13 @@ class TestProgress(object):
       with open(tpath, 'w') as writer:
         progress = _Progress(100, 1, writer=writer)
         progress('foo', 60)
-        eq_(progress._data['foo'], 60)
-        eq_(progress._pending_files, 0)
-        eq_(progress._downloading_files, 1)
+        assert progress._data['foo'] == 60
+        assert progress._pending_files == 0
+        assert progress._downloading_files == 1
         progress('foo', 40)
         progress('foo', -1)
-        eq_(progress._downloading_files, 0)
-        eq_(progress._complete_files, 1)
+        assert progress._downloading_files == 0
+        assert progress._complete_files == 1
 
   def test_from_local_path(self):
     with temppath() as dpath:
@@ -78,8 +78,8 @@ class TestProgress(object):
       with temppath() as tpath:
         with open(tpath, 'w') as writer:
           progress = _Progress.from_local_path(dpath, writer=writer)
-          eq_(progress._total_bytes, 8)
-          eq_(progress._pending_files, 2)
+          assert progress._total_bytes == 8
+          assert progress._pending_files == 2
 
 
 class TestMain(_IntegrationTest):
@@ -96,9 +96,9 @@ class TestMain(_IntegrationTest):
 
   def _dircmp(self, dpath):
     dircmp = filecmp.dircmp(self.dpath, dpath)
-    ok_(not dircmp.left_only)
-    ok_(not dircmp.right_only)
-    ok_(not dircmp.diff_files)
+    assert not dircmp.left_only
+    assert not dircmp.right_only
+    assert not dircmp.diff_files
 
   def test_download(self):
     self.client.upload('foo', self.dpath)
@@ -123,7 +123,7 @@ class TestMain(_IntegrationTest):
       finally:
         sys.stdout = stdout
       with open(tpath) as reader:
-        eq_(reader.read(), 'hello')
+        assert reader.read() == 'hello'
 
   def test_download_stream_multiple_files(self):
     with pytest.raises(SystemExit):
@@ -155,7 +155,7 @@ class TestMain(_IntegrationTest):
         self.client
       )
       with open(tpath) as reader:
-        eq_(reader.read(), 'hey')
+        assert reader.read() == 'hey'
 
   def test_upload(self):
     main(
@@ -194,7 +194,7 @@ class TestMain(_IntegrationTest):
         self.client
       )
     with self.client.read('bar') as reader:
-      eq_(reader.read(), b'heyhey')
+      assert reader.read() == b'heyhey'
 
   def test_upload_append_folder(self):
     with pytest.raises(SystemExit):
