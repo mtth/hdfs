@@ -1,19 +1,6 @@
 HdfsCLI
 =======
 
-Version 2.7.1
-------------------------
-
-Changes
-
-* Remove references to Python 2 from documentation
-  * The test library only support Python 3
-* Bump CI github actions Ubuntu runner version from `latest` to `20.04`
-* Prepare Ci github actions to launch the tests against Python 3.12
-  * `fastavro` does not support Python 3.12 yet
-* Use conditionnal imports for ``lib``/``importlib`` to prepare for library migration in Python 3.12
-  * More informations [here](https://docs.python.org/3/library/imp.html)
-
 Version 2.0 (2015/20/08)
 ------------------------
 
