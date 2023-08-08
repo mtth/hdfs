@@ -36,7 +36,7 @@ In [3]: with CLIENT.read('models/2.json', encoding='utf-8') as reader:
 
 ## Features
 
-* Python (2 and 3) bindings for the [WebHDFS][] (and [HttpFS][]) API,
+* Python 3 bindings for the [WebHDFS][] (and [HttpFS][]) API,
   supporting both secure and insecure clusters.
 * Command line interface to transfer files and start an interactive client
   shell, with aliases for convenient namenode URL caching.
