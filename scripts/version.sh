@@ -16,7 +16,6 @@ version_pattern="__version__ = '([^']+)'"
 main() {
   cd "$__dirname/.."
   local line="$(grep __version__ hdfs/__init__.py)"
-  echo "$line"
   if ! [[ $line =~ $version_pattern ]]; then
     fail 'missing version'
   fi
