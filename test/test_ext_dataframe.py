@@ -5,9 +5,7 @@
 
 from hdfs.util import HdfsError, temppath
 from json import loads
-from nose.plugins.skip import SkipTest
-from nose.tools import *
-from util import _IntegrationTest
+from test.util import _IntegrationTest
 import os.path as osp
 
 try:
@@ -52,7 +50,7 @@ class TestWriteDataFrame(_DataFrameIntegrationTest):
   def test_write(self):
     write_dataframe(self.client, 'weather.avro', self.df)
     with AvroReader(self.client, 'weather.avro') as reader:
-      eq_(list(reader), self.records)
+      assert list(reader) == self.records
 
 
 class TestReadWriteDataFrame(_DataFrameIntegrationTest):

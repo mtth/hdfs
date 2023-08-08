@@ -4,11 +4,11 @@
 """Test that the examples run correctly."""
 
 from hdfs import Config
-from nose.plugins.skip import SkipTest
 from six import add_metaclass
-from util import _IntegrationTest
+from test.util import _IntegrationTest
 import os
 import os.path as osp
+import pytest
 
 try:
   # Python 3.12 and above
@@ -34,7 +34,7 @@ class _ExamplesType(type):
           load_source(module, fpath)
         except ImportError:
           # Unmet dependency.
-          raise SkipTest
+          pytest.skip()
 
       test.__name__ = 'test_{}'.format(module)
       test.__doc__ = 'Test for example {}.'.format(fpath)

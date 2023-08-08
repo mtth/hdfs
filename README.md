@@ -64,8 +64,8 @@ HdfsCLI is tested against both [WebHDFS][] and [HttpFS][]. There are two ways
 of running tests (see `scripts/` for helpers to set up a test HDFS cluster):
 
 ```sh
-$ HDFSCLI_TEST_URL=http://localhost:50070 nosetests # Using a namenode's URL.
-$ HDFSCLI_TEST_ALIAS=dev nosetests # Using an alias.
+$ HDFSCLI_TEST_URL=http://localhost:50070 pytest # Using a namenode's URL.
+$ HDFSCLI_TEST_ALIAS=dev pytest # Using an alias.
 ```
 
 ## Contributing

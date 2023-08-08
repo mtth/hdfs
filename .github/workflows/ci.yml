@@ -51,11 +51,11 @@ jobs:
           echo "HTTPFS_URL=http://localhost:14000" >>"$GITHUB_ENV"
           sleep 5 # TODO: Find a better way to wait for all datanodes to become reachable.
       - name: Install
-        run: pip install .[avro] coverage mock nose
+        run: pip install .[avro] coverage mock pytest pytest-cov pandas
       - name: Test on WebHDFS
-        run: HDFSCLI_TEST_URL="$WEBHDFS_URL" python -m nose --with-coverage --cover-package=hdfs
+        run: HDFSCLI_TEST_URL="$WEBHDFS_URL" python -m pytest --cov=hdfs
       - name: Test on HTTPFS
-        run: HDFSCLI_TEST_URL="$HTTPFS_URL" HDFSCLI_NOSNAPSHOT=1 python -m nose --with-coverage --cover-package=hdfs
+        run: HDFSCLI_TEST_URL="$HTTPFS_URL" HDFSCLI_NOSNAPSHOT=1 python -m pytest --cov=hdfs
       - name: Stop HDFS
         if: always()
         run: ./scripts/hadoop.sh stop
