@@ -56,6 +56,13 @@ jobs:
         run: HDFSCLI_TEST_URL="$WEBHDFS_URL" python -m pytest --cov=hdfs
       - name: Test on HTTPFS
         run: HDFSCLI_TEST_URL="$HTTPFS_URL" HDFSCLI_NOSNAPSHOT=1 python -m pytest --cov=hdfs
+      - name: Check if tag exists
+        uses: mukunku/tag-exists-action@v1.1.0
+        id: check-version
+        with:
+          tag: v${{ steps.extract-version.outputs.version }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       - name: Create tag
         if: steps.check-version.outputs.exists == 'false'
         uses: pkgdeps/git-tag-action@v2
