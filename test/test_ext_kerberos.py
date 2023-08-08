@@ -3,7 +3,6 @@
 
 """Test Kerberos extension."""
 
-from nose.tools import eq_, nottest, ok_, raises
 from threading import Lock, Thread
 from time import sleep, time
 import sys
@@ -18,12 +17,12 @@ class MockHTTPKerberosAuth(object):
 
   def __call__(self, n):
     with self._lock:
-      ok_(not self._items)
+      assert not self._items
       self._items.append(n)
     sleep(0.25)
     with self._lock:
       thread = self._items.pop()
-      eq_(thread, n)
+      assert thread == n
       self._calls.add(thread)
 
 
@@ -47,4 +46,4 @@ class TestKerberosClient(object):
     t2.start()
     t1.join()
     t2.join()
-    eq_(auth._calls, {1, 2})
+    assert auth._calls == {1, 2}

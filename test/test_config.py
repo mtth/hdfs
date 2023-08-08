@@ -7,18 +7,18 @@ from hdfs.client import Client
 from hdfs.config import Config
 from hdfs.util import HdfsError, temppath
 from logging.handlers import TimedRotatingFileHandler
-from nose.tools import eq_, ok_, nottest, raises
 from string import Template
-from util import save_config
+from test.util import save_config
 import logging as lg
 import os
 import os.path as osp
+import pytest
 import sys
 
 
 class TestConfig(object):
 
-  @nottest # TODO: Find cross-platform way to reset the environment variable.
+  @pytest.mark.skip(reason="TODO: Find cross-platform way to reset the environment variable.")
   def test_config_path(self):
     path = os.getenv('HDFSCLI_CONFIG')
     try:
@@ -26,7 +26,7 @@ class TestConfig(object):
         os.environ['HDFSCLI_CONFIG'] = tpath
         with open(tpath, 'w') as writer:
           writer.write('[foo]\nbar=hello')
-        eq_(Config().get('foo', 'bar'), 'hello')
+        assert Config().get('foo', 'bar') == 'hello'
     finally:
       if path:
         os['HDFSCLI_CONFIG'] = path
@@ -51,16 +51,16 @@ class TestConfig(object):
         config.set(config.global_section, 'autoload.paths', module_path)
         config._autoload()
         client = Client.from_options({'url': ''}, 'PathClient')
-        eq_(client.one, 1)
+        assert client.one == 1
 
-  @raises(SystemExit)
   def test_autoload_missing_path(self):
-    with temppath() as module_path:
-      with temppath() as config_path:
-        config = Config(config_path)
-        config.add_section(config.global_section)
-        config.set(config.global_section, 'autoload.paths', module_path)
-        config._autoload()
+    with pytest.raises(SystemExit):
+      with temppath() as module_path:
+        with temppath() as config_path:
+          config = Config(config_path)
+          config.add_section(config.global_section)
+          config.set(config.global_section, 'autoload.paths', module_path)
+          config._autoload()
 
   def test_autoload_client_from_module(self):
     with temppath() as module_dpath:
@@ -75,7 +75,7 @@ class TestConfig(object):
           config.set(config.global_section, 'autoload.modules', 'mclient')
           config._autoload()
           client = Client.from_options({'url': ''}, 'ModuleClient')
-          eq_(client.one, 1)
+          assert client.one == 1
       finally:
         sys.path.remove(module_dpath)
 
@@ -96,20 +96,20 @@ class TestConfig(object):
       config.set(section, 'url', 'http://host:port')
       config.set(section, 'timeout', '1')
       save_config(config)
-      eq_(Config(path=tpath).get_client('dev')._timeout, 1)
+      assert Config(path=tpath).get_client('dev')._timeout == 1
       config.set(section, 'timeout', '1,2')
       save_config(config)
-      eq_(Config(path=tpath).get_client('dev')._timeout, (1,2))
+      assert Config(path=tpath).get_client('dev')._timeout == (1,2)
 
-  @raises(HdfsError)
   def test_create_client_with_missing_alias(self):
-    with temppath() as tpath:
-      Config(tpath).get_client('dev')
+    with pytest.raises(HdfsError):
+      with temppath() as tpath:
+        Config(tpath).get_client('dev')
 
-  @raises(HdfsError)
   def test_create_client_with_no_alias_without_default(self):
-    with temppath() as tpath:
-      Config(tpath).get_client()
+    with pytest.raises(HdfsError):
+      with temppath() as tpath:
+        Config(tpath).get_client()
 
   def test_create_client_with_default_alias(self):
     with temppath() as tpath:
@@ -126,7 +126,7 @@ class TestConfig(object):
     with temppath() as tpath:
       config = Config(tpath)
       handler = config.get_log_handler('cmd')
-      ok_(isinstance(handler, TimedRotatingFileHandler))
+      assert isinstance(handler, TimedRotatingFileHandler)
 
   def test_disable_file_logging(self):
     with temppath() as tpath:
@@ -136,4 +136,4 @@ class TestConfig(object):
       save_config(config)
       config = Config(tpath)
       handler = config.get_log_handler('cmd')
-      ok_(not isinstance(handler, TimedRotatingFileHandler))
+      assert not isinstance(handler, TimedRotatingFileHandler)

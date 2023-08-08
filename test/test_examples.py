@@ -5,11 +5,11 @@
 
 from hdfs import Config
 from imp import load_source
-from nose.plugins.skip import SkipTest
 from six import add_metaclass
-from util import _IntegrationTest
+from test.util import _IntegrationTest
 import os
 import os.path as osp
+import pytest
 
 
 class _ExamplesType(type):
@@ -29,7 +29,7 @@ class _ExamplesType(type):
           load_source(module, fpath)
         except ImportError:
           # Unmet dependency.
-          raise SkipTest
+          pytest.skip()
 
       test.__name__ = 'test_{}'.format(module)
       test.__doc__ = 'Test for example {}.'.format(fpath)

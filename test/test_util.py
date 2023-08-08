@@ -4,7 +4,7 @@
 """Test Hdfs client interactions with HDFS."""
 
 from hdfs.util import *
-from nose.tools import eq_, ok_, raises
+import pytest
 
 
 class TestAsyncWriter(object):
@@ -16,7 +16,7 @@ class TestAsyncWriter(object):
     with AsyncWriter(consumer) as writer:
       writer.write('one')
       writer.write('two')
-    eq_(result, [['one','two']])
+    assert result == [['one','two']]
 
   def test_multiple_writer_uses(self):
     result = []
@@ -29,7 +29,7 @@ class TestAsyncWriter(object):
     with writer:
       writer.write('three')
       writer.write('four')
-    eq_(result, [['one','two'],['three','four']])
+    assert result == [['one','two'],['three','four']]
 
   def test_multiple_consumer_uses(self):
     result = []
@@ -41,54 +41,54 @@ class TestAsyncWriter(object):
     with AsyncWriter(consumer) as writer:
       writer.write('three')
       writer.write('four')
-    eq_(result, [['one','two'],['three','four']])
+    assert result == [['one','two'],['three','four']]
 
-  @raises(ValueError)
   def test_nested(self):
-    result = []
-    def consumer(gen):
-      result.append(list(gen))
-    with AsyncWriter(consumer) as _writer:
-      _writer.write('one')
-      with _writer as writer:
+    with pytest.raises(ValueError):
+      result = []
+      def consumer(gen):
+        result.append(list(gen))
+      with AsyncWriter(consumer) as _writer:
+        _writer.write('one')
+        with _writer as writer:
+          writer.write('two')
+
+  def test_child_error(self):
+    with pytest.raises(HdfsError):
+      def consumer(gen):
+        for value in gen:
+          if value == 'two':
+            raise HdfsError('Yo')
+      with AsyncWriter(consumer) as writer:
+        writer.write('one')
         writer.write('two')
 
-  @raises(HdfsError)
-  def test_child_error(self):
-    def consumer(gen):
-      for value in gen:
-        if value == 'two':
-          raise HdfsError('Yo')
-    with AsyncWriter(consumer) as writer:
-      writer.write('one')
-      writer.write('two')
-
-  @raises(HdfsError)
   def test_parent_error(self):
-    def consumer(gen):
-      for value in gen:
-        pass
-    def invalid(w):
-      w.write('one')
-      raise HdfsError('Ya')
-    with AsyncWriter(consumer) as writer:
-      invalid(writer)
+    with pytest.raises(HdfsError):
+      def consumer(gen):
+        for value in gen:
+          pass
+      def invalid(w):
+        w.write('one')
+        raise HdfsError('Ya')
+      with AsyncWriter(consumer) as writer:
+        invalid(writer)
 
 
 class TestTemppath(object):
 
   def test_new(self):
     with temppath() as tpath:
-      ok_(not osp.exists(tpath))
+      assert not osp.exists(tpath)
 
   def test_cleanup(self):
     with temppath() as tpath:
       with open(tpath, 'w') as writer:
         writer.write('hi')
-    ok_(not osp.exists(tpath))
+    assert not osp.exists(tpath)
 
   def test_dpath(self):
     with temppath() as dpath:
       os.mkdir(dpath)
       with temppath(dpath) as tpath:
-        eq_(osp.dirname(tpath), dpath)
+        assert osp.dirname(tpath) == dpath

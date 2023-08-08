@@ -5,12 +5,10 @@
 
 from hdfs.util import HdfsError, temppath
 from json import dumps, load, loads
-from nose.plugins.skip import SkipTest
-from nose.tools import eq_, ok_, raises
-from util import _IntegrationTest
+from test.util import _IntegrationTest
 import os
 import os.path as osp
-import sys
+import pytest
 
 try:
   from hdfs.ext.avro import (_SeekableReader, _SchemaInferrer, AvroReader,
@@ -24,9 +22,9 @@ else:
 
 class TestSeekableReader(object):
 
-  def setup(self):
+  def setup_method(self):
     if SKIP:
-      raise SkipTest
+      pytest.skip()
 
   def test_normal_read(self):
     with temppath() as tpath:
@@ -34,9 +32,9 @@ class TestSeekableReader(object):
         writer.write('abcd')
       with open(tpath) as reader:
         sreader = _SeekableReader(reader)
-        eq_(sreader.read(3), 'abc')
-        eq_(sreader.read(2), 'd')
-        ok_(not sreader.read(1))
+        assert sreader.read(3) == 'abc'
+        assert sreader.read(2) == 'd'
+        assert not sreader.read(1)
 
   def test_buffered_read(self):
     with temppath() as tpath:
@@ -44,23 +42,24 @@ class TestSeekableReader(object):
         writer.write('abcdefghi')
       with open(tpath) as reader:
         sreader = _SeekableReader(reader, 3)
-        eq_(sreader.read(1), 'a')
-        eq_(sreader.read(3), 'bcd')
+        assert sreader.read(1) == 'a'
+        assert sreader.read(3) == 'bcd'
         sreader.seek(-3, os.SEEK_CUR)
-        eq_(sreader.read(2), 'bc')
-        eq_(sreader.read(6), 'defghi')
-        ok_(not sreader.read(1))
+        assert sreader.read(2) == 'bc'
+        assert sreader.read(6) == 'defghi'
+        assert not sreader.read(1)
 
 
 class TestInferSchema(object):
 
-  def setup(self):
+  def setup_method(self):
     if SKIP:
-      raise SkipTest
+      pytest.skip()
+
 
   def test_array(self):
-    eq_(
-      _SchemaInferrer().infer({'foo': 1, 'bar': ['hello']}),
+    assert (
+      _SchemaInferrer().infer({'foo': 1, 'bar': ['hello']}) ==
       {
         'type': 'record',
         'name': '__Record1',
@@ -68,12 +67,11 @@ class TestInferSchema(object):
           {'type': {'type': 'array', 'items': 'string'}, 'name': 'bar'},
           {'type': 'int', 'name': 'foo'},
         ]
-      }
-    )
+      })
 
   def test_flat_record(self):
-    eq_(
-      _SchemaInferrer().infer({'foo': 1, 'bar': 'hello'}),
+    assert (
+      _SchemaInferrer().infer({'foo': 1, 'bar': 'hello'}) ==
       {
         'type': 'record',
         'name': '__Record1',
@@ -81,12 +79,11 @@ class TestInferSchema(object):
           {'type': 'string', 'name': 'bar'},
           {'type': 'int', 'name': 'foo'},
         ]
-      }
-    )
+      })
 
   def test_nested_record(self):
-    eq_(
-      _SchemaInferrer().infer({'foo': {'bax': 2}, 'bar': {'baz': 3}}),
+    assert (
+      _SchemaInferrer().infer({'foo': {'bax': 2}, 'bar': {'baz': 3}}) ==
       {
         'type': 'record',
         'name': '__Record1',
@@ -108,8 +105,7 @@ class TestInferSchema(object):
             'name': 'foo',
           },
         ]
-      }
-    )
+      })
 
 
 class _AvroIntegrationTest(_IntegrationTest):
@@ -146,12 +142,12 @@ class TestRead(_AvroIntegrationTest):
   def test_read(self):
     self.client.upload('weather.avro', osp.join(self.dpath, 'weather.avro'))
     with AvroReader(self.client, 'weather.avro') as reader:
-      eq_(list(reader), self.records)
+      assert list(reader) == self.records
 
   def test_read_with_same_schema(self):
     self.client.upload('w.avro', osp.join(self.dpath, 'weather.avro'))
     with AvroReader(self.client, 'w.avro', reader_schema=self.schema) as reader:
-      eq_(list(reader), self.records)
+      assert list(reader) == self.records
 
   def test_read_with_compatible_schema(self):
     self.client.upload('w.avro', osp.join(self.dpath, 'weather.avro'))
@@ -164,10 +160,9 @@ class TestRead(_AvroIntegrationTest):
       ],
     }
     with AvroReader(self.client, 'w.avro', reader_schema=schema) as reader:
-      eq_(
-        list(reader),
-        [{'temp': r['temp'], 'tag': ''} for r in self.records]
-      )
+      assert (
+        list(reader) ==
+        [{'temp': r['temp'], 'tag': ''} for r in self.records])
 
 
 class TestWriter(_AvroIntegrationTest):
@@ -183,10 +178,9 @@ class TestWriter(_AvroIntegrationTest):
         writer.write(record)
     with temppath() as tpath:
       self.client.download('weather.avro', tpath)
-      eq_(
-        self._get_data_bytes(osp.join(self.dpath, 'weather.avro')),
-        self._get_data_bytes(tpath)
-      )
+      assert (
+        self._get_data_bytes(osp.join(self.dpath, 'weather.avro')) ==
+        self._get_data_bytes(tpath))
 
   def test_write_in_multiple_blocks(self):
     writer = AvroWriter(
@@ -199,29 +193,29 @@ class TestWriter(_AvroIntegrationTest):
       for record in self.records:
         writer.write(record)
     with AvroReader(self.client, 'weather.avro') as reader:
-      eq_(list(reader), self.records)
+      assert list(reader) == self.records
 
   def test_write_empty(self):
     with AvroWriter(self.client, 'empty.avro', schema=self.schema):
       pass
     with AvroReader(self.client, 'empty.avro') as reader:
-      eq_(reader.schema, self.schema)
-      eq_(list(reader), [])
+      assert reader.schema == self.schema
+      assert list(reader) == []
 
-  @raises(HdfsError)
   def test_write_overwrite_error(self):
-    # To check that the background `AsyncWriter` thread doesn't hang.
-    self.client.makedirs('weather.avro')
-    with AvroWriter(self.client, 'weather.avro', schema=self.schema) as writer:
-      for record in self.records:
-        writer.write(record)
+    with pytest.raises(HdfsError):
+      # To check that the background `AsyncWriter` thread doesn't hang.
+      self.client.makedirs('weather.avro')
+      with AvroWriter(self.client, 'weather.avro', schema=self.schema) as writer:
+        for record in self.records:
+          writer.write(record)
 
   def test_infer_schema(self):
     with AvroWriter(self.client, 'weather.avro') as writer:
       for record in self.records:
         writer.write(record)
     with AvroReader(self.client, 'weather.avro') as reader:
-      eq_(list(reader), self.records)
+      assert list(reader) == self.records
 
 
 class TestMain(_AvroIntegrationTest):
@@ -233,7 +227,7 @@ class TestMain(_AvroIntegrationTest):
         main(['schema', 'weather.avro'], client=self.client, stdout=writer)
       with open(tpath) as reader:
         schema = load(reader)
-      eq_(self.schema, schema)
+      assert self.schema == schema
 
   def test_read(self):
     self.client.upload('weather.avro', osp.join(self.dpath, 'weather.avro'))
@@ -246,7 +240,7 @@ class TestMain(_AvroIntegrationTest):
         )
       with open(tpath) as reader:
         records = [loads(line) for line in reader]
-      eq_(records, self.records[:2])
+      assert records == self.records[:2]
 
   def test_read_part_file(self):
     data = {
@@ -266,7 +260,7 @@ class TestMain(_AvroIntegrationTest):
         )
       with open(tpath) as reader:
         records = [loads(line) for line in reader]
-      eq_(records, data['part-m-00001.avro'])
+      assert records == data['part-m-00001.avro']
 
   def test_write(self):
     with open(osp.join(self.dpath, 'weather.jsonl')) as reader:
@@ -281,10 +275,9 @@ class TestMain(_AvroIntegrationTest):
       )
     with temppath() as tpath:
       self.client.download('weather.avro', tpath)
-      eq_(
-        self._get_data_bytes(tpath),
-        self._get_data_bytes(osp.join(self.dpath, 'weather.avro'))
-      )
+      assert (
+        self._get_data_bytes(tpath) ==
+        self._get_data_bytes(osp.join(self.dpath, 'weather.avro')))
 
   def test_write_codec(self):
     with open(osp.join(self.dpath, 'weather.jsonl')) as reader:
@@ -300,8 +293,8 @@ class TestMain(_AvroIntegrationTest):
     # Correct content.
     with AvroReader(self.client, 'weather.avro') as reader:
       records = list(reader)
-    eq_(records, self.records)
+    assert records == self.records
     # Different size (might not be smaller, since very small file).
     compressed_size = self.client.content('weather.avro')['length']
     uncompressed_size = osp.getsize(osp.join(self.dpath, 'weather.avro'))
-    ok_(compressed_size != uncompressed_size)
+    assert compressed_size != uncompressed_size

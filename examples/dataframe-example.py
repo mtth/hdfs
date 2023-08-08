@@ -24,4 +24,4 @@ write_dataframe(client, 'data.avro', df, overwrite=True)
 _df = read_dataframe(client, 'data.avro')
 
 # The frames match!
-pd.util.testing.assert_frame_equal(df, _df)
+pd.testing.assert_frame_equal(df, _df)
