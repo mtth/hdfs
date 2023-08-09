@@ -202,7 +202,7 @@ class Client(object):
     :param method: HTTP verb.
     :param url: Url to send the request to.
     :param \*\*kwargs: Extra keyword arguments forwarded to the request
-      handler. If any `params` are defined, these will take precendence over
+      handler. If any `params` are defined, these will take precedence over
       the instance's defaults.
 
     """
@@ -1040,7 +1040,7 @@ class Client(object):
   def allow_snapshot(self, hdfs_path):
     """Allow snapshots for a remote folder.
 
-    :param hdfs_path: Remote path to a direcotry.  If `hdfs_path`
+    :param hdfs_path: Remote path to a directory.  If `hdfs_path`
       doesn't exist or does points to a normal file, an
       :class:`HdfsError` will be raised.  No-op if snapshotting is
       already allowed.
@@ -1052,7 +1052,7 @@ class Client(object):
   def disallow_snapshot(self, hdfs_path):
     """Disallow snapshots for a remote folder.
 
-    :param hdfs_path: Remote path to a direcotry.  If `hdfs_path`
+    :param hdfs_path: Remote path to a directory.  If `hdfs_path`
       doesn't exist, points to a normal file or there are some
       snapshots, an :class:`HdfsError` will be raised.
 
@@ -1065,7 +1065,7 @@ class Client(object):
   def create_snapshot(self, hdfs_path, snapshotname=None):
     """Create snapshot for a remote folder where it was allowed.
 
-    :param hdfs_path: Remote path to a direcotry.  If `hdfs_path`
+    :param hdfs_path: Remote path to a directory.  If `hdfs_path`
       doesn't exist, doesn't allow to create snapshot or points to a
       normal file, an :class:`HdfsError` will be raised.
     :param snapshotname snapshot name; if absent, name is generated
@@ -1080,7 +1080,7 @@ class Client(object):
   def delete_snapshot(self, hdfs_path, snapshotname):
     """Remove snapshot for a remote folder where it was allowed.
 
-    :param hdfs_path: Remote path to a direcotry.  If `hdfs_path` doesn't exist
+    :param hdfs_path: Remote path to a directory.  If `hdfs_path` doesn't exist
       or points to a normal file, an :class:`HdfsError` will be raised.
     :param snapshotname snapshot name; if it does not exist, an
       :class:`HdfsError` will be raised.
@@ -1092,7 +1092,7 @@ class Client(object):
   def rename_snapshot(self, hdfs_path, oldsnapshotname, snapshotname):
     """Rename snapshot for a remote folder.
 
-    :param hdfs_path: Remote path to a direcotry.  If `hdfs_path` doesn't exist
+    :param hdfs_path: Remote path to a directory.  If `hdfs_path` doesn't exist
       or points to a normal file, an :class:`HdfsError` will be raised.
     :param oldsnapshotname snapshot name; if it does not exist,
       an :class:`HdfsError` will be raised.
