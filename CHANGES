@@ -56,7 +56,7 @@ Breaking changes:
   Setting `chunk_size` to a positive value will make it return a generator 
   similar to the previous behavior.
 * Rename `Client.set_permissions` to `Client.set_permission` to make 
-  `permission` argument uniform across `Client` methods (alway singular, 
+  `permission` argument uniform across `Client` methods (always singular, 
   consistent with WebHDFS API).
 * `Client.parts` will now throw an error if called on a normal file.
 * Make most client attributes private (e.g. `cert`, `timeout`, etc.), except 
@@ -94,7 +94,7 @@ Version 1.4.0 (2015/07/24)
 Version 1.1.0 (2015/06/23)
 --------------------------
 
-* Rename Avro extention entry point to `hdfs-avro`.
+* Rename Avro extension entry point to `hdfs-avro`.
 
 
 Version 1.0.1 (2015/06/17)
