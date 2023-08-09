@@ -38,7 +38,7 @@ setup(
   author_email='mtth@apache.org',
   url='https://hdfscli.readthedocs.io',
   license='MIT',
-  packages=find_packages(),
+  packages=find_packages(exclude=['test*']),
   classifiers=[
     'Development Status :: 5 - Production/Stable',
     'Intended Audience :: Developers',
