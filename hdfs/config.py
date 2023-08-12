@@ -15,19 +15,25 @@ from functools import wraps
 from logging.handlers import TimedRotatingFileHandler
 from six.moves.configparser import ParsingError, RawConfigParser
 from tempfile import gettempdir
+import importlib.util
+import importlib.machinery
 import logging as lg
 import os
 import os.path as osp
 import sys
 
-try:
-  # Python 3.12 and above
-  from importlib import load_source
-except ImportError:
-  # Below Python 3.12
-  from imp import load_source
-
 _logger = lg.getLogger(__name__)
+
+
+def _load_source(modname, filename):
+  """Imitate the old imp.load_source() function, removed in Python 3.12"""
+  # Based on sample code in https://docs.python.org/3.12/whatsnew/3.12.html.
+  loader = importlib.machinery.SourceFileLoader(modname, filename)
+  spec = importlib.util.spec_from_file_location(modname, filename, loader=loader)
+  module = importlib.util.module_from_spec(spec)
+  sys.modules[module.__name__] = module
+  loader.exec_module(module)
+  return module
 
 
 class NullHandler(lg.Handler):
@@ -177,7 +183,7 @@ class Config(RawConfigParser):
 
 
     _load('modules', __import__)
-    _load('paths', lambda path: load_source(
+    _load('paths', lambda path: _load_source(
       osp.splitext(osp.basename(path))[0],
       path
     ))

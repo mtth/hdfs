@@ -4,18 +4,12 @@
 """Test that the examples run correctly."""
 
 from hdfs import Config
+from hdfs.config import _load_source
 from six import add_metaclass
 from test.util import _IntegrationTest
 import os
 import os.path as osp
 import pytest
-
-try:
-  # Python 3.12 and above
-  from importlib import load_source
-except ImportError:
-  # Below Python 3.12
-  from imp import load_source
 
 class _ExamplesType(type):
 
@@ -31,7 +25,7 @@ class _ExamplesType(type):
 
       def test(self):
         try:
-          load_source(module, fpath)
+          _load_source(module, fpath)
         except ImportError:
           # Unmet dependency.
           pytest.skip()
