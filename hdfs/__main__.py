@@ -6,7 +6,7 @@
 Usage:
   hdfscli [interactive] [-a ALIAS] [-v...]
   hdfscli download [-fsa ALIAS] [-v...] [-t THREADS] HDFS_PATH LOCAL_PATH
-  hdfscli upload [-sa ALIAS] [-v...] [-A | -f] [-t THREADS] LOCAL_PATH HDFS_PATH
+  hdfscli upload [-sa ALIAS] [-v...] [-A | -f] [-r REPLICATION] [-t THREADS] LOCAL_PATH HDFS_PATH
   hdfscli -L | -V | -h
 
 Commands:
@@ -36,12 +36,14 @@ Options:
                                 0 allocates a thread per file. [default: 0]
   -v --verbose                  Enable log output. Can be specified up to three
                                 times (increasing verbosity each time).
+  -r REPLICATION --replication=REPLICATION  Set the expected HDFS replication count [default: 3]
 
 Examples:
   hdfscli -a prod /user/foo
   hdfscli download features.avro dat/
   hdfscli download logs/1987-03-23 - >>logs
   hdfscli upload -f - data/weights.tsv <weights.tsv
+  hdfscli upload -f -r 1 - data/weights.tsv <weights.tsv
 
 HdfsCLI exits with return status 1 if an error occurred and 0 otherwise.
 
@@ -201,6 +203,7 @@ def main(argv=None, client=None):
   hdfs_path = args['HDFS_PATH']
   local_path = args['LOCAL_PATH']
   n_threads = parse_arg(args, '--threads', int)
+  replication_n = parse_arg(args, '--replication', int)
   force = args['--force']
   silent = args['--silent']
   if args['download']:
@@ -240,6 +243,7 @@ def main(argv=None, client=None):
         (line for line in sys.stdin), # Doesn't work with stdin.
         append=append,
         overwrite=force,
+        replication=replication_n,
       )
     else:
       if append:
@@ -260,6 +264,7 @@ def main(argv=None, client=None):
           overwrite=force,
           n_threads=n_threads,
           progress=progress,
+          replication=replication_n,
         )
   else:
     banner = (
