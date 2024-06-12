@@ -924,7 +924,7 @@ class Client(object):
     _logger.info('%r moved to trash at %r.', hdfs_path, dst_path)
     return True
 
-  def rename(self, hdfs_src_path, hdfs_dst_path):
+  def rename(self, hdfs_src_path, hdfs_dst_path, overwrite=False):
     """Move a file or folder.
 
     :param hdfs_src_path: Source path.
@@ -932,11 +932,14 @@ class Client(object):
       a directory, the source will be moved into it. If the path exists and is
       a file, or if a parent destination directory is missing, this method will
       raise an :class:`HdfsError`.
+    :param overwrite: overwrite the hdfs_dst_path if it already exists, rather
+      than raising an :class:`HdfsError`.
 
     """
     _logger.info('Renaming %r to %r.', hdfs_src_path, hdfs_dst_path)
     hdfs_dst_path = self.resolve(hdfs_dst_path)
-    res = self._rename(hdfs_src_path, destination=hdfs_dst_path)
+    kwargs = {"renameoptions": "overwrite"} if overwrite else {}
+    res = self._rename(hdfs_src_path, destination=hdfs_dst_path, **kwargs)
     if not res.json()['boolean']:
       raise HdfsError(
         'Unable to rename %r to %r.',
